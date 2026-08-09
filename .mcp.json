@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "flutterflow_ai": {
+      "type": "stdio",
+      "command": "dart",
+      "args": [
+        "run",
+        "/home/ari/Documents/Task/new_1/icoccha-new-mockup-9a6ing/.flutterflow/sdk/flutterflow_ai/mcp/server.dart",
+        "--dir",
+        "/home/ari/Documents/Task/new_1/icoccha-new-mockup-9a6ing"
+      ],
+      "env": {}
+    }
+  }
+}

@@ -1,0 +1,20 @@
+# FlutterFlow AI managed
+.env
+.flutterflow/.env
+.flutterflow/sdk/
+.flutterflow/runs.jsonl
+.flutterflow/history/
+.flutterflow/traces/
+.flutterflow/backups/
+.flutterflow/support/
+.flutterflow/workspace.json
+.flutterflow/last_run.json
+.flutterflow/recovery.json
+.flutterflow/plan.md
+.flutterflow/project_sdk_meta.json
+.flutterflow/generated_code_state.json
+generated_code/
+.ffai_staging/
+.dart_tool/
+.packages
+build/

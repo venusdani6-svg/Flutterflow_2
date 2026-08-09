@@ -1,0 +1,14 @@
+name: icoccha_new_mockup_9a6ing
+description: DSL-first FlutterFlow AI workspace.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.7.0 <4.0.0"
+
+dependencies:
+  flutterflow_ai:
+    path: ./.flutterflow/sdk/flutterflow_ai
+
+dev_dependencies:
+  test: ^1.25.8
