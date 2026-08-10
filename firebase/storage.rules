@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+    // Banner images are shown publicly in the app UI, so read is open like
+    // the `banners` Firestore collection; write is gated to any signed-in
+    // user (same leniency already accepted project-wide for Firestore's
+    // open-create pattern — true admin-only enforcement isn't done here,
+    // consistent with existing known debt, see PROJECT_KNOWLEDGE.md §18.36).
+    match /banners/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

@@ -1,0 +1,16 @@
+# Cloud Functions build artifacts and dependencies — never commit these
+# (package-lock.json IS committed once generated, for reproducible installs)
+functions/node_modules/
+functions/lib/
+
+# Secrets — never commit; set via `firebase functions:secrets:set` / functions config instead
+functions/.env
+functions/.env.*
+.env
+.env.*
+
+# Firebase CLI local state
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+ui-debug.log

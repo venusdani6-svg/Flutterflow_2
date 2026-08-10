@@ -1,0 +1,291 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Tier-5 hardening (2026-08-03, plan item 19): affiliator/referred-cast
+    // reward records, has `affiliator_uid`/`referred_uid` on every doc
+    // (confirmed live via schema.md + admin.ts/affiliate.ts/stripe-payments.ts/
+    // auth.ts, all Admin-SDK-only writers, no client-direct-write path found).
+    // Create is Cloud-Functions-only; read is owner-or-admin, same pattern as
+    // the 2026-07-31 Tier-4 pass.
+    match /affiliate_rewards/{document} {
+      allow create: if false;
+      allow read: if isAdmin()
+        || (isSignedIn() && (resource.data.affiliator_uid == request.auth.uid
+            || resource.data.referred_uid == request.auth.uid));
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    // Tier-5 hardening (2026-08-03, plan item 19): chat room metadata has a
+    // `participants` array (confirmed schema.md + reservations.ts, which
+    // creates every room via Admin SDK) - currently exposes who's chatting
+    // with whom to anyone unauthenticated. Read is participant-or-admin.
+    // Note: the `chat_rooms/{room_id}/messages` subcollection is NOT
+    // governed by this rule at all (Firestore rules aren't recursive) - it
+    // has no rule of its own either; flagged as a separate follow-up, not
+    // expanded into this pass.
+    match /chat_rooms/{document} {
+      allow create: if false;
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.participants.hasAny([request.auth.uid]));
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    // Tier-5 hardening (2026-08-03, plan item 19): confirmed a REAL,
+    // actively-used collection (6 operations in admin.ts - list/get/count/
+    // update/create/delete) distinct from the `cocomise` match block below,
+    // which protects nothing - "cocomise" is only ever used as an
+    // audit-log action/targetType string label in admin.ts, never an actual
+    // Firestore collection path. Guest-facing (ココ店, gated by
+    // `features_enabled.cocoten`), so read stays public like `banners`/
+    // `prefectures`; only create/update/delete are admin-gated.
+    match /cocoten_shops/{document} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Tier-5 hardening (2026-08-03, plan item 19): global app config
+    // (`/system_config/settings` - tax rate, thresholds, feature flags).
+    // Every confirmed reader in this backend is server-side (admin.ts,
+    // config.ts, both via Admin SDK, which bypasses these rules anyway) -
+    // no evidence found of a legitimate client-side read need, so tightened
+    // to admin-only like `ledger`/`stripe_logs` rather than assumed public.
+    // Mirrors the already-existing `system_settings` collection's pattern.
+    match /system_config/{document} {
+      allow read, write: if isAdmin();
+    }
+
+    // Tier-4 hardening (2026-07-31): financial ledger, has a `user_id`
+    // field on every doc (confirmed live) - Cloud Functions (Admin SDK,
+    // bypasses these rules entirely) are the only legitimate writer, so
+    // client create is blocked outright; read is owner-or-admin, matching
+    // the same pattern already used below for withdrawal_applications/
+    // kyc_reviews.
+    match /ledger/{document} {
+      allow create: if false;
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.user_id == request.auth.uid);
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    // Tier-4 hardening (2026-07-31): pure internal Stripe webhook log, no
+    // user-identifying field at all - written exclusively by
+    // stripe-webhooks.ts via Admin SDK. No legitimate client read or
+    // write of any kind.
+    match /stripe_logs/{document} {
+      allow create: if false;
+      allow read: if isAdmin();
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    // Tier-4 hardening (2026-07-31): cast/staff payout requests, has a
+    // `user_id` field on every doc (confirmed live via admin.ts's own
+    // adminGetPayoutRequests query and direct Firestore samples). Create
+    // is limited to the authenticated user requesting their own payout;
+    // read is owner-or-admin, same pattern as withdrawal_applications/
+    // kyc_reviews below. Status changes (approve/hold/reject) remain
+    // Cloud-Functions-only via the existing `write: false`.
+    match /payout_requests/{document} {
+      allow create: if isSignedIn()
+        && request.resource.data.user_id == request.auth.uid;
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.user_id == request.auth.uid);
+      allow write: if false;
+      allow delete: if false;
+    }
+
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function userDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function userDocExists() {
+      return isSignedIn() && exists(userDocPath());
+    }
+
+    function isAdmin() {
+      return userDocExists()
+        && get(userDocPath()).data.role_admin == 'admin';
+    }
+
+    function hasOnlyKeys(allowedKeys) {
+      return request.resource.data.keys().hasOnly(allowedKeys);
+    }
+
+    // ── users ────────────────────────────────────────────────────────────
+
+    match /users/{document} {
+      allow create: if request.auth.uid == document;
+      allow read: if request.auth.uid == document;
+      allow write: if request.auth.uid == document;
+      allow delete: if request.auth.uid == document;
+    }
+
+    // ── invitions ────────────────────────────────────────────────────────
+    // TODO: tighten create/read once invite flow moves to Cloud Functions
+    //
+    // Left untouched in the 2026-07-31 Tier-4 hardening pass, deliberately:
+    // zero backend (Cloud Function) references anywhere, zero documents
+    // in Firestore, and this TODO is the original team's own explicit
+    // precondition for tightening. There is no way to verify what field
+    // shape the (separate, main-app) invite flow actually writes without
+    // guessing - tightening blind risks breaking a live client flow this
+    // session cannot see or test.
+
+    match /invitions/{document} {
+      allow create: if true;
+      allow read: if true;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    // ── Admin-managed collections ────────────────────────────────────────
+
+    // Tier-5 hardening (2026-08-03, plan item 19): highest-risk of the 6 -
+    // `guest_id`/`cast_ids`/`staff_ids`, PaymentIntent IDs, amounts, and
+    // real addresses (confirmed schema.md), previously readable by anyone
+    // unauthenticated. `createReservation` (reservations.ts) is a Cloud
+    // Function (`onCall`) - no legitimate client-direct-create path exists,
+    // so create is blocked outright. Read is guest/cast/staff-on-this-
+    // reservation-or-admin.
+    match /reservations/{document} {
+      allow create: if false;
+      allow read: if isAdmin()
+        || (isSignedIn() && (resource.data.guest_id == request.auth.uid
+            || resource.data.cast_ids.hasAny([request.auth.uid])
+            || resource.data.staff_ids.hasAny([request.auth.uid])));
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /payment_ledger/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /withdrawal_applications/{docId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.user_id == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /kyc_reviews/{docId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.user_id == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Tier-4 hardening (2026-07-31): reports are filed by one user about
+    // another (reporter_id/reported_id, both confirmed live) and carry an
+    // admin_note field not meant for either party to see - kept
+    // admin-only for read (not reporter-readable) rather than exposing
+    // report status/notes to the filer, at least until a dedicated "my
+    // reports" UI is scoped as its own feature. Create is limited to the
+    // authenticated reporter filing on their own behalf.
+    match /reports/{document} {
+      allow create: if isSignedIn()
+        && request.resource.data.reporter_id == request.auth.uid;
+      allow read: if isAdmin();
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /affiliates/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /cocomise/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /job_board_posts/{docId} {
+      allow read: if isAdmin()
+        || (resource.data.status == 'published');
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Tier-5 hardening (2026-08-03, plan item 19): genuinely public
+    // promotional content (title/image_url/link_url/page/display_order) -
+    // read stays open, matching the already-proven `prefectures` pattern.
+    // Only create was ever wrong (anyone unauthenticated could inject
+    // banner documents) - tightened to admin-only, update/delete added
+    // (previously blocked outright by `write: false`, which the live
+    // バナー広告管理 CRUD needs).
+    match /banners/{document} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Tier-5 hardening (2026-08-03, plan item 19): added, not tightened -
+    // this collection had NO rule at all (confirmed absent from the live
+    // deployed ruleset, re-checked via unauthenticated REST call before
+    // assuming), which defaults to deny-all in Firestore. Confirmed real
+    // and in schema (`/schedule_slots/{slot_id}`, `cast_id` field) via
+    // schema.md + one live backend reference (stripe-payments.ts, the
+    // 30分ルール check). No admin-dashboard UI touches this collection
+    // today - this rule exists for the (out-of-this-repo) mobile app's
+    // "cast can only update their own ScheduleSlots" requirement (§17),
+    // not for anything this repo itself exercises.
+    match /schedule_slots/{document} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.cast_id == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.cast_id == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.cast_id == request.auth.uid);
+    }
+
+    match /system_settings/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Tier-4 hardening (2026-07-31): admin action audit trail - written
+    // exclusively by createAuditLog() in admin.ts via Admin SDK (bypasses
+    // these rules entirely), read exclusively by the admin dashboard's
+    // adminGetAuditLogs Cloud Function (also Admin SDK). No legitimate
+    // direct client read or write of any kind.
+    match /audit_logs/{document} {
+      allow create: if false;
+      allow read: if isAdmin();
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    // 2026-08-07: Stripe webhook idempotency ledger (§17.4 ⑮'s
+    // "ProcessedEvents") - written exclusively by stripe-webhooks.ts via
+    // Admin SDK (bypasses these rules entirely; this collection previously
+    // had no rule of its own at all, matching audit_logs' explicit
+    // lockdown now that adminGetProcessedEvents gives it a legitimate
+    // admin-facing read path). No legitimate direct client read or write -
+    // permanence is the whole point of this collection (no TTL is ever
+    // set on it, unlike stripe_logs' own 90-day TTL), so client delete is
+    // blocked outright same as audit_logs.
+    match /processed_events/{document} {
+      allow create: if false;
+      allow read: if isAdmin();
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /prefectures/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

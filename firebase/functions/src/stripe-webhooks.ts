@@ -1,0 +1,432 @@
+/**
+ * Stripe Webhook Handlers (冪等性管理)
+ * stripe_event_id + event_type で二重処理を完全に防止
+ */
+import { onRequest } from "firebase-functions/v2/https";
+import { db, stripe, FieldValue, Timestamp, stripeWebhookSecret } from "./config";
+import { recordCastRewardsAndProcessOthers } from "./stripe-payments";
+
+/** Sentinel thrown inside the idempotency transaction to signal "already processed" without treating it as a real error. */
+class AlreadyProcessedError extends Error {}
+
+/**
+ * HTTP Endpoint: Stripe Webhook receiver
+ */
+export const stripeWebhook = onRequest(async (req, res) => {
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+
+  let event: any;
+
+  if (stripeWebhookSecret) {
+    const sig = req.headers["stripe-signature"];
+    if (!sig) {
+      res.status(400).send("Missing stripe-signature header");
+      return;
+    }
+    try {
+      event = stripe.webhooks.constructEvent(req.rawBody, sig, stripeWebhookSecret);
+    } catch (err: any) {
+      console.error("Webhook signature verification failed:", err.message);
+      res.status(400).send(`Webhook Error: ${err.message}`);
+      return;
+    }
+  } else {
+    event = req.body;
+  }
+
+  const eventId = event.id;
+  const eventType = event.type;
+
+  console.log(`Webhook received: ${eventType} (${eventId})`);
+
+  // Idempotency: atomically reserve this event ID BEFORE any side effects.
+  //
+  // FIX (was a real bug): this used to be a bare `get()` here, with the
+  // actual `processed_events` write only happening at the very end, after
+  // stripe_logs/notifications/event-specific handling had already run. That
+  // left a wide race window open the entire time a webhook was processing -
+  // two near-simultaneous deliveries of the SAME event (Stripe's own
+  // at-least-once delivery model makes this a real, not just theoretical,
+  // case) could both pass the early `exists` check before either one
+  // reached the write at the end, and both would then run every side effect
+  // a second time (double stripe_logs rows, double notifications, double
+  // ledger/Transfer-triggering event handling).
+  //
+  // `transaction.create()` throws if the doc already exists, so wrapping
+  // the check-and-write in one transaction makes two concurrent invocations
+  // for the same event ID mutually exclusive: only one can ever succeed in
+  // creating the doc, and Firestore's optimistic-concurrency retry ensures
+  // the other sees it as already-existing rather than racing past it.
+  //
+  // Trade-off, accepted deliberately: this reserves the ID before, not
+  // after, processing succeeds - so if the event-specific handler below
+  // throws partway through, Stripe's retry of the same event will see this
+  // doc already exists and be treated as a duplicate (skipped), rather than
+  // retried. A genuine mid-processing crash is a much rarer failure mode
+  // than concurrent duplicate delivery, and every side effect in this file
+  // is itself either idempotent-by-construction (Firestore `update`s to the
+  // same fields) or already flows through `ledger`/reservation-status
+  // fields an admin can audit - so this trade favors closing the common,
+  // confirmed race over guaranteeing retry of the rare crash case.
+  const processedRef = db.collection("processed_events").doc(eventId);
+  try {
+    await db.runTransaction(async (tx) => {
+      const existing = await tx.get(processedRef);
+      if (existing.exists) {
+        throw new AlreadyProcessedError();
+      }
+      tx.create(processedRef, {
+        event_type: eventType,
+        processed_at: Timestamp.now(),
+      });
+    });
+  } catch (err) {
+    if (err instanceof AlreadyProcessedError) {
+      console.log(`Event ${eventId} already processed, skipping.`);
+      res.status(200).json({ received: true, duplicate: true });
+      return;
+    }
+    throw err;
+  }
+
+  // Log raw event
+  const ttlDate = new Date();
+  ttlDate.setDate(ttlDate.getDate() + 90);
+
+  await db.collection("stripe_logs").add({
+    stripe_event_id: eventId,
+    event_type: eventType,
+    res_id: event.data?.object?.metadata?.res_id || "",
+    raw_data: event.data?.object || {},
+    created_at: Timestamp.now(),
+    ttl: Timestamp.fromDate(ttlDate),
+  });
+
+  // Mirror to user notifications
+  try {
+    await mirrorStripeNotification(event);
+  } catch (err) {
+    console.error("Notification mirroring failed:", err);
+  }
+
+  // Event-specific handling
+  try {
+    switch (eventType) {
+      case "payment_intent.succeeded":
+        await handlePaymentIntentSucceeded(event.data.object);
+        break;
+      case "payment_intent.payment_failed":
+        await handlePaymentIntentFailed(event.data.object);
+        break;
+      case "payment_intent.canceled":
+        await handlePaymentIntentCanceled(event.data.object);
+        break;
+      case "payment_intent.amount_capturable_updated":
+        await handleAmountCapturableUpdated(event.data.object);
+        break;
+      case "transfer.created":
+        await handleTransferCreated(event.data.object);
+        break;
+      case "transfer.failed":
+        await handleTransferFailed(event.data.object);
+        break;
+      case "identity.verification_session.verified":
+        await handleIdentityVerified(event.data.object);
+        break;
+      case "identity.verification_session.requires_input":
+        await handleIdentityRequiresInput(event.data.object);
+        break;
+      case "account.updated":
+        await handleAccountUpdated(event.data.object);
+        break;
+      case "payout.paid":
+        await handlePayoutPaid(event.data.object);
+        break;
+      case "payout.failed":
+        await handlePayoutFailed(event.data.object);
+        break;
+      default:
+        console.log(`Unhandled event type: ${eventType}`);
+    }
+
+    // `processed_events` was already created upfront by the idempotency
+    // transaction at the top of this handler — no write needed here.
+    res.status(200).json({ received: true });
+  } catch (err: any) {
+    console.error(`Error processing webhook ${eventType}:`, err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+async function handlePaymentIntentSucceeded(paymentIntent: any): Promise<void> {
+  const resId = paymentIntent.metadata?.res_id;
+  if (!resId) return;
+
+  const resDoc = await db.collection("reservations").doc(resId).get();
+  if (!resDoc.exists) return;
+
+  const resData = resDoc.data()!;
+
+  if (paymentIntent.amount_received > 0 && paymentIntent.capture_method === "manual") {
+    console.log(`Payment captured for reservation ${resId}: ¥${paymentIntent.amount_received}`);
+
+    await db
+      .collection("users")
+      .doc(resData.guest_id)
+      .collection("notifications")
+      .add({
+        type: "stripe",
+        title: "決済が完了しました",
+        body: `¥${paymentIntent.amount_received.toLocaleString()} の決済が確定しました。`,
+        data: { res_id: resId, amount: paymentIntent.amount_received },
+        read: false,
+        created_at: Timestamp.now(),
+      });
+
+    // FIX (IMPLEMENTATION_PLAN.md §6 defect #7): the reservation-status
+    // transition, pair_history (30-min-rule) update, and cast-reward
+    // bookkeeping now happen HERE — driven by Stripe's own confirmation
+    // that the capture succeeded — instead of optimistically inside the
+    // `capturePayment` callable right after calling `.capture()`. Gated on
+    // `metadata.type` being absent because extension (`type: "extension"`)
+    // and tip (`type: "tip"`) PaymentIntents share this same webhook
+    // endpoint and the same `res_id` metadata key, but must NOT re-trigger
+    // the parent reservation's own capture side effects — only the main
+    // reservation PaymentIntent (created with no `type` metadata) should.
+    if (!paymentIntent.metadata?.type) {
+      await db.collection("reservations").doc(resId).update({
+        status: "review_pending",
+        last_capture_at: Timestamp.now(),
+        updated_at: Timestamp.now(),
+      });
+
+      if (resData.cast_ids) {
+        for (const castId of resData.cast_ids) {
+          const pairKey = `${resData.guest_id}_${castId}`;
+          await db.collection("pair_history").doc(pairKey).set(
+            {
+              pair_key: pairKey,
+              guest_id: resData.guest_id,
+              cast_id: castId,
+              last_capture_at: Timestamp.now(),
+              interaction_count: FieldValue.increment(1),
+            },
+            { merge: true }
+          );
+        }
+      }
+
+      await recordCastRewardsAndProcessOthers(resId, resData);
+    }
+  }
+}
+
+async function handlePaymentIntentFailed(paymentIntent: any): Promise<void> {
+  const resId = paymentIntent.metadata?.res_id;
+  if (!resId) return;
+
+  const resDoc = await db.collection("reservations").doc(resId).get();
+  if (!resDoc.exists) return;
+
+  const resData = resDoc.data()!;
+
+  await db.collection("reservations").doc(resId).update({
+    status: "cancelled",
+    cancel_reason: "決済に失敗しました",
+    updated_at: Timestamp.now(),
+  });
+
+  await db
+    .collection("users")
+    .doc(resData.guest_id)
+    .collection("notifications")
+    .add({
+      type: "stripe",
+      title: "決済に失敗しました",
+      body: "お支払いに問題が発生しました。支払い方法をご確認ください。",
+      data: { res_id: resId },
+      read: false,
+      created_at: Timestamp.now(),
+    });
+}
+
+async function handlePaymentIntentCanceled(paymentIntent: any): Promise<void> {
+  const resId = paymentIntent.metadata?.res_id;
+  if (!resId) return;
+  console.log(`Payment canceled for reservation ${resId}`);
+}
+
+async function handleAmountCapturableUpdated(paymentIntent: any): Promise<void> {
+  const resId = paymentIntent.metadata?.res_id;
+  if (!resId) return;
+
+  if (paymentIntent.amount_capturable > 0) {
+    console.log(`Authorization successful for ${resId}: ¥${paymentIntent.amount_capturable}`);
+
+    await db.collection("reservations").doc(resId).update({
+      status: "authorized",
+      updated_at: Timestamp.now(),
+    });
+  }
+}
+
+async function handleTransferCreated(transfer: any): Promise<void> {
+  const castUid = transfer.metadata?.cast_uid || transfer.metadata?.staff_uid;
+  const resId = transfer.metadata?.res_id;
+  const ledgerId = transfer.metadata?.ledger_id;
+
+  if (ledgerId) {
+    await db.collection("ledger").doc(ledgerId).update({
+      stripe_object_id: transfer.id,
+      stripe_event_id: transfer.id,
+      status: "confirmed",
+      processed: true,
+    });
+  }
+
+  console.log(`Transfer created: ${transfer.id} for ${castUid}, res ${resId}`);
+}
+
+async function handleTransferFailed(transfer: any): Promise<void> {
+  const ledgerId = transfer.metadata?.ledger_id;
+  const castUid = transfer.metadata?.cast_uid;
+
+  if (ledgerId) {
+    await db.collection("ledger").doc(ledgerId).update({
+      status: "failed",
+    });
+  }
+
+  console.error(`Transfer FAILED: ${transfer.id} for cast ${castUid}`);
+
+  const admins = await db.collection("users").where("role", "==", "admin").get();
+  const batch = db.batch();
+  admins.forEach((adminDoc) => {
+    const notifRef = db.collection("users").doc(adminDoc.id).collection("notifications").doc();
+    batch.set(notifRef, {
+      type: "admin",
+      title: "送金失敗アラート",
+      body: `Transfer ${transfer.id} が失敗しました。手動確認が必要です。`,
+      data: { transfer_id: transfer.id, cast_uid: castUid },
+      read: false,
+      created_at: Timestamp.now(),
+    });
+  });
+  await batch.commit();
+}
+
+async function handleIdentityVerified(session: any): Promise<void> {
+  const uid = session.metadata?.firebase_uid;
+  if (!uid) return;
+
+  await db.collection("users").doc(uid).update({
+    is_verified: true,
+    kyc_status: "approved",
+    updated_at: Timestamp.now(),
+  });
+
+  await db.collection("users").doc(uid).collection("notifications").add({
+    type: "stripe",
+    title: "本人確認が完了しました",
+    body: "本人確認が承認されました。すべての機能をご利用いただけます。",
+    data: {},
+    read: false,
+    created_at: Timestamp.now(),
+  });
+}
+
+async function handleIdentityRequiresInput(session: any): Promise<void> {
+  const uid = session.metadata?.firebase_uid;
+  if (!uid) return;
+
+  await db.collection("users").doc(uid).update({
+    kyc_status: "rejected",
+    updated_at: Timestamp.now(),
+  });
+
+  await db.collection("users").doc(uid).collection("notifications").add({
+    type: "stripe",
+    title: "本人確認に追加情報が必要です",
+    body: "本人確認書類に不備があります。再度ご提出ください。",
+    data: {},
+    read: false,
+    created_at: Timestamp.now(),
+  });
+}
+
+async function handleAccountUpdated(account: any): Promise<void> {
+  const uid = account.metadata?.firebase_uid;
+  if (!uid) return;
+
+  const isRestricted = account.requirements?.disabled_reason != null;
+
+  // FIX (was a real gap): this handler previously only ever sent a
+  // notification when restricted, with no field written back to `users` at
+  // all — meaning nothing was queryable, so the Home-ranking query (App
+  // Spec: an unverified/Restricted cast must be excluded from search
+  // results in real time) had no field to filter on. `is_stripe_restricted`
+  // is that field now, kept in sync on every account.updated delivery
+  // (including the transition back to false once requirements clear).
+  await db.collection("users").doc(uid).update({
+    is_stripe_restricted: isRestricted,
+    updated_at: Timestamp.now(),
+  });
+
+  if (isRestricted) {
+    await db.collection("users").doc(uid).collection("notifications").add({
+      type: "stripe",
+      title: "Stripeアカウントに要対応事項があります",
+      body: "本人確認またはアカウント情報の更新が必要です。",
+      data: { disabled_reason: account.requirements?.disabled_reason },
+      read: false,
+      created_at: Timestamp.now(),
+    });
+  }
+}
+
+async function handlePayoutPaid(payout: any): Promise<void> {
+  console.log(`Payout paid: ${payout.id}, amount: ${payout.amount}`);
+}
+
+async function handlePayoutFailed(payout: any): Promise<void> {
+  console.error(`Payout FAILED: ${payout.id}`);
+}
+
+async function mirrorStripeNotification(event: any): Promise<void> {
+  const obj = event.data?.object;
+  const metadata = obj?.metadata || {};
+
+  const targetUids: string[] = [];
+
+  if (metadata.guest_uid) targetUids.push(metadata.guest_uid);
+  if (metadata.cast_uid) targetUids.push(metadata.cast_uid);
+  if (metadata.staff_uid) targetUids.push(metadata.staff_uid);
+  if (metadata.firebase_uid) targetUids.push(metadata.firebase_uid);
+
+  if (targetUids.length === 0 && metadata.res_id) {
+    const resDoc = await db.collection("reservations").doc(metadata.res_id).get();
+    if (resDoc.exists) {
+      const resData = resDoc.data()!;
+      targetUids.push(resData.guest_id);
+      if (resData.cast_ids) targetUids.push(...resData.cast_ids);
+    }
+  }
+
+  for (const uid of targetUids) {
+    await db.collection("users").doc(uid).collection("notifications").add({
+      type: "stripe",
+      title: `Stripe: ${event.type}`,
+      body: JSON.stringify(obj).substring(0, 500),
+      data: {
+        stripe_event_id: event.id,
+        stripe_event_type: event.type,
+        raw: obj,
+      },
+      read: false,
+      created_at: Timestamp.now(),
+    });
+  }
+}
