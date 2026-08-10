@@ -370,8 +370,17 @@ async function handleAccountUpdated(account: any): Promise<void> {
   // results in real time) had no field to filter on. `is_stripe_restricted`
   // is that field now, kept in sync on every account.updated delivery
   // (including the transition back to false once requirements clear).
+  //
+  // Also mirrors charges_enabled/payouts_enabled/requirements_due — the
+  // same fields `submitConnectOnboarding` (auth.ts, §6 defect #5) writes
+  // right after a submission, kept current here too since Stripe's own
+  // review of submitted data (and any newly-due requirement) happens
+  // asynchronously, not only in direct response to our own API calls.
   await db.collection("users").doc(uid).update({
     is_stripe_restricted: isRestricted,
+    stripe_charges_enabled: account.charges_enabled ?? false,
+    stripe_payouts_enabled: account.payouts_enabled ?? false,
+    stripe_requirements_due: account.requirements?.currently_due || [],
     updated_at: Timestamp.now(),
   });
 

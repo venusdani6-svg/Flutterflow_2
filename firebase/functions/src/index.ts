@@ -25,6 +25,8 @@ setGlobalOptions({ region: "asia-northeast1", cpu: 0.5, maxInstances: 10 });
 export {
   onUserCreated,
   completeOnboarding,
+  submitConnectOnboarding,
+  getConnectAccountStatus,
   submitKYC,
   updateProfile,
   updateLastLogin,

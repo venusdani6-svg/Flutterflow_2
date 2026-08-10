@@ -49,6 +49,11 @@ Path: `/users/{uid}`
 | logical_debt | number | 論理負債 (円単位, integer) |
 | stripe_account_id | string | Stripe Connected Account ID |
 | stripe_customer_id | string | Stripe Customer ID (ゲスト用) |
+| is_stripe_restricted | boolean | Stripe Connectアカウントが `Restricted` 状態かどうか。`account.updated` Webhookが同期 (§6 defect #4) |
+| stripe_onboarding_submitted_at | timestamp | `submitConnectOnboarding` 呼び出し日時 (§6 defect #5) |
+| stripe_charges_enabled | boolean | Stripe `Account.charges_enabled` のミラー |
+| stripe_payouts_enabled | boolean | Stripe `Account.payouts_enabled` のミラー |
+| stripe_requirements_due | array\<string\> | Stripe `Account.requirements.currently_due` のミラー (アプリ内オンボーディングUIの進捗チェックリスト用) |
 | referred_by_uid | string | 紹介者のUID (登録時のみ設定、変更不可) |
 | affiliate_rate | number | アフィリエイト料率 (0.05 ~ 0.30) |
 | consent_at | timestamp | 規約同意日時 |

@@ -165,6 +165,49 @@ export const adminGetUsers = functionsV1
   return { success: true, users, count: users.length };
 });
 
+/**
+ * Forwards an already-uploaded KYC document (our own manual-review upload,
+ * not Stripe Identity — §6 defect #6) to Stripe as the connected account's
+ * identity_document, so admin approval also feeds Stripe's own Custom
+ * Connect verification instead of leaving it with no document at all.
+ * Without this, a JP individual Custom account can submit every other
+ * onboarding field (§6 defect #5's `submitConnectOnboarding`) and still
+ * never reach `payouts_enabled` — Stripe's own verification requires a
+ * document, unrelated to our internal `kyc_status`/`approval_status`.
+ * Best-effort: failures are logged, not thrown — admin approval of the
+ * user account must not fail because of a downstream Stripe hiccup, and
+ * `requirements_due` (already mirrored via `account.updated`/
+ * `submitConnectOnboarding`) will keep showing the document as missing so
+ * it's visible, not silently lost.
+ */
+async function forwardKycDocumentToStripe(stripeAccountId: string, docUrl: string): Promise<void> {
+  const response = await fetch(docUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to download KYC document (${response.status})`);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  const file = await stripe.files.create(
+    {
+      purpose: "identity_document",
+      file: {
+        data: buffer,
+        name: "kyc_document",
+        type: "application/octet-stream",
+      },
+    },
+    { stripeAccount: stripeAccountId }
+  );
+
+  await stripe.accounts.update(stripeAccountId, {
+    individual: {
+      verification: {
+        document: { front: file.id },
+      },
+    },
+  });
+}
+
 export const adminApproveKYC = onCall(async (request) => {
   await verifyAdmin(request);
 
@@ -183,6 +226,17 @@ export const adminApproveKYC = onCall(async (request) => {
     is_verified: approved,
     updated_at: Timestamp.now(),
   });
+
+  if (approved) {
+    const userData = (await db.collection("users").doc(user_id).get()).data();
+    if (userData?.account_type === "cast" && userData?.stripe_account_id && userData?.kyc_doc_url) {
+      try {
+        await forwardKycDocumentToStripe(userData.stripe_account_id, userData.kyc_doc_url);
+      } catch (err) {
+        console.error(`Failed to forward KYC document to Stripe for ${user_id}:`, err);
+      }
+    }
+  }
 
   await db.collection("users").doc(user_id).collection("notifications").add({
     type: "admin",

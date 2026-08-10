@@ -175,6 +175,213 @@ export const completeOnboarding = onCall(async (request) => {
 });
 
 /**
+ * Callable: Submit Custom Connect onboarding data (individual info, ToS
+ * acceptance, bank account).
+ *
+ * FIX (IMPLEMENTATION_PLAN.md §6 defect #5): `completeOnboarding` above
+ * only ever called `stripe.accounts.create()` — an account created that
+ * way sits permanently `restricted` with no way to ever receive a
+ * Transfer, since Stripe never received the individual/ToS/bank data it
+ * requires. This callable is the real onboarding entry point.
+ *
+ * Deliberately NOT a Stripe-hosted AccountLink redirect: the client
+ * confirmed Connect account type Custom specifically so this data is
+ * collected inside the app (IMPLEMENTATION_PLAN.md §3.9 item 3, "the full
+ * Stripe mirroring UX... built inside the app rather than redirecting to
+ * a Stripe-hosted dashboard"). The response mirrors Stripe's own live
+ * `requirements` back to the caller so the UI can render a real-time
+ * checklist instead of guessing what Stripe still needs.
+ *
+ * Stripeアカウント本人情報・口座情報の登録
+ */
+export const submitConnectOnboarding = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const uid = request.auth.uid;
+  const userDoc = await db.collection("users").doc(uid).get();
+  const userData = userDoc.data();
+
+  if (!userData || userData.account_type !== "cast") {
+    throw new HttpsError(
+      "failed-precondition",
+      "キャストアカウントのみ利用できます。"
+    );
+  }
+  if (!userData.stripe_account_id) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Stripeアカウントが未作成です。オンボーディングを完了してください。"
+    );
+  }
+
+  const { individual, bank_account, tos_accepted } = request.data;
+
+  if (!tos_accepted) {
+    throw new HttpsError("invalid-argument", "利用規約への同意が必要です。");
+  }
+  if (
+    !individual?.first_name ||
+    !individual?.last_name ||
+    !individual?.first_name_kana ||
+    !individual?.last_name_kana ||
+    !individual?.dob?.day ||
+    !individual?.dob?.month ||
+    !individual?.dob?.year ||
+    !individual?.phone ||
+    !individual?.address?.postal_code ||
+    !individual?.address?.line1 ||
+    !individual?.address?.city ||
+    !individual?.address?.state
+  ) {
+    throw new HttpsError("invalid-argument", "本人情報が不足しています。");
+  }
+
+  const accountId = userData.stripe_account_id;
+
+  try {
+    await stripe.accounts.update(accountId, {
+      business_type: "individual",
+      individual: {
+        first_name: individual.first_name,
+        last_name: individual.last_name,
+        first_name_kana: individual.first_name_kana,
+        last_name_kana: individual.last_name_kana,
+        first_name_kanji: individual.first_name_kanji || undefined,
+        last_name_kanji: individual.last_name_kanji || undefined,
+        email: individual.email || request.auth.token.email || undefined,
+        phone: individual.phone,
+        gender: individual.gender || undefined,
+        dob: {
+          day: individual.dob.day,
+          month: individual.dob.month,
+          year: individual.dob.year,
+        },
+        address_kanji: {
+          postal_code: individual.address.postal_code,
+          state: individual.address.state,
+          city: individual.address.city,
+          town: individual.address.town || undefined,
+          line1: individual.address.line1,
+          line2: individual.address.line2 || undefined,
+        },
+        address_kana: individual.address_kana
+          ? {
+              postal_code: individual.address_kana.postal_code,
+              state: individual.address_kana.state,
+              city: individual.address_kana.city,
+              town: individual.address_kana.town || undefined,
+              line1: individual.address_kana.line1,
+              line2: individual.address_kana.line2 || undefined,
+            }
+          : undefined,
+      },
+      tos_acceptance: {
+        date: Math.floor(Date.now() / 1000),
+        ip: request.rawRequest?.ip || "0.0.0.0",
+      },
+    });
+  } catch (err: any) {
+    console.error("Stripe individual/ToS update failed:", err);
+    throw new HttpsError(
+      "invalid-argument",
+      `本人情報の登録に失敗しました: ${err.message || err}`
+    );
+  }
+
+  // Bank attachment is a separate Stripe call (its own endpoint, its own
+  // error surface) so a bad bank number doesn't block the personal-info
+  // half that just succeeded above — partial progress is the point of the
+  // requirements-mirroring design, not an error state.
+  let bankAccountError: string | null = null;
+  if (bank_account) {
+    const { account_holder_name, bank_code, branch_code, account_number, account_type } = bank_account;
+    if (!account_holder_name || !bank_code || !branch_code || !account_number) {
+      bankAccountError = "口座情報が不足しています。";
+    } else {
+      try {
+        await stripe.accounts.createExternalAccount(accountId, {
+          external_account: {
+            object: "bank_account",
+            country: "JP",
+            currency: "jpy",
+            account_holder_name,
+            account_number,
+            // Japan has no separate routing-number field on the bank UI
+            // side — Stripe's JP external accounts encode it as the
+            // 4-digit bank code + 3-digit branch code concatenated.
+            routing_number: `${bank_code}${branch_code}`,
+            ...(account_type ? { account_type } : {}),
+          },
+        });
+      } catch (err: any) {
+        console.error("Stripe bank account attach failed:", err);
+        bankAccountError = err.message || "口座情報の登録に失敗しました。";
+      }
+    }
+  }
+
+  // Re-fetch so the response reflects Stripe's own current view (its
+  // `requirements` can change based on what the two calls above actually
+  // satisfied), not just an optimistic assumption about what was sent.
+  const account = await stripe.accounts.retrieve(accountId);
+  const chargesEnabled = account.charges_enabled ?? false;
+  const payoutsEnabled = account.payouts_enabled ?? false;
+  const requirementsDue = account.requirements?.currently_due || [];
+  const isRestricted = account.requirements?.disabled_reason != null;
+
+  await db.collection("users").doc(uid).update({
+    stripe_onboarding_submitted_at: Timestamp.now(),
+    stripe_charges_enabled: chargesEnabled,
+    stripe_payouts_enabled: payoutsEnabled,
+    stripe_requirements_due: requirementsDue,
+    is_stripe_restricted: isRestricted,
+    updated_at: Timestamp.now(),
+  });
+
+  return {
+    success: true,
+    bank_account_error: bankAccountError,
+    charges_enabled: chargesEnabled,
+    payouts_enabled: payoutsEnabled,
+    requirements_due: requirementsDue,
+    requirements_eventually_due: account.requirements?.eventually_due || [],
+    disabled_reason: account.requirements?.disabled_reason || null,
+  };
+});
+
+/**
+ * Callable: Read the connected account's live Stripe requirements — powers
+ * an in-app onboarding checklist without redirecting to a Stripe-hosted
+ * page. Read-only; `users.stripe_*` mirror fields are written by
+ * `submitConnectOnboarding` and the `account.updated` webhook instead.
+ * Stripeアカウント状況取得
+ */
+export const getConnectAccountStatus = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const userDoc = await db.collection("users").doc(request.auth.uid).get();
+  const userData = userDoc.data();
+
+  if (!userData?.stripe_account_id) {
+    throw new HttpsError("failed-precondition", "Stripeアカウントが未作成です。");
+  }
+
+  const account = await stripe.accounts.retrieve(userData.stripe_account_id);
+
+  return {
+    charges_enabled: account.charges_enabled,
+    payouts_enabled: account.payouts_enabled,
+    requirements_due: account.requirements?.currently_due || [],
+    requirements_eventually_due: account.requirements?.eventually_due || [],
+    disabled_reason: account.requirements?.disabled_reason || null,
+  };
+});
+
+/**
  * Callable: Submit KYC documents
  * 本人確認書類の提出
  */
