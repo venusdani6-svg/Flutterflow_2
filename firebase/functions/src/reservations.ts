@@ -303,10 +303,41 @@ export const reportCompletion = onCall(async (request) => {
     throw new HttpsError("permission-denied", "キャストのみ完了報告が可能です。");
   }
 
+  if (resData.status !== "in_progress") {
+    throw new HttpsError(
+      "failed-precondition",
+      "この予約は完了報告できる状態ではありません。"
+    );
+  }
+
   await db.collection("reservations").doc(res_id).update({
     status: "completion_pending",
     updated_at: Timestamp.now(),
   });
+
+  // FIX (IMPLEMENTATION_PLAN.md §6 defect #8): §3.5's own state-6 entry
+  // trigger is literally "cast completion report triggers Capture" - the
+  // reference tree set `completion_pending` above and then never called
+  // Capture at all, so a reservation could sit here forever with nothing
+  // to retry it. Trigger Capture right here, in the same flow, instead of
+  // leaving it to chance. This does NOT flip status to `review_pending`
+  // itself - that transition stays webhook-driven (§6 defect #7's
+  // `handlePaymentIntentSucceeded`), so a Capture that succeeds here only
+  // takes effect once Stripe confirms it. If the Capture call itself
+  // fails (network error, PI already in a bad state), it's caught and
+  // logged, not thrown - the cast's completion report must not fail
+  // because of a downstream Stripe issue, and the reservation stays
+  // visible at `completion_pending` for `autoCompleteReviews`'s
+  // safety-net retry below to pick up.
+  if (resData.payment_intent_id) {
+    try {
+      await stripe.paymentIntents.capture(resData.payment_intent_id);
+    } catch (err) {
+      console.error(`Capture-on-completion-report failed for ${res_id}:`, err);
+    }
+  } else {
+    console.error(`Reservation ${res_id} reached completion_pending with no payment_intent_id.`);
+  }
 
   await db
     .collection("users")
@@ -457,13 +488,18 @@ export const autoCancelExpiredAuth = onSchedule("every 1 hours", async () => {
  *   behavior preserved — marks the reservation `completed` in addition
  *   to closing chat, just with the timeout now admin-configurable
  *   instead of a hardcoded 24h.
- * - `completion_pending` (cast reported completion, capture never
- *   happened): NEW coverage. Closes chat only — does NOT touch
- *   reservation/payment status. A capture that never happens is a
- *   separate, pre-existing gap (not covered by `autoCancelExpiredAuth`
- *   either, which only handles `authorized`/`cast_pending`) — out of
- *   scope here; only the chat's own "won't stay open forever" promise
- *   from the App Spec is being honored.
+ * - `completion_pending` (cast reported completion; Capture should have
+ *   already fired inline from `reportCompletion` — see that function's
+ *   own comment on §6 defect #8). FIX (§6 defect #8): this block used to
+ *   close chat only and explicitly leave the missing-Capture gap
+ *   unaddressed ("out of scope here"). It's no longer out of scope: a
+ *   reservation still sitting here past the timeout means the inline
+ *   attempt either never ran (a crash between the status write and the
+ *   Capture call) or failed (a transient Stripe error) — this is the
+ *   retry safety net for exactly that case, reusing `chat_close_sec` as
+ *   the stall timeout since no dedicated config value exists for this.
+ *   Still doesn't touch reservation status itself either way — that stays
+ *   webhook-driven per §6 defect #7, same as the inline attempt.
  */
 export const autoCompleteReviews = onSchedule("every 1 hours", async () => {
   const config = await getSystemConfig();
@@ -511,9 +547,24 @@ export const autoCompleteReviews = onSchedule("every 1 hours", async () => {
     .get();
 
   for (const doc of completionPending.docs) {
+    const resData = doc.data();
     console.log(
-      `Auto-closing chat for stalled completion_pending reservation (chat_close_sec=${chatCloseSec}): ${doc.id}`
+      `Stalled completion_pending reservation (chat_close_sec=${chatCloseSec}): ${doc.id}`
     );
+
+    if (resData.payment_intent_id) {
+      try {
+        await stripe.paymentIntents.capture(resData.payment_intent_id);
+        console.log(`Retry-captured stalled reservation: ${doc.id}`);
+      } catch (err) {
+        console.error(`Retry capture failed for stalled reservation ${doc.id}:`, err);
+      }
+    } else {
+      console.error(
+        `Stalled completion_pending reservation ${doc.id} has no payment_intent_id — cannot capture, needs manual admin review.`
+      );
+    }
+
     await closeChatRoomsFor(doc.id);
   }
 });
