@@ -19,6 +19,18 @@ final class KycParams {
 
 final class KycState {
   const KycState();
+  ffai.ProjectStateFieldHandle get kycDocUrl =>
+      const ffai.ProjectStateFieldHandle(
+        name: "kycDocUrl",
+        key: "8ah31fza",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get kycSelfieUrl =>
+      const ffai.ProjectStateFieldHandle(
+        name: "kycSelfieUrl",
+        key: "okiziqhh",
+        typeName: "String",
+      );
 }
 
 abstract final class KycWidgets {
@@ -94,6 +106,9 @@ abstract final class KycWidgets {
                     key: "Card_zea5062c",
                     type: "Card",
                     path: "Kyc.body[0].children[0].children[1]",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Container_a6ao8mvb",
@@ -139,6 +154,9 @@ abstract final class KycWidgets {
                     key: "Card_mrn1fobu",
                     type: "Card",
                     path: "Kyc.body[0].children[0].children[2]",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Container_zjx8ggz4",
@@ -220,6 +238,16 @@ abstract final class KycWidgets {
                     key: "Divider_r0a3brb1",
                     type: "Divider",
                     path: "Kyc.body[0].children[0].children[7]",
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Button_zarp9j5y",
+                    type: "Button",
+                    path: "Kyc.body[0].children[0].children[8]",
+                    name: "KycSubmitButton",
+                    text: "提出する",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                   ),
                 ],
               ),

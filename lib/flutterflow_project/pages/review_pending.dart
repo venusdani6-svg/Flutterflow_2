@@ -28,6 +28,9 @@ abstract final class ReviewPendingWidgets {
       type: "Scaffold",
       path: "ReviewPending",
       name: "ReviewPending",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(

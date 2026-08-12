@@ -541,6 +541,14 @@ async function processAffiliateRewards(
 
     if (!referrerData || !referrerData.is_active || referrerData.is_frozen) continue;
 
+    // Mutual-approval hard rule (IMPLEMENTATION_PLAN.md §3.7.12): reward only
+    // accrues for periods where BOTH the referrer and the referred cast are
+    // simultaneously approval_status == "approved". A frozen/not-yet-approved
+    // referrer, or a not-yet-approved referred cast, must not accrue reward
+    // for this reservation.
+    if (referrerData.approval_status !== "approved") continue;
+    if (castData.approval_status !== "approved") continue;
+
     const baseForAffiliate = resData.total_amount - transportFee;
     const affiliateRate = referrerData.affiliate_rate || config.default_affiliate_rate;
     const rewardAmount = Math.floor(baseForAffiliate * affiliateRate);
@@ -1075,4 +1083,50 @@ export const requestPayout = onCall(async (request) => {
   await batch.commit();
 
   return { success: true, message: "出金申請を受け付けました。運営の承認をお待ちください。" };
+});
+
+/**
+ * Callable: Get my Stripe Connect wallet balance (ウォレット残高取得)
+ * §3.7.9 - "no separate ledger UI drift allowed - must reflect Stripe truth,
+ * not a locally cached copy." Live `stripe.balance.retrieve` every call,
+ * same scoping (`stripeAccount: userData.stripe_account_id`) already proven
+ * correct in `requestPayout` above - never cached/stored in Firestore.
+ * Transaction HISTORY is deliberately NOT duplicated here - the `ledger`
+ * collection is this project's own authoritative record of what happened
+ * (not a cache of Stripe's own data, a separately-written record with
+ * readable `type`/`res_id` context Stripe's raw balance-transaction objects
+ * don't have), and its Firestore rule (`user_id == request.auth.uid`) is
+ * already content-based and provably satisfiable client-side - querying it
+ * directly from `WalletPage` avoids a redundant server round-trip for data
+ * a direct client read can already serve safely.
+ */
+export const getWalletBalance = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const userDoc = await db.collection("users").doc(request.auth.uid).get();
+  const userData = userDoc.data();
+
+  if (!userData) {
+    throw new HttpsError("not-found", "ユーザーが見つかりません。");
+  }
+
+  if (!userData.stripe_account_id) {
+    return { success: true, available: 0, pending: 0, has_stripe_account: false };
+  }
+
+  try {
+    const balance = await stripe.balance.retrieve({
+      stripeAccount: userData.stripe_account_id,
+    });
+
+    const available = balance.available.find((b) => b.currency === "jpy")?.amount || 0;
+    const pending = balance.pending.find((b) => b.currency === "jpy")?.amount || 0;
+
+    return { success: true, available, pending, has_stripe_account: true };
+  } catch (err: any) {
+    console.error(`getWalletBalance failed for ${request.auth.uid}:`, err);
+    throw new HttpsError("internal", `残高の取得に失敗しました: ${err.message}`);
+  }
 });

@@ -1,0 +1,1745 @@
+{
+  "name": "MacchaChats",
+  "node": {
+    "key": "Scaffold_x6lf2wag",
+    "children": [
+      {
+        "key": "Container_un0xb067",
+        "children": [
+          {
+            "key": "Column_e9kwqcdq",
+            "children": [
+              {
+                "key": "Card_klhzk0l1",
+                "children": [
+                  {
+                    "key": "Container_csa6zz07",
+                    "children": [
+                      {
+                        "key": "Row_xuyify4c",
+                        "children": [
+                          {
+                            "key": "Container_tgliisbh",
+                            "children": [
+                              {
+                                "key": "CircleImage_icxkap1q",
+                                "type": "CircleImage",
+                                "props": {
+                                  "image": {
+                                    "type": "FF_IMAGE_TYPE_ASSET",
+                                    "fit": "FF_BOX_FIT_COVER",
+                                    "dimensions": {
+                                      "width": {
+                                        "pixelsValue": {
+                                          "inputValue": 40
+                                        }
+                                      },
+                                      "height": {
+                                        "pixelsValue": {
+                                          "inputValue": 200
+                                        }
+                                      }
+                                    },
+                                    "cacheFadeDuration": 500,
+                                    "pathValue": {
+                                      "inputValue": "projects/icoccha-new-mockup-9a6ing/assets/voisjd6jo4hj/icoccha_noimage.png"
+                                    }
+                                  }
+                                }
+                              }
+                            ],
+                            "type": "Container",
+                            "props": {
+                              "container": {
+                                "dimensions": {
+                                  "width": {
+                                    "pixelsValue": {
+                                      "inputValue": 40
+                                    }
+                                  },
+                                  "height": {
+                                    "pixelsValue": {
+                                      "inputValue": 100
+                                    }
+                                  }
+                                },
+                                "boxDecoration": {
+                                  "boxShape": "FF_BOX_SHAPE_CIRCLE",
+                                  "boxShadow": {},
+                                  "image": {},
+                                  "colorValue": {
+                                    "inputValue": {
+                                      "themeColor": "SECONDARY_BACKGROUND"
+                                    }
+                                  },
+                                  "borderColorValue": {
+                                    "inputValue": {
+                                      "themeColor": "PRIMARY_TEXT"
+                                    }
+                                  }
+                                },
+                                "animationDurationValue": {
+                                  "inputValue": 100
+                                }
+                              },
+                              "padding": {
+                                "leftValue": {
+                                  "inputValue": 8
+                                },
+                                "animatedPadding": {}
+                              },
+                              "responsiveVisibility": {},
+                              "opacity": {
+                                "opacityValue": {
+                                  "inputValue": 1
+                                },
+                                "animatedOpacity": {}
+                              },
+                              "animatedAlignment": {}
+                            },
+                            "valueKey": {}
+                          },
+                          {
+                            "key": "Text_xy2lnok8",
+                            "type": "Text",
+                            "props": {
+                              "text": {
+                                "themeStyle": "BODY_MEDIUM",
+                                "selectable": false,
+                                "textValue": {
+                                  "inputValue": "ゲスト"
+                                },
+                                "fontSizeValue": {
+                                  "inputValue": 10
+                                },
+                                "fontWeightValue": {
+                                  "inputValue": "w500"
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "key": "Icon_leq2e03r",
+                            "type": "Icon",
+                            "props": {
+                              "icon": {
+                                "sizeValue": {
+                                  "inputValue": 16
+                                },
+                                "colorValue": {
+                                  "inputValue": {
+                                    "themeColor": "PRIMARY"
+                                  }
+                                },
+                                "iconDataValue": {
+                                  "inputValue": {
+                                    "codePoint": 58917,
+                                    "family": "MaterialIcons",
+                                    "matchTextDirection": false,
+                                    "name": "swap_horiz"
+                                  }
+                                }
+                              },
+                              "padding": {
+                                "animatedPadding": {}
+                              },
+                              "responsiveVisibility": {},
+                              "opacity": {
+                                "opacityValue": {
+                                  "inputValue": 1
+                                },
+                                "animatedOpacity": {}
+                              },
+                              "animatedAlignment": {}
+                            },
+                            "valueKey": {}
+                          },
+                          {
+                            "key": "Container_ric3y3ea",
+                            "children": [
+                              {
+                                "key": "CircleImage_i92wz4ne",
+                                "type": "CircleImage",
+                                "props": {
+                                  "image": {
+                                    "type": "FF_IMAGE_TYPE_ASSET",
+                                    "fit": "FF_BOX_FIT_COVER",
+                                    "dimensions": {
+                                      "width": {
+                                        "pixelsValue": {
+                                          "inputValue": 40
+                                        }
+                                      },
+                                      "height": {
+                                        "pixelsValue": {
+                                          "inputValue": 200
+                                        }
+                                      }
+                                    },
+                                    "cacheFadeDuration": 500,
+                                    "pathValue": {
+                                      "inputValue": "projects/icoccha-new-mockup-9a6ing/assets/ely6p9gi1zwk/image0_(1).jpeg"
+                                    }
+                                  }
+                                }
+                              }
+                            ],
+                            "type": "Container",
+                            "props": {
+                              "container": {
+                                "dimensions": {
+                                  "width": {
+                                    "pixelsValue": {
+                                      "inputValue": 40
+                                    }
+                                  },
+                                  "height": {
+                                    "pixelsValue": {
+                                      "inputValue": 100
+                                    }
+                                  }
+                                },
+                                "boxDecoration": {
+                                  "boxShape": "FF_BOX_SHAPE_CIRCLE",
+                                  "colorValue": {
+                                    "inputValue": {
+                                      "themeColor": "SECONDARY_BACKGROUND"
+                                    }
+                                  },
+                                  "borderColorValue": {
+                                    "inputValue": {
+                                      "themeColor": "PRIMARY_TEXT"
+                                    }
+                                  }
+                                },
+                                "animationDurationValue": {
+                                  "inputValue": 100
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "key": "Text_xyrrvoiq",
+                            "type": "Text",
+                            "props": {
+                              "text": {
+                                "themeStyle": "BODY_MEDIUM",
+                                "selectable": false,
+                                "textValue": {
+                                  "inputValue": "キャスト"
+                                },
+                                "fontSizeValue": {
+                                  "inputValue": 10
+                                },
+                                "fontWeightValue": {
+                                  "inputValue": "w500"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "type": "Row",
+                        "props": {
+                          "row": {
+                            "mainAxisAlignment": "main_axis_space_evenly",
+                            "listSpacing": {
+                              "applyStartEndSpace": true,
+                              "spacingValue": {
+                                "inputValue": 8
+                              }
+                            }
+                          },
+                          "padding": {
+                            "animatedPadding": {}
+                          },
+                          "responsiveVisibility": {},
+                          "opacity": {
+                            "opacityValue": {
+                              "inputValue": 1
+                            },
+                            "animatedOpacity": {}
+                          },
+                          "animatedAlignment": {}
+                        },
+                        "valueKey": {}
+                      }
+                    ],
+                    "type": "Container",
+                    "props": {
+                      "container": {
+                        "dimensions": {
+                          "width": {
+                            "pixelsValue": {
+                              "inputValue": "Infinity"
+                            }
+                          },
+                          "height": {
+                            "pixelsValue": {
+                              "inputValue": 70
+                            }
+                          }
+                        },
+                        "boxDecoration": {}
+                      },
+                      "padding": {
+                        "animatedPadding": {}
+                      }
+                    }
+                  }
+                ],
+                "type": "Card",
+                "props": {
+                  "card": {
+                    "borderRadius": {
+                      "type": "FF_BORDER_RADIUS_ALL",
+                      "allValue": {
+                        "inputValue": 8
+                      }
+                    },
+                    "elevationValue": {
+                      "inputValue": 0.5
+                    },
+                    "colorValue": {
+                      "inputValue": {
+                        "themeColor": "PRIMARY_BACKGROUND"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "key": "Container_ecoxe99x",
+                "children": [
+                  {
+                    "key": "Text_qm034hl4",
+                    "type": "Text",
+                    "props": {
+                      "text": {
+                        "themeStyle": "BODY_MEDIUM",
+                        "selectable": false,
+                        "textValue": {
+                          "inputValue": "マッチャ"
+                        },
+                        "fontSizeValue": {
+                          "inputValue": 12
+                        },
+                        "colorValue": {
+                          "inputValue": {
+                            "themeColor": "SECONDARY_BACKGROUND"
+                          }
+                        },
+                        "fontWeightValue": {
+                          "inputValue": "w500"
+                        }
+                      },
+                      "padding": {
+                        "animatedPadding": {}
+                      },
+                      "responsiveVisibility": {},
+                      "opacity": {
+                        "opacityValue": {
+                          "inputValue": 1
+                        },
+                        "animatedOpacity": {}
+                      },
+                      "animatedAlignment": {}
+                    },
+                    "valueKey": {}
+                  }
+                ],
+                "type": "Container",
+                "props": {
+                  "container": {
+                    "dimensions": {
+                      "width": {
+                        "pixelsValue": {
+                          "inputValue": "Infinity"
+                        }
+                      },
+                      "height": {
+                        "pixelsValue": {
+                          "inputValue": 30
+                        }
+                      }
+                    },
+                    "boxDecoration": {
+                      "colorValue": {
+                        "inputValue": {
+                          "value": "4292141794"
+                        }
+                      }
+                    },
+                    "childAlignment": {
+                      "xValue": {
+                        "inputValue": 0
+                      },
+                      "yValue": {
+                        "inputValue": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "key": "ListView_84hpa09g",
+                "children": [
+                  {
+                    "key": "Column_mf90dt7n",
+                    "children": [
+                      {
+                        "key": "Row_qhpxatt1",
+                        "children": [
+                          {
+                            "key": "Column_dcbliqhn",
+                            "children": [
+                              {
+                                "key": "Container_l654ka8s",
+                                "children": [
+                                  {
+                                    "key": "CircleImage_zt7h2h5n",
+                                    "type": "CircleImage",
+                                    "props": {
+                                      "image": {
+                                        "type": "FF_IMAGE_TYPE_ASSET",
+                                        "fit": "FF_BOX_FIT_COVER",
+                                        "dimensions": {
+                                          "width": {
+                                            "pixelsValue": {
+                                              "inputValue": 30
+                                            }
+                                          },
+                                          "height": {
+                                            "pixelsValue": {
+                                              "inputValue": 200
+                                            }
+                                          }
+                                        },
+                                        "cacheFadeDuration": 500,
+                                        "pathValue": {
+                                          "inputValue": "projects/icoccha-new-mockup-9a6ing/assets/xlfeo322qf73/icoccha_noimage.png"
+                                        }
+                                      },
+                                      "padding": {
+                                        "animatedPadding": {}
+                                      },
+                                      "responsiveVisibility": {},
+                                      "opacity": {
+                                        "opacityValue": {
+                                          "inputValue": 1
+                                        },
+                                        "animatedOpacity": {}
+                                      },
+                                      "animatedAlignment": {}
+                                    },
+                                    "valueKey": {}
+                                  }
+                                ],
+                                "type": "Container",
+                                "props": {
+                                  "container": {
+                                    "dimensions": {
+                                      "width": {
+                                        "pixelsValue": {
+                                          "inputValue": 30
+                                        }
+                                      },
+                                      "height": {
+                                        "pixelsValue": {
+                                          "inputValue": 100
+                                        }
+                                      }
+                                    },
+                                    "boxDecoration": {
+                                      "boxShape": "FF_BOX_SHAPE_CIRCLE",
+                                      "boxShadow": {},
+                                      "image": {},
+                                      "colorValue": {
+                                        "inputValue": {
+                                          "themeColor": "SECONDARY_BACKGROUND"
+                                        }
+                                      },
+                                      "borderColorValue": {
+                                        "inputValue": {
+                                          "themeColor": "PRIMARY_TEXT"
+                                        }
+                                      }
+                                    },
+                                    "animationDurationValue": {
+                                      "inputValue": 100
+                                    }
+                                  },
+                                  "padding": {
+                                    "animatedPadding": {}
+                                  },
+                                  "responsiveVisibility": {},
+                                  "opacity": {
+                                    "opacityValue": {
+                                      "inputValue": 1
+                                    },
+                                    "animatedOpacity": {}
+                                  },
+                                  "animatedAlignment": {}
+                                },
+                                "valueKey": {}
+                              },
+                              {
+                                "key": "Text_jyegkeb8",
+                                "type": "Text",
+                                "props": {
+                                  "text": {
+                                    "themeStyle": "BODY_MEDIUM",
+                                    "selectable": false,
+                                    "textValue": {
+                                      "inputValue": "ゲスト"
+                                    },
+                                    "fontSizeValue": {
+                                      "inputValue": 10
+                                    },
+                                    "fontWeightValue": {
+                                      "inputValue": "w500"
+                                    }
+                                  }
+                                }
+                              }
+                            ],
+                            "type": "Column",
+                            "props": {
+                              "column": {
+                                "mainAxisAlignment": "main_axis_center",
+                                "primary": true,
+                                "listSpacing": {
+                                  "spacingValue": {
+                                    "inputValue": 4
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "key": "Container_43gevpej",
+                            "children": [
+                              {
+                                "key": "Column_lkqi59zj",
+                                "children": [
+                                  {
+                                    "key": "Text_oq28b6hy",
+                                    "type": "Text",
+                                    "props": {
+                                      "text": {
+                                        "themeStyle": "BODY_MEDIUM",
+                                        "selectable": false,
+                                        "textValue": {
+                                          "inputValue": "Hello World"
+                                        },
+                                        "fontSizeValue": {
+                                          "inputValue": 12
+                                        },
+                                        "colorValue": {
+                                          "inputValue": {
+                                            "themeColor": "SECONDARY_BACKGROUND"
+                                          }
+                                        },
+                                        "fontWeightValue": {
+                                          "inputValue": "w500"
+                                        },
+                                        "textAlignValue": {
+                                          "inputValue": "ALIGN_CENTER"
+                                        }
+                                      },
+                                      "padding": {
+                                        "animatedPadding": {}
+                                      },
+                                      "alignment": {
+                                        "xValue": {
+                                          "inputValue": -1
+                                        },
+                                        "yValue": {
+                                          "inputValue": 0
+                                        }
+                                      },
+                                      "responsiveVisibility": {},
+                                      "opacity": {
+                                        "opacityValue": {
+                                          "inputValue": 1
+                                        },
+                                        "animatedOpacity": {}
+                                      },
+                                      "animatedAlignment": {}
+                                    },
+                                    "valueKey": {}
+                                  },
+                                  {
+                                    "key": "Text_ln1remzz",
+                                    "type": "Text",
+                                    "props": {
+                                      "text": {
+                                        "themeStyle": "BODY_MEDIUM",
+                                        "selectable": false,
+                                        "textValue": {
+                                          "inputValue": "Hello World"
+                                        },
+                                        "fontSizeValue": {
+                                          "inputValue": 8
+                                        },
+                                        "fontWeightValue": {
+                                          "inputValue": "w300"
+                                        }
+                                      }
+                                    }
+                                  }
+                                ],
+                                "type": "Column",
+                                "props": {
+                                  "column": {
+                                    "mainAxisAlignment": "main_axis_center",
+                                    "crossAxisAlignment": "cross_axis_start",
+                                    "primary": true
+                                  },
+                                  "padding": {
+                                    "type": "FF_PADDING_ONLY",
+                                    "leftValue": {
+                                      "inputValue": 16
+                                    },
+                                    "topValue": {
+                                      "inputValue": 8
+                                    },
+                                    "rightValue": {
+                                      "inputValue": 8
+                                    },
+                                    "bottomValue": {
+                                      "inputValue": 8
+                                    },
+                                    "allValue": {
+                                      "inputValue": 8
+                                    },
+                                    "animatedPadding": {}
+                                  }
+                                }
+                              }
+                            ],
+                            "type": "Container",
+                            "props": {
+                              "container": {
+                                "dimensions": {
+                                  "width": {
+                                    "percentOfScreenSizeValue": {
+                                      "inputValue": 70
+                                    }
+                                  },
+                                  "height": {
+                                    "pixelsValue": {
+                                      "inputValue": 45
+                                    }
+                                  }
+                                },
+                                "boxDecoration": {
+                                  "borderRadius": {
+                                    "topLeftValue": {
+                                      "inputValue": 16
+                                    },
+                                    "topRightValue": {
+                                      "inputValue": 16
+                                    },
+                                    "bottomRightValue": {
+                                      "inputValue": 16
+                                    }
+                                  },
+                                  "colorValue": {
+                                    "inputValue": {
+                                      "value": "2134834780"
+                                    }
+                                  },
+                                  "borderColorValue": {
+                                    "inputValue": {
+                                      "themeColor": "ALTERNATE"
+                                    }
+                                  }
+                                },
+                                "minDimensions": {},
+                                "elevationValue": {
+                                  "inputValue": 0.5
+                                },
+                                "animationDurationValue": {
+                                  "inputValue": 100
+                                }
+                              },
+                              "padding": {
+                                "type": "FF_PADDING_ALL",
+                                "allValue": {
+                                  "inputValue": 8
+                                },
+                                "animatedPadding": {}
+                              }
+                            }
+                          }
+                        ],
+                        "type": "Row",
+                        "props": {
+                          "row": {
+                            "crossAxisAlignment": "cross_axis_center",
+                            "listSpacing": {
+                              "applyStartEndSpace": true,
+                              "spacingValue": {
+                                "inputValue": 8
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "key": "Row_7r4o0zry",
+                        "children": [
+                          {
+                            "key": "Container_v5xfuwvv",
+                            "children": [
+                              {
+                                "key": "Column_mvz7tmij",
+                                "children": [
+                                  {
+                                    "key": "Text_dsbaa14k",
+                                    "type": "Text",
+                                    "props": {
+                                      "text": {
+                                        "themeStyle": "BODY_MEDIUM",
+                                        "selectable": false,
+                                        "textValue": {
+                                          "inputValue": "Hello World"
+                                        },
+                                        "fontSizeValue": {
+                                          "inputValue": 12
+                                        },
+                                        "colorValue": {
+                                          "inputValue": {
+                                            "themeColor": "SECONDARY_BACKGROUND"
+                                          }
+                                        },
+                                        "fontWeightValue": {
+                                          "inputValue": "w500"
+                                        },
+                                        "textAlignValue": {
+                                          "inputValue": "ALIGN_CENTER"
+                                        }
+                                      },
+                                      "padding": {
+                                        "animatedPadding": {}
+                                      },
+                                      "alignment": {
+                                        "xValue": {
+                                          "inputValue": 1
+                                        },
+                                        "yValue": {
+                                          "inputValue": 0
+                                        }
+                                      },
+                                      "responsiveVisibility": {},
+                                      "opacity": {
+                                        "opacityValue": {
+                                          "inputValue": 1
+                                        },
+                                        "animatedOpacity": {}
+                                      },
+                                      "animatedAlignment": {}
+                                    },
+                                    "valueKey": {}
+                                  },
+                                  {
+                                    "key": "Text_w6tp73fn",
+                                    "type": "Text",
+                                    "props": {
+                                      "text": {
+                                        "themeStyle": "BODY_MEDIUM",
+                                        "selectable": false,
+                                        "textValue": {
+                                          "inputValue": "Hello World"
+                                        },
+                                        "fontSizeValue": {
+                                          "inputValue": 8
+                                        },
+                                        "fontWeightValue": {
+                                          "inputValue": "w300"
+                                        }
+                                      }
+                                    }
+                                  }
+                                ],
+                                "type": "Column",
+                                "props": {
+                                  "column": {
+                                    "mainAxisAlignment": "main_axis_center",
+                                    "crossAxisAlignment": "cross_axis_end",
+                                    "primary": true,
+                                    "listSpacing": {}
+                                  },
+                                  "padding": {
+                                    "type": "FF_PADDING_ONLY",
+                                    "leftValue": {
+                                      "inputValue": 16
+                                    },
+                                    "topValue": {
+                                      "inputValue": 8
+                                    },
+                                    "rightValue": {
+                                      "inputValue": 8
+                                    },
+                                    "bottomValue": {
+                                      "inputValue": 8
+                                    },
+                                    "allValue": {
+                                      "inputValue": 8
+                                    },
+                                    "animatedPadding": {}
+                                  },
+                                  "responsiveVisibility": {},
+                                  "opacity": {
+                                    "opacityValue": {
+                                      "inputValue": 1
+                                    },
+                                    "animatedOpacity": {}
+                                  },
+                                  "animatedAlignment": {}
+                                },
+                                "valueKey": {}
+                              }
+                            ],
+                            "type": "Container",
+                            "props": {
+                              "container": {
+                                "dimensions": {
+                                  "width": {
+                                    "percentOfScreenSizeValue": {
+                                      "inputValue": 70
+                                    }
+                                  },
+                                  "height": {
+                                    "pixelsValue": {
+                                      "inputValue": 45
+                                    }
+                                  }
+                                },
+                                "boxDecoration": {
+                                  "borderRadius": {
+                                    "topLeftValue": {
+                                      "inputValue": 16
+                                    },
+                                    "topRightValue": {
+                                      "inputValue": 16
+                                    },
+                                    "bottomLeftValue": {
+                                      "inputValue": 16
+                                    }
+                                  },
+                                  "boxShadow": {},
+                                  "image": {},
+                                  "colorValue": {
+                                    "inputValue": {
+                                      "value": "31515623"
+                                    }
+                                  },
+                                  "borderColorValue": {
+                                    "inputValue": {
+                                      "themeColor": "ALTERNATE"
+                                    }
+                                  }
+                                },
+                                "maxDimensions": {},
+                                "minDimensions": {},
+                                "elevationValue": {
+                                  "inputValue": 0.5
+                                },
+                                "animationDurationValue": {
+                                  "inputValue": 100
+                                }
+                              },
+                              "padding": {
+                                "type": "FF_PADDING_ALL",
+                                "allValue": {
+                                  "inputValue": 8
+                                },
+                                "animatedPadding": {}
+                              },
+                              "responsiveVisibility": {},
+                              "opacity": {
+                                "opacityValue": {
+                                  "inputValue": 1
+                                },
+                                "animatedOpacity": {}
+                              },
+                              "animatedAlignment": {}
+                            },
+                            "valueKey": {}
+                          },
+                          {
+                            "key": "Column_3ab8g4k0",
+                            "children": [
+                              {
+                                "key": "Container_ba8dxipd",
+                                "children": [
+                                  {
+                                    "key": "CircleImage_qiato23e",
+                                    "type": "CircleImage",
+                                    "props": {
+                                      "image": {
+                                        "type": "FF_IMAGE_TYPE_ASSET",
+                                        "fit": "FF_BOX_FIT_COVER",
+                                        "dimensions": {
+                                          "width": {
+                                            "pixelsValue": {
+                                              "inputValue": 30
+                                            }
+                                          },
+                                          "height": {
+                                            "pixelsValue": {
+                                              "inputValue": 200
+                                            }
+                                          }
+                                        },
+                                        "cacheFadeDuration": 500,
+                                        "pathValue": {
+                                          "inputValue": "projects/icoccha-new-mockup-9a6ing/assets/nyuvpvroy7e8/image0_(1).jpeg"
+                                        }
+                                      }
+                                    }
+                                  }
+                                ],
+                                "type": "Container",
+                                "props": {
+                                  "container": {
+                                    "dimensions": {
+                                      "width": {
+                                        "pixelsValue": {
+                                          "inputValue": 30
+                                        }
+                                      },
+                                      "height": {
+                                        "pixelsValue": {
+                                          "inputValue": 100
+                                        }
+                                      }
+                                    },
+                                    "boxDecoration": {
+                                      "boxShape": "FF_BOX_SHAPE_CIRCLE",
+                                      "boxShadow": {},
+                                      "image": {},
+                                      "colorValue": {
+                                        "inputValue": {
+                                          "themeColor": "SECONDARY_BACKGROUND"
+                                        }
+                                      },
+                                      "borderColorValue": {
+                                        "inputValue": {
+                                          "themeColor": "PRIMARY_TEXT"
+                                        }
+                                      }
+                                    },
+                                    "animationDurationValue": {
+                                      "inputValue": 100
+                                    }
+                                  },
+                                  "padding": {
+                                    "animatedPadding": {}
+                                  },
+                                  "responsiveVisibility": {},
+                                  "opacity": {
+                                    "opacityValue": {
+                                      "inputValue": 1
+                                    },
+                                    "animatedOpacity": {}
+                                  },
+                                  "animatedAlignment": {}
+                                },
+                                "valueKey": {}
+                              },
+                              {
+                                "key": "Text_61t18uup",
+                                "type": "Text",
+                                "props": {
+                                  "text": {
+                                    "themeStyle": "BODY_MEDIUM",
+                                    "selectable": false,
+                                    "textValue": {
+                                      "inputValue": "キャスト"
+                                    },
+                                    "fontSizeValue": {
+                                      "inputValue": 10
+                                    },
+                                    "fontWeightValue": {
+                                      "inputValue": "w500"
+                                    }
+                                  }
+                                }
+                              }
+                            ],
+                            "type": "Column",
+                            "props": {
+                              "column": {
+                                "mainAxisAlignment": "main_axis_center",
+                                "primary": true,
+                                "listSpacing": {
+                                  "spacingValue": {
+                                    "inputValue": 4
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "type": "Row",
+                        "props": {
+                          "row": {
+                            "mainAxisAlignment": "main_axis_end",
+                            "listSpacing": {
+                              "applyStartEndSpace": true,
+                              "spacingValue": {
+                                "inputValue": 8
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    "type": "Column",
+                    "props": {
+                      "column": {
+                        "mainAxisAlignment": "main_axis_end",
+                        "scrollable": false,
+                        "primary": true,
+                        "listSpacing": {
+                          "spacingValue": {
+                            "inputValue": 24
+                          }
+                        }
+                      }
+                    }
+                  }
+                ],
+                "type": "ListView",
+                "props": {
+                  "listView": {
+                    "axis": "FF_AXIS_VERTICAL",
+                    "primary": true,
+                    "shrinkWrapValue": {
+                      "inputValue": true
+                    },
+                    "reverseValue": {
+                      "inputValue": true
+                    }
+                  },
+                  "expanded": {
+                    "expandedType": "EXPANDED"
+                  }
+                },
+                "databaseRequest": {
+                  "returnParameter": {
+                    "dataType": {
+                      "listType": {
+                        "scalarType": "Document"
+                      },
+                      "subType": {
+                        "collectionIdentifier": {
+                          "name": "chats",
+                          "key": "opp2f9ge"
+                        }
+                      }
+                    }
+                  },
+                  "firestore": {
+                    "collectionIdentifier": {
+                      "name": "chats",
+                      "key": "opp2f9ge"
+                    },
+                    "orderBy": [
+                      {
+                        "collectionFieldIdentifier": {
+                          "name": "created_at"
+                        }
+                      }
+                    ],
+                    "hideOnEmpty": false,
+                    "pagination": {
+                      "enabled": true,
+                      "isStream": true
+                    }
+                  }
+                }
+              },
+              {
+                "key": "Container_wdppvjci",
+                "children": [
+                  {
+                    "key": "Row_et75ls2c",
+                    "children": [
+                      {
+                        "key": "Icon_8bfac8qn",
+                        "type": "Icon",
+                        "props": {
+                          "icon": {
+                            "sizeValue": {
+                              "inputValue": 24
+                            },
+                            "colorValue": {
+                              "inputValue": {
+                                "themeColor": "SECONDARY_BACKGROUND"
+                              }
+                            },
+                            "iconDataValue": {
+                              "inputValue": {
+                                "codePoint": 59420,
+                                "family": "Icoccha_app_mypage_icon",
+                                "matchTextDirection": false,
+                                "name": "chatCircleFillG",
+                                "isCustom": true
+                              }
+                            }
+                          },
+                          "padding": {
+                            "leftValue": {
+                              "inputValue": 4
+                            },
+                            "animatedPadding": {}
+                          },
+                          "responsiveVisibility": {},
+                          "opacity": {
+                            "opacityValue": {
+                              "inputValue": 1
+                            },
+                            "animatedOpacity": {}
+                          },
+                          "animatedAlignment": {}
+                        },
+                        "valueKey": {}
+                      },
+                      {
+                        "key": "TextField_iucuj771",
+                        "type": "TextField",
+                        "props": {
+                          "padding": {
+                            "animatedPadding": {}
+                          },
+                          "expanded": {
+                            "expandedType": "EXPANDED"
+                          },
+                          "textField": {
+                            "textStyle": {
+                              "themeStyle": "BODY_MEDIUM",
+                              "fontSizeValue": {
+                                "inputValue": 12
+                              },
+                              "fontWeightValue": {
+                                "inputValue": "w500"
+                              }
+                            },
+                            "inputDecoration": {
+                              "inputBorderType": "outline",
+                              "borderRadius": {
+                                "type": "FF_BORDER_RADIUS_ALL",
+                                "allValue": {
+                                  "inputValue": 8
+                                }
+                              },
+                              "hintStyle": {
+                                "themeStyle": "LABEL_MEDIUM"
+                              },
+                              "labelStyle": {
+                                "themeStyle": "LABEL_MEDIUM",
+                                "fontSizeValue": {
+                                  "inputValue": 12
+                                },
+                                "fontWeightValue": {
+                                  "inputValue": "w500"
+                                }
+                              },
+                              "labelText": {
+                                "textValue": {
+                                  "inputValue": "メッセージ"
+                                }
+                              },
+                              "filledValue": {
+                                "inputValue": true
+                              },
+                              "fillColorValue": {
+                                "inputValue": {
+                                  "themeColor": "SECONDARY_BACKGROUND"
+                                }
+                              },
+                              "borderWidthValue": {
+                                "inputValue": 1
+                              },
+                              "denseValue": {
+                                "inputValue": true
+                              },
+                              "errorBorderColorValue": {
+                                "inputValue": {
+                                  "themeColor": "ERROR"
+                                }
+                              }
+                            },
+                            "width": {
+                              "pixelsValue": {
+                                "inputValue": 200
+                              }
+                            },
+                            "maxLinesValue": {
+                              "inputValue": 1
+                            },
+                            "autofocusValue": {
+                              "inputValue": false
+                            },
+                            "cursorColorValue": {
+                              "inputValue": {
+                                "themeColor": "PRIMARY_TEXT"
+                              }
+                            },
+                            "enableInteractiveSelection": {
+                              "inputValue": true
+                            },
+                            "enabledValue": {
+                              "inputValue": true
+                            },
+                            "passwordIconAllowKeyboardTraversal": {
+                              "inputValue": false
+                            }
+                          },
+                          "responsiveVisibility": {},
+                          "opacity": {
+                            "opacityValue": {
+                              "inputValue": 1
+                            },
+                            "animatedOpacity": {}
+                          },
+                          "animatedAlignment": {}
+                        },
+                        "parameterValues": {},
+                        "valueKey": {}
+                      },
+                      {
+                        "key": "Container_yc7c5u08",
+                        "children": [
+                          {
+                            "key": "Icon_jm5abnro",
+                            "type": "Icon",
+                            "props": {
+                              "icon": {
+                                "sizeValue": {
+                                  "inputValue": 24
+                                },
+                                "colorValue": {
+                                  "inputValue": {
+                                    "themeColor": "SECONDARY_BACKGROUND"
+                                  }
+                                },
+                                "iconDataValue": {
+                                  "inputValue": {
+                                    "codePoint": 58737,
+                                    "family": "MaterialIcons",
+                                    "matchTextDirection": true,
+                                    "name": "send"
+                                  }
+                                }
+                              }
+                            },
+                            "triggerActions": [
+                              {
+                                "rootAction": {
+                                  "key": "4vcjp9kt",
+                                  "action": {
+                                    "database": {
+                                      "createDocument": {
+                                        "collectionIdentifier": {
+                                          "name": "chats",
+                                          "key": "opp2f9ge"
+                                        },
+                                        "write": {
+                                          "updates": {
+                                            "text": {
+                                              "fieldIdentifier": {
+                                                "name": "text"
+                                              },
+                                              "variable": {
+                                                "source": "WIDGET_STATE",
+                                                "baseVariable": {
+                                                  "widgetState": {
+                                                    "returnParameter": {
+                                                      "allowedDestinationTypes": [
+                                                        "Integer",
+                                                        "Double",
+                                                        "Boolean",
+                                                        "ImagePath",
+                                                        "VideoPath",
+                                                        "AudioPath"
+                                                      ],
+                                                      "dataType": {
+                                                        "scalarType": "String"
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "nodeKeyRef": {
+                                                  "key": "TextField_iucuj771"
+                                                }
+                                              }
+                                            },
+                                            "created_at": {
+                                              "fieldIdentifier": {
+                                                "name": "created_at"
+                                              },
+                                              "variable": {
+                                                "source": "GLOBAL_PROPERTIES",
+                                                "baseVariable": {
+                                                  "globalProperties": {
+                                                    "property": "CURRENT_TIMESTAMP"
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "sender_id": {
+                                              "fieldIdentifier": {
+                                                "name": "sender_id"
+                                              },
+                                              "variable": {
+                                                "source": "FIREBASE_AUTH_USER",
+                                                "baseVariable": {
+                                                  "auth": {
+                                                    "property": "USER_REFERENCE"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "key": "ddd6nalk"
+                                  }
+                                },
+                                "trigger": {
+                                  "triggerType": "ON_TAP"
+                                }
+                              }
+                            ]
+                          }
+                        ],
+                        "type": "Container",
+                        "props": {
+                          "container": {
+                            "dimensions": {
+                              "width": {
+                                "pixelsValue": {
+                                  "inputValue": 50
+                                }
+                              },
+                              "height": {
+                                "pixelsValue": {
+                                  "inputValue": 40
+                                }
+                              }
+                            },
+                            "boxDecoration": {
+                              "borderRadius": {
+                                "type": "FF_BORDER_RADIUS_ALL",
+                                "allValue": {
+                                  "inputValue": 8
+                                }
+                              },
+                              "colorValue": {
+                                "inputValue": {
+                                  "value": "4289384880"
+                                }
+                              }
+                            },
+                            "animationDurationValue": {
+                              "inputValue": 100
+                            }
+                          },
+                          "padding": {
+                            "rightValue": {
+                              "inputValue": 4
+                            },
+                            "animatedPadding": {}
+                          }
+                        }
+                      }
+                    ],
+                    "type": "Row",
+                    "props": {
+                      "row": {
+                        "listSpacing": {
+                          "applyStartEndSpace": true,
+                          "spacingValue": {
+                            "inputValue": 8
+                          }
+                        }
+                      },
+                      "padding": {
+                        "animatedPadding": {}
+                      },
+                      "responsiveVisibility": {},
+                      "opacity": {
+                        "opacityValue": {
+                          "inputValue": 1
+                        },
+                        "animatedOpacity": {}
+                      },
+                      "animatedAlignment": {}
+                    },
+                    "valueKey": {}
+                  }
+                ],
+                "type": "Container",
+                "props": {
+                  "container": {
+                    "dimensions": {
+                      "width": {
+                        "pixelsValue": {
+                          "inputValue": "Infinity"
+                        }
+                      },
+                      "height": {
+                        "pixelsValue": {
+                          "inputValue": 100
+                        }
+                      }
+                    },
+                    "boxDecoration": {
+                      "borderRadius": {
+                        "type": "FF_BORDER_RADIUS_ALL",
+                        "allValue": {
+                          "inputValue": 8
+                        }
+                      },
+                      "boxShadow": {},
+                      "image": {},
+                      "colorValue": {
+                        "inputValue": {
+                          "value": "4292141794"
+                        }
+                      }
+                    },
+                    "maxDimensions": {},
+                    "minDimensions": {},
+                    "animationDurationValue": {
+                      "inputValue": 100
+                    }
+                  },
+                  "padding": {
+                    "animatedPadding": {}
+                  },
+                  "responsiveVisibility": {},
+                  "opacity": {
+                    "opacityValue": {
+                      "inputValue": 1
+                    },
+                    "animatedOpacity": {}
+                  },
+                  "animatedAlignment": {}
+                },
+                "valueKey": {}
+              }
+            ],
+            "type": "Column",
+            "props": {
+              "column": {
+                "primary": true,
+                "listSpacing": {
+                  "spacingValue": {
+                    "inputValue": 16
+                  }
+                }
+              },
+              "padding": {
+                "type": "FF_PADDING_ALL",
+                "allValue": {
+                  "inputValue": 16
+                },
+                "animatedPadding": {}
+              }
+            }
+          }
+        ],
+        "type": "Container",
+        "props": {
+          "container": {
+            "dimensions": {
+              "width": {
+                "pixelsValue": {
+                  "inputValue": 850
+                }
+              },
+              "height": {
+                "pixelsValue": {
+                  "inputValue": "Infinity"
+                }
+              }
+            },
+            "boxDecoration": {}
+          },
+          "alignment": {
+            "xValue": {
+              "inputValue": 0
+            },
+            "yValue": {
+              "inputValue": -1
+            }
+          }
+        }
+      },
+      {
+        "key": "AppBar_gvr6e51y",
+        "children": [
+          {
+            "key": "Row_onaf3cfz",
+            "children": [
+              {
+                "key": "Row_51wuhi3n",
+                "children": [
+                  {
+                    "key": "Icon_rtfa55ss",
+                    "type": "Icon",
+                    "props": {
+                      "icon": {
+                        "sizeValue": {
+                          "inputValue": 16
+                        },
+                        "colorValue": {
+                          "inputValue": {
+                            "themeColor": "PRIMARY_TEXT"
+                          }
+                        },
+                        "iconDataValue": {
+                          "inputValue": {
+                            "codePoint": 57490,
+                            "family": "MaterialIcons",
+                            "matchTextDirection": true,
+                            "name": "arrow_back"
+                          }
+                        }
+                      },
+                      "padding": {
+                        "animatedPadding": {}
+                      },
+                      "responsiveVisibility": {},
+                      "opacity": {
+                        "opacityValue": {
+                          "inputValue": 1
+                        },
+                        "animatedOpacity": {}
+                      },
+                      "animatedAlignment": {}
+                    },
+                    "valueKey": {}
+                  },
+                  {
+                    "key": "Image_wwzammb9",
+                    "type": "Image",
+                    "props": {
+                      "image": {
+                        "type": "FF_IMAGE_TYPE_ASSET",
+                        "fit": "FF_BOX_FIT_COVER",
+                        "dimensions": {
+                          "width": {
+                            "pixelsValue": {
+                              "inputValue": 40
+                            }
+                          },
+                          "height": {
+                            "pixelsValue": {
+                              "inputValue": 40
+                            }
+                          }
+                        },
+                        "borderRadius": {
+                          "type": "FF_BORDER_RADIUS_ALL"
+                        },
+                        "cacheFadeDuration": 500,
+                        "pathValue": {
+                          "inputValue": "projects/icoccha-new-mockup-9a6ing/assets/01wmt4lkhfjj/icoccha_logo.png"
+                        },
+                        "format": "FF_IMAGE_FORMAT_AUTO"
+                      },
+                      "padding": {
+                        "animatedPadding": {}
+                      },
+                      "responsiveVisibility": {},
+                      "opacity": {
+                        "opacityValue": {
+                          "inputValue": 1
+                        },
+                        "animatedOpacity": {}
+                      },
+                      "animatedAlignment": {}
+                    },
+                    "triggerActions": [
+                      {
+                        "rootAction": {
+                          "key": "v4355x99",
+                          "action": {
+                            "auth": {
+                              "type": "LOGOUT"
+                            },
+                            "key": "20vedjdq"
+                          }
+                        },
+                        "trigger": {
+                          "triggerType": "ON_TAP"
+                        }
+                      }
+                    ],
+                    "valueKey": {}
+                  }
+                ],
+                "type": "Row",
+                "props": {
+                  "row": {
+                    "listSpacing": {
+                      "spacingValue": {
+                        "inputValue": 8
+                      }
+                    }
+                  },
+                  "padding": {
+                    "animatedPadding": {}
+                  },
+                  "responsiveVisibility": {},
+                  "opacity": {
+                    "opacityValue": {
+                      "inputValue": 1
+                    },
+                    "animatedOpacity": {}
+                  },
+                  "animatedAlignment": {}
+                },
+                "valueKey": {}
+              }
+            ],
+            "type": "Row",
+            "props": {
+              "row": {
+                "mainAxisAlignment": "main_axis_start"
+              }
+            }
+          }
+        ],
+        "type": "AppBar",
+        "props": {
+          "appBar": {
+            "templateType": "LARGE_HEADER",
+            "titleInFlexibleSpaceBar": false,
+            "defaultBackButtonValue": {
+              "inputValue": false
+            },
+            "backgroundColorValue": {
+              "inputValue": {
+                "themeColor": "SECONDARY_BACKGROUND"
+              }
+            },
+            "elevationValue": {
+              "inputValue": 0.5
+            },
+            "centerTitleValue": {
+              "inputValue": false
+            }
+          }
+        },
+        "childPropertyMap": {
+          "title": {
+            "keyRefs": [
+              {
+                "key": "Row_onaf3cfz"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "type": "Scaffold",
+    "props": {
+      "scaffold": {
+        "safeArea": false,
+        "navBarItem": {
+          "navIcon": {
+            "sizeValue": {
+              "inputValue": 24
+            },
+            "colorValue": {
+              "inputValue": {
+                "value": "4288585374"
+              }
+            },
+            "iconDataValue": {
+              "inputValue": {
+                "codePoint": 61703,
+                "family": "MaterialIcons",
+                "matchTextDirection": false,
+                "name": "home_outlined"
+              }
+            }
+          },
+          "navActiveIcon": {
+            "sizeValue": {
+              "inputValue": 24
+            },
+            "colorValue": {
+              "inputValue": {
+                "themeColor": "PRIMARY"
+              }
+            },
+            "iconDataValue": {
+              "inputValue": {
+                "codePoint": 58136,
+                "family": "MaterialIcons",
+                "matchTextDirection": false,
+                "name": "home"
+              }
+            }
+          },
+          "show": false,
+          "differentActiveIcon": false,
+          "label": {
+            "textValue": {
+              "inputValue": "Home"
+            }
+          }
+        },
+        "hideKeyboardOnTap": true,
+        "backgroundColorValue": {
+          "inputValue": {
+            "themeColor": "SECONDARY_BACKGROUND"
+          }
+        }
+      },
+      "opacity": {
+        "opacityValue": {
+          "inputValue": 1
+        },
+        "animatedOpacity": {}
+      }
+    },
+    "name": "MacchaChats",
+    "childPropertyMap": {
+      "appBar": {
+        "keyRefs": [
+          {
+            "key": "AppBar_gvr6e51y"
+          }
+        ]
+      },
+      "body": {
+        "keyRefs": [
+          {
+            "key": "Container_un0xb067"
+          }
+        ]
+      }
+    }
+  },
+  "canvasProps": {
+    "width": 393,
+    "height": 852,
+    "deviceName": "iPhone 14 Pro"
+  },
+  "editMetadata": {
+    "key": 526118851,
+    "updateTime": "1776705209254",
+    "userUidHash": 337842209
+  },
+  "classModel": {}
+}

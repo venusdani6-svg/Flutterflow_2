@@ -15,6 +15,12 @@ final paymentConfirmHandle = ffai.ProjectPageHandle<PaymentConfirmParams, Paymen
 
 final class PaymentConfirmParams {
   const PaymentConfirmParams();
+  ffai.ProjectParamHandle get resId =>
+      const ffai.ProjectParamHandle(
+        name: "resId",
+        key: "wbafhw1j",
+        typeName: "String",
+      );
 }
 
 final class PaymentConfirmState {
@@ -432,6 +438,9 @@ abstract final class PaymentConfirmWidgets {
                         type: "Button",
                         path: "PaymentConfirm.body[0].children[0].children[2].children[0]",
                         text: "予約を確定する",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
                       ),
                     ],
                   ),

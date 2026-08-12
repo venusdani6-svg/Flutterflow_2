@@ -15,10 +15,46 @@ final macchaChatsHandle = ffai.ProjectPageHandle<MacchaChatsParams, MacchaChatsS
 
 final class MacchaChatsParams {
   const MacchaChatsParams();
+  ffai.ProjectParamHandle get resId =>
+      const ffai.ProjectParamHandle(
+        name: "resId",
+        key: "tsz8161u",
+        typeName: "String",
+      );
 }
 
 final class MacchaChatsState {
   const MacchaChatsState();
+  ffai.ProjectStateFieldHandle get chatMessagesList =>
+      const ffai.ProjectStateFieldHandle(
+        name: "chatMessagesList",
+        key: "q9m5wehb",
+        typeName: "List<String>",
+      );
+  ffai.ProjectStateFieldHandle get counterpartNickname =>
+      const ffai.ProjectStateFieldHandle(
+        name: "counterpartNickname",
+        key: "bd4jjq8q",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get counterpartPhoto =>
+      const ffai.ProjectStateFieldHandle(
+        name: "counterpartPhoto",
+        key: "hafcq0um",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get newMessageText =>
+      const ffai.ProjectStateFieldHandle(
+        name: "newMessageText",
+        key: "kip5oawk",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get roomActive =>
+      const ffai.ProjectStateFieldHandle(
+        name: "roomActive",
+        key: "jxh13mb6",
+        typeName: "Boolean",
+      );
 }
 
 abstract final class MacchaChatsWidgets {
@@ -28,6 +64,9 @@ abstract final class MacchaChatsWidgets {
       type: "Scaffold",
       path: "MacchaChats",
       name: "MacchaChats",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
@@ -89,50 +128,22 @@ abstract final class MacchaChatsWidgets {
                         path: "MacchaChats.body[0].children[0].children[0].children[0]",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Row_xuyify4c",
+                            key: "Row_7l6ksffh",
                             type: "Row",
                             path: "MacchaChats.body[0].children[0].children[0].children[0].children[0]",
+                            name: "ChatHeaderRow",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "Container_tgliisbh",
-                                type: "Container",
+                                key: "CircleImage_xctz3poq",
+                                type: "CircleImage",
                                 path: "MacchaChats.body[0].children[0].children[0].children[0].children[0].children[0]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "CircleImage_icxkap1q",
-                                    type: "CircleImage",
-                                    path: "MacchaChats.body[0].children[0].children[0].children[0].children[0].children[0].children[0]",
-                                  ),
-                                ],
+                                name: "Avatar",
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Text_xy2lnok8",
+                                key: "Text_5y0dzqpf",
                                 type: "Text",
                                 path: "MacchaChats.body[0].children[0].children[0].children[0].children[0].children[1]",
-                                text: "ゲスト",
-                              ),
-                              ffai.ProjectWidgetHandle(
-                                key: "Icon_leq2e03r",
-                                type: "Icon",
-                                path: "MacchaChats.body[0].children[0].children[0].children[0].children[0].children[2]",
-                              ),
-                              ffai.ProjectWidgetHandle(
-                                key: "Container_ric3y3ea",
-                                type: "Container",
-                                path: "MacchaChats.body[0].children[0].children[0].children[0].children[0].children[3]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "CircleImage_i92wz4ne",
-                                    type: "CircleImage",
-                                    path: "MacchaChats.body[0].children[0].children[0].children[0].children[0].children[3].children[0]",
-                                  ),
-                                ],
-                              ),
-                              ffai.ProjectWidgetHandle(
-                                key: "Text_xyrrvoiq",
-                                type: "Text",
-                                path: "MacchaChats.body[0].children[0].children[0].children[0].children[0].children[4]",
-                                text: "キャスト",
+                                name: "Text",
                               ),
                             ],
                           ),
@@ -154,128 +165,40 @@ abstract final class MacchaChatsWidgets {
                     ],
                   ),
                   ffai.ProjectWidgetHandle(
-                    key: "ListView_84hpa09g",
+                    key: "ListView_2xvonypa",
                     type: "ListView",
                     path: "MacchaChats.body[0].children[0].children[2]",
+                    name: "ChatMessagesListView",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Column_mf90dt7n",
-                        type: "Column",
+                        key: "Container_6jfjda54",
+                        type: "Container",
                         path: "MacchaChats.body[0].children[0].children[2].children[0]",
+                        name: "Container",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Row_qhpxatt1",
+                            key: "Row_paup90w6",
                             type: "Row",
                             path: "MacchaChats.body[0].children[0].children[2].children[0].children[0]",
+                            name: "Row",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "Column_dcbliqhn",
-                                type: "Column",
+                                key: "Text_qpvks4nz",
+                                type: "Text",
                                 path: "MacchaChats.body[0].children[0].children[2].children[0].children[0].children[0]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Container_l654ka8s",
-                                    type: "Container",
-                                    path: "MacchaChats.body[0].children[0].children[2].children[0].children[0].children[0].children[0]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "CircleImage_zt7h2h5n",
-                                        type: "CircleImage",
-                                        path: "MacchaChats.body[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0]",
-                                      ),
-                                    ],
-                                  ),
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Text_jyegkeb8",
-                                    type: "Text",
-                                    path: "MacchaChats.body[0].children[0].children[2].children[0].children[0].children[0].children[1]",
-                                    text: "ゲスト",
-                                  ),
-                                ],
+                                name: "Text",
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Container_43gevpej",
-                                type: "Container",
+                                key: "Text_ybuilwyx",
+                                type: "Text",
                                 path: "MacchaChats.body[0].children[0].children[2].children[0].children[0].children[1]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Column_lkqi59zj",
-                                    type: "Column",
-                                    path: "MacchaChats.body[0].children[0].children[2].children[0].children[0].children[1].children[0]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Text_oq28b6hy",
-                                        type: "Text",
-                                        path: "MacchaChats.body[0].children[0].children[2].children[0].children[0].children[1].children[0].children[0]",
-                                        text: "Hello World",
-                                      ),
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Text_ln1remzz",
-                                        type: "Text",
-                                        path: "MacchaChats.body[0].children[0].children[2].children[0].children[0].children[1].children[0].children[1]",
-                                        text: "Hello World",
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          ffai.ProjectWidgetHandle(
-                            key: "Row_7r4o0zry",
-                            type: "Row",
-                            path: "MacchaChats.body[0].children[0].children[2].children[0].children[1]",
-                            children: <ffai.ProjectWidgetHandle>[
-                              ffai.ProjectWidgetHandle(
-                                key: "Container_v5xfuwvv",
-                                type: "Container",
-                                path: "MacchaChats.body[0].children[0].children[2].children[0].children[1].children[0]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Column_mvz7tmij",
-                                    type: "Column",
-                                    path: "MacchaChats.body[0].children[0].children[2].children[0].children[1].children[0].children[0]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Text_dsbaa14k",
-                                        type: "Text",
-                                        path: "MacchaChats.body[0].children[0].children[2].children[0].children[1].children[0].children[0].children[0]",
-                                        text: "Hello World",
-                                      ),
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Text_w6tp73fn",
-                                        type: "Text",
-                                        path: "MacchaChats.body[0].children[0].children[2].children[0].children[1].children[0].children[0].children[1]",
-                                        text: "Hello World",
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                name: "Text",
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Column_3ab8g4k0",
-                                type: "Column",
-                                path: "MacchaChats.body[0].children[0].children[2].children[0].children[1].children[1]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Container_ba8dxipd",
-                                    type: "Container",
-                                    path: "MacchaChats.body[0].children[0].children[2].children[0].children[1].children[1].children[0]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "CircleImage_qiato23e",
-                                        type: "CircleImage",
-                                        path: "MacchaChats.body[0].children[0].children[2].children[0].children[1].children[1].children[0].children[0]",
-                                      ),
-                                    ],
-                                  ),
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Text_61t18uup",
-                                    type: "Text",
-                                    path: "MacchaChats.body[0].children[0].children[2].children[0].children[1].children[1].children[1]",
-                                    text: "キャスト",
-                                  ),
-                                ],
+                                key: "Text_ssjmkhon",
+                                type: "Text",
+                                path: "MacchaChats.body[0].children[0].children[2].children[0].children[0].children[2]",
+                                name: "Text",
                               ),
                             ],
                           ),
@@ -299,10 +222,14 @@ abstract final class MacchaChatsWidgets {
                             path: "MacchaChats.body[0].children[0].children[3].children[0].children[0]",
                           ),
                           ffai.ProjectWidgetHandle(
-                            key: "TextField_iucuj771",
+                            key: "TextField_82xeqnv5",
                             type: "TextField",
                             path: "MacchaChats.body[0].children[0].children[3].children[0].children[1]",
+                            name: "ChatMessageInput",
                             text: "メッセージ",
+                            triggers: const <String>[
+                              "ON_TEXTFIELD_CHANGE",
+                            ],
                           ),
                           ffai.ProjectWidgetHandle(
                             key: "Container_yc7c5u08",

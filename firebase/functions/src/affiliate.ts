@@ -11,43 +11,64 @@ import { db, stripe, Timestamp, getSystemConfig } from "./config";
  * 毎月5日 3:00 AM JST
  */
 export const processMonthlyAffiliatePayments = onSchedule(
-  { schedule: "0 3 5 * *", timeZone: "Asia/Tokyo" },
+  { schedule: "0 3 * * *", timeZone: "Asia/Tokyo" },
   async () => {
     const config = await getSystemConfig();
 
-    const now = new Date();
-    const targetYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-    const targetMonth = now.getMonth() === 0 ? 12 : now.getMonth();
-    const monthStr = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
+    // Cloud Scheduler cron strings are static at deploy time and can't read
+    // Firestore, so this runs daily and no-ops on every day except the
+    // admin-configured payment day (system_config/settings.affiliate_payment_day,
+    // default 5) — the only way to make "pay out on the Nth" genuinely
+    // admin-editable instead of a hardcoded literal in the cron string.
+    //
+    // MUST compute "today" in JST explicitly, not via bare `new Date()`:
+    // the `timeZone: "Asia/Tokyo"` option below only controls when Cloud
+    // Scheduler FIRES the trigger (wall-clock JST) — it does not change
+    // what the function's own runtime clock reports. Cloud Functions run
+    // in UTC, and JST is UTC+9, so a 3:00 AM JST firing happens at 18:00
+    // UTC the PREVIOUS day — `new Date().getDate()` would read that
+    // previous UTC day and never match `paymentDay`, silently preventing
+    // this function from ever actually processing a payment.
+    const paymentDay = config.affiliate_payment_day || 5;
+    const jstDay = Number(
+      new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Tokyo", day: "numeric" }).format(new Date())
+    );
+    if (jstDay !== paymentDay) {
+      return;
+    }
 
-    console.log(`Processing affiliate payments for month: ${monthStr}`);
-
+    // Query ALL pending rewards, not just "last calendar month" — a reward
+    // deferred earlier (workDays < minDays in its own accrual month) must
+    // stay pending and be genuinely re-evaluable on a later run, not tied to
+    // a single fixed target month. Group by (affiliator, accrual month) so
+    // each month's own work-day eligibility is evaluated independently.
     const pendingRewards = await db
       .collection("affiliate_rewards")
-      .where("month", "==", monthStr)
       .where("status", "==", "pending")
       .get();
 
     if (pendingRewards.empty) {
-      console.log("No pending affiliate rewards for this month.");
+      console.log("No pending affiliate rewards.");
       return;
     }
 
-    const rewardsByAffiliator: Record<string, FirebaseFirestore.QueryDocumentSnapshot[]> = {};
+    const grouped: Record<string, Record<string, FirebaseFirestore.QueryDocumentSnapshot[]>> = {};
     for (const doc of pendingRewards.docs) {
       const data = doc.data();
       const affiliatorUid = data.affiliator_uid;
-      if (!rewardsByAffiliator[affiliatorUid]) {
-        rewardsByAffiliator[affiliatorUid] = [];
-      }
-      rewardsByAffiliator[affiliatorUid].push(doc);
+      const month = data.month;
+      grouped[affiliatorUid] = grouped[affiliatorUid] || {};
+      grouped[affiliatorUid][month] = grouped[affiliatorUid][month] || [];
+      grouped[affiliatorUid][month].push(doc);
     }
 
-    for (const [affiliatorUid, rewards] of Object.entries(rewardsByAffiliator)) {
-      try {
-        await processAffiliatorPayment(affiliatorUid, rewards, monthStr, config);
-      } catch (err) {
-        console.error(`Failed to process affiliate payment for ${affiliatorUid}:`, err);
+    for (const [affiliatorUid, byMonth] of Object.entries(grouped)) {
+      for (const [monthStr, rewards] of Object.entries(byMonth)) {
+        try {
+          await processAffiliatorPayment(affiliatorUid, rewards, monthStr, config);
+        } catch (err) {
+          console.error(`Failed to process affiliate payment for ${affiliatorUid} (${monthStr}):`, err);
+        }
       }
     }
   }
@@ -74,14 +95,19 @@ async function processAffiliatorPayment(
     return;
   }
 
-  const minDays = config.AFFILIATE_MIN_DAYS || 3;
+  const minDays = config.affiliate_min_days || 3;
   const workDays = await countUniqueWorkDays(affiliatorUid, monthStr);
 
   if (workDays < minDays) {
+    // Active-earner rule (IMPLEMENTATION_PLAN.md §3.7.12): missing the
+    // threshold DEFERS this month's Transfer — rewards stay `pending` and
+    // are re-evaluated on a later run once countUniqueWorkDays no longer
+    // falls short. This is explicitly NOT a forfeiture event; do not call
+    // forfeitRewards here — forfeiture is the separate, narrower leave rule
+    // below.
     console.log(
-      `Affiliator ${affiliatorUid} has only ${workDays} work days (need ${minDays}). Forfeiting.`
+      `Affiliator ${affiliatorUid} has only ${workDays} work days for ${monthStr} (need ${minDays}). Deferring.`
     );
-    await forfeitRewards(rewards, `稼働日数不足 (${workDays}/${minDays}日)`);
     return;
   }
 
@@ -93,12 +119,30 @@ async function processAffiliatorPayment(
     const referredDoc = await db.collection("users").doc(rewardData.referred_uid).get();
     const referredData = referredDoc.data();
 
-    if (!referredData || !referredData.is_active) {
+    if (!referredData) {
       await reward.ref.update({ status: "forfeited" });
-      console.log(
-        `Referred cast ${rewardData.referred_uid} is inactive. Forfeiting reward ${reward.id}.`
-      );
+      console.log(`Referred cast ${rewardData.referred_uid} not found. Forfeiting reward ${reward.id}.`);
       continue;
+    }
+
+    if (!referredData.is_active) {
+      // §3.7.12's asymmetric leave rule: a referred cast's own voluntary
+      // withdrawal (requestWithdrawal stamps left_at) forfeits only the
+      // reward accrued in the departure month itself; reward earned in
+      // prior months while still active is still paid normally. Any other
+      // is_active:false path with no left_at (e.g. an admin force-ban) has
+      // no client-confirmed equivalence to a leave (plan's own caveat) —
+      // keep the conservative forfeit-everything behavior for that case.
+      const leftMonthStr = referredData.left_at
+        ? monthStrFromDate(referredData.left_at.toDate())
+        : null;
+      if (leftMonthStr === null || leftMonthStr === rewardData.month) {
+        await reward.ref.update({ status: "forfeited" });
+        console.log(
+          `Referred cast ${rewardData.referred_uid} inactive (left ${leftMonthStr ?? "unknown"}). Forfeiting reward ${reward.id} for ${rewardData.month}.`
+        );
+        continue;
+      }
     }
 
     validRewards.push(reward);
@@ -186,6 +230,10 @@ async function processAffiliatorPayment(
   }
 }
 
+function monthStrFromDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 async function countUniqueWorkDays(castUid: string, monthStr: string): Promise<number> {
   const [year, month] = monthStr.split("-").map(Number);
   const startDate = new Date(year, month - 1, 1);
@@ -239,10 +287,19 @@ export const getAffiliateDashboard = onCall(async (request) => {
     throw new HttpsError("permission-denied", "キャストのみ利用可能です。");
   }
 
+  const config = await getSystemConfig();
+
   const referredCasts = await db
     .collection("users")
     .where("referred_by_uid", "==", uid)
     .get();
+
+  let activeReferredCount = 0;
+  let inactiveReferredCount = 0;
+  for (const doc of referredCasts.docs) {
+    if (doc.data().is_active) activeReferredCount++;
+    else inactiveReferredCount++;
+  }
 
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -260,6 +317,56 @@ export const getAffiliateDashboard = onCall(async (request) => {
     .get();
 
   const workDays = await countUniqueWorkDays(uid, currentMonth);
+
+  // Affiliator's own work-time stats (they are a cast themselves) - today /
+  // this week / this month / all-time, from their own completed
+  // reservations' duration_minutes and distinct completion dates. One
+  // unbounded fetch, bucketed client-side by boundary, rather than four
+  // separate range queries against the same composite index.
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfWeek = new Date(startOfToday);
+  startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const ownCompleted = await db
+    .collection("reservations")
+    .where("cast_ids", "array-contains", uid)
+    .where("status", "==", "completed")
+    .get();
+
+  let minutesToday = 0;
+  let minutesWeek = 0;
+  let minutesMonth = 0;
+  let minutesCumulative = 0;
+  const daysWeek = new Set<string>();
+  const daysCumulative = new Set<string>();
+  for (const doc of ownCompleted.docs) {
+    const d = doc.data();
+    const completedAt = d.updated_at?.toDate();
+    if (!completedAt) continue;
+    const minutes = d.duration_minutes || 0;
+    const dateKey = `${completedAt.getFullYear()}-${completedAt.getMonth()}-${completedAt.getDate()}`;
+
+    minutesCumulative += minutes;
+    daysCumulative.add(dateKey);
+    if (completedAt >= startOfMonth) minutesMonth += minutes;
+    if (completedAt >= startOfWeek) {
+      minutesWeek += minutes;
+      daysWeek.add(dateKey);
+    }
+    if (completedAt >= startOfToday) minutesToday += minutes;
+  }
+
+  let rewardToday = 0;
+  let rewardWeek = 0;
+  let rewardMonth = 0;
+  for (const doc of currentRewards.docs) {
+    const d = doc.data();
+    const createdAt = d.created_at?.toDate();
+    rewardMonth += d.reward_amount || 0;
+    if (createdAt && createdAt >= startOfWeek) rewardWeek += d.reward_amount || 0;
+    if (createdAt && createdAt >= startOfToday) rewardToday += d.reward_amount || 0;
+  }
 
   let currentMonthPending = 0;
   let currentMonthCount = 0;
@@ -280,12 +387,35 @@ export const getAffiliateDashboard = onCall(async (request) => {
     referral_code: uid,
     affiliate_rate: userData.affiliate_rate || 0.05,
     referred_cast_count: referredCasts.size,
+    active_referred_count: activeReferredCount,
+    inactive_referred_count: inactiveReferredCount,
     current_month: currentMonth,
     current_month_work_days: workDays,
-    current_month_min_days: 3,
+    current_month_min_days: config.affiliate_min_days || 3,
     current_month_pending_amount: currentMonthPending,
     current_month_reward_count: currentMonthCount,
     all_time_paid: allTimePaid,
-    eligible_for_payment: workDays >= 3,
+    // Reflects the FULL payment-time gate, not just the work-day count:
+    // an affiliator who is frozen/inactive/unapproved would have their
+    // reward forfeited by processAffiliatorPayment regardless of work
+    // days (§3.7.12's mutual-approval + continued-contribution rules), so
+    // "eligible" would be misleading if it only checked work days.
+    eligible_for_payment:
+      workDays >= (config.affiliate_min_days || 3) &&
+      !!userData.is_active &&
+      !userData.is_frozen &&
+      userData.approval_status === "approved",
+    work_hours_today: Math.floor((minutesToday / 60) * 10) / 10,
+    work_hours_week: Math.floor((minutesWeek / 60) * 10) / 10,
+    work_hours_month: Math.floor((minutesMonth / 60) * 10) / 10,
+    work_hours_cumulative: Math.floor((minutesCumulative / 60) * 10) / 10,
+    work_days_week: daysWeek.size,
+    work_days_month: workDays,
+    work_days_cumulative: daysCumulative.size,
+    reward_today: rewardToday,
+    reward_week: rewardWeek,
+    reward_month: rewardMonth,
+    reward_cumulative: allTimePaid,
+    affiliate_payment_day: config.affiliate_payment_day || 5,
   };
 });

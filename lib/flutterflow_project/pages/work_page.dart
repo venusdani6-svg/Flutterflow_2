@@ -19,6 +19,24 @@ final class WorkPageParams {
 
 final class WorkPageState {
   const WorkPageState();
+  ffai.ProjectStateFieldHandle get securityOpenCount =>
+      const ffai.ProjectStateFieldHandle(
+        name: "securityOpenCount",
+        key: "c5wukv6b",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get transportOpenCount =>
+      const ffai.ProjectStateFieldHandle(
+        name: "transportOpenCount",
+        key: "vfohwkex",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get workPostsList =>
+      const ffai.ProjectStateFieldHandle(
+        name: "workPostsList",
+        key: "fuoql9e9",
+        typeName: "List<String>",
+      );
 }
 
 abstract final class WorkPageWidgets {
@@ -90,6 +108,16 @@ abstract final class WorkPageWidgets {
                             ),
                           ],
                         ),
+                        ffai.ProjectWidgetHandle(
+                          key: "Button_xnqyaedm",
+                          type: "Button",
+                          path: "WorkPage.appBar[0].title[0].children[1].children[2]",
+                          name: "MyWorkNavButton",
+                          text: "マイワーク",
+                          triggers: const <String>[
+                            "ON_TAP",
+                          ],
+                        ),
                       ],
                     ),
                   ],
@@ -131,331 +159,69 @@ abstract final class WorkPageWidgets {
                         path: "WorkPage.body[0].children[0].children[0].children[2]",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "ListView_x0fx9vsg",
+                            key: "ListView_4pd4ffxt",
                             type: "ListView",
                             path: "WorkPage.body[0].children[0].children[0].children[2].children[0]",
+                            name: "WorkPostsListView",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "Container_12fk6ob1",
-                                type: "Container",
+                                key: "Card_gf5z58w2",
+                                type: "Card",
                                 path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0]",
+                                name: "WorkPostCard",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Column_f4hv88pj",
-                                    type: "Column",
+                                    key: "Container_ixgzqd8r",
+                                    type: "Container",
                                     path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0]",
+                                    name: "Container",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_ug2yygpa",
+                                        key: "Column_qisuf5ve",
                                         type: "Column",
                                         path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0]",
+                                        name: "Column",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Card_h5uns8ae",
-                                            type: "Card",
+                                            key: "Text_g956y3ax",
+                                            type: "Text",
                                             path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Container_marh4iaq",
-                                                type: "Container",
-                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0].children[0]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Row_wxjdxa9v",
-                                                    type: "Row",
-                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0].children[0].children[0]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "CircleImage_he91q5n3",
-                                                        type: "CircleImage",
-                                                        path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0]",
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Column_6251cnxj",
-                                                        type: "Column",
-                                                        path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1]",
-                                                        children: <ffai.ProjectWidgetHandle>[
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Row_ijyfu6p3",
-                                                            type: "Row",
-                                                            path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0]",
-                                                            children: <ffai.ProjectWidgetHandle>[
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Text_5n6lbnxo",
-                                                                type: "Text",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0].children[0]",
-                                                                text: "ゆずき",
-                                                              ),
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Row_8vitbsfd",
-                                                                type: "Row",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0].children[1]",
-                                                                children: <ffai.ProjectWidgetHandle>[
-                                                                  ffai.ProjectWidgetHandle(
-                                                                    key: "Icon_0hdwp8hd",
-                                                                    type: "Icon",
-                                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0].children[1].children[0]",
-                                                                  ),
-                                                                  ffai.ProjectWidgetHandle(
-                                                                    key: "Text_dp379n14",
-                                                                    type: "Text",
-                                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0].children[1].children[1]",
-                                                                    text: "5 分前",
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Row_gn85zpfw",
-                                                            type: "Row",
-                                                            path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[1]",
-                                                            children: <ffai.ProjectWidgetHandle>[
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Text_kyhwvsz4",
-                                                                type: "Text",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[1].children[0]",
-                                                                text: "タイトルが入る",
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
+                                            name: "Text",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "Card_gz8pvpin",
-                                            type: "Card",
+                                            key: "Text_vmdabpjo",
+                                            type: "Text",
                                             path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Container_929vs1xu",
-                                                type: "Container",
-                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Row_rgij09ji",
-                                                    type: "Row",
-                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[0]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "CircleImage_0jesb8ql",
-                                                        type: "CircleImage",
-                                                        path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[0]",
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Column_6a1x81gs",
-                                                        type: "Column",
-                                                        path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[1]",
-                                                        children: <ffai.ProjectWidgetHandle>[
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Row_xkugry5z",
-                                                            type: "Row",
-                                                            path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[1].children[0]",
-                                                            children: <ffai.ProjectWidgetHandle>[
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Text_cd5bxz8p",
-                                                                type: "Text",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[1].children[0].children[0]",
-                                                                text: "ゆずき",
-                                                              ),
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Row_egeswqf9",
-                                                                type: "Row",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[1].children[0].children[1]",
-                                                                children: <ffai.ProjectWidgetHandle>[
-                                                                  ffai.ProjectWidgetHandle(
-                                                                    key: "Icon_9bkf2f2i",
-                                                                    type: "Icon",
-                                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[1].children[0].children[1].children[0]",
-                                                                  ),
-                                                                  ffai.ProjectWidgetHandle(
-                                                                    key: "Text_82tzvdog",
-                                                                    type: "Text",
-                                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[1].children[0].children[1].children[1]",
-                                                                    text: "5 分前",
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Row_homxnuql",
-                                                            type: "Row",
-                                                            path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[1].children[1]",
-                                                            children: <ffai.ProjectWidgetHandle>[
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Text_dnnnu1k1",
-                                                                type: "Text",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[1].children[1].children[0]",
-                                                                text: "タイトルが入る",
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
+                                            name: "Text",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "Card_d1r72qcd",
-                                            type: "Card",
+                                            key: "Row_9cxtfjae",
+                                            type: "Row",
                                             path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2]",
+                                            name: "Row",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Container_ptbu8aqd",
-                                                type: "Container",
+                                                key: "Text_9o5rvlx3",
+                                                type: "Text",
                                                 path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[0]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Row_my9xpnnb",
-                                                    type: "Row",
-                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[0].children[0]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "CircleImage_7ydjrv29",
-                                                        type: "CircleImage",
-                                                        path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[0]",
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Column_b3u3cask",
-                                                        type: "Column",
-                                                        path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[1]",
-                                                        children: <ffai.ProjectWidgetHandle>[
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Row_0dc0wna8",
-                                                            type: "Row",
-                                                            path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[1].children[0]",
-                                                            children: <ffai.ProjectWidgetHandle>[
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Text_hdl3fdfu",
-                                                                type: "Text",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[1].children[0].children[0]",
-                                                                text: "ゆずき",
-                                                              ),
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Row_hgycaoe5",
-                                                                type: "Row",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[1].children[0].children[1]",
-                                                                children: <ffai.ProjectWidgetHandle>[
-                                                                  ffai.ProjectWidgetHandle(
-                                                                    key: "Icon_8p4smip0",
-                                                                    type: "Icon",
-                                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[1].children[0].children[1].children[0]",
-                                                                  ),
-                                                                  ffai.ProjectWidgetHandle(
-                                                                    key: "Text_tw3a14fc",
-                                                                    type: "Text",
-                                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[1].children[0].children[1].children[1]",
-                                                                    text: "5 分前",
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Row_pinoxjtg",
-                                                            type: "Row",
-                                                            path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[1].children[1]",
-                                                            children: <ffai.ProjectWidgetHandle>[
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Text_mo2sif17",
-                                                                type: "Text",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[1].children[1].children[0]",
-                                                                text: "タイトルが入る",
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
+                                                name: "Text",
+                                              ),
+                                              ffai.ProjectWidgetHandle(
+                                                key: "Text_gdx91345",
+                                                type: "Text",
+                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[2].children[1]",
+                                                name: "Text",
                                               ),
                                             ],
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "Card_ppwgky74",
-                                            type: "Card",
+                                            key: "Button_c5rnq0fp",
+                                            type: "Button",
                                             path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Container_fvyoabdo",
-                                                type: "Container",
-                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3].children[0]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Row_ioj18p7n",
-                                                    type: "Row",
-                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3].children[0].children[0]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "CircleImage_w3o2rz8v",
-                                                        type: "CircleImage",
-                                                        path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[0]",
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Column_1xlkvm96",
-                                                        type: "Column",
-                                                        path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[1]",
-                                                        children: <ffai.ProjectWidgetHandle>[
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Row_vx1vasl9",
-                                                            type: "Row",
-                                                            path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[1].children[0]",
-                                                            children: <ffai.ProjectWidgetHandle>[
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Text_z7xi6agc",
-                                                                type: "Text",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[1].children[0].children[0]",
-                                                                text: "ゆずき",
-                                                              ),
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Row_6qyv1dqz",
-                                                                type: "Row",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[1].children[0].children[1]",
-                                                                children: <ffai.ProjectWidgetHandle>[
-                                                                  ffai.ProjectWidgetHandle(
-                                                                    key: "Icon_8d9lem30",
-                                                                    type: "Icon",
-                                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[1].children[0].children[1].children[0]",
-                                                                  ),
-                                                                  ffai.ProjectWidgetHandle(
-                                                                    key: "Text_6wiuh956",
-                                                                    type: "Text",
-                                                                    path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[1].children[0].children[1].children[1]",
-                                                                    text: "5 分前",
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Row_0a7zxep5",
-                                                            type: "Row",
-                                                            path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[1].children[1]",
-                                                            children: <ffai.ProjectWidgetHandle>[
-                                                              ffai.ProjectWidgetHandle(
-                                                                key: "Text_3g3nbhqm",
-                                                                type: "Text",
-                                                                path: "WorkPage.body[0].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[1].children[1].children[0]",
-                                                                text: "タイトルが入る",
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
+                                            name: "Button",
+                                            text: "詳細を見る",
+                                            triggers: const <String>[
+                                              "ON_TAP",
                                             ],
                                           ),
                                         ],
@@ -605,10 +371,10 @@ abstract final class WorkPageWidgets {
                                         path: "WorkPage.body[0].children[0].children[0].children[2].children[1].children[0].children[2].children[2]",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_sq4cst7x",
+                                            key: "Text_d8a0w3ps",
                                             type: "Text",
                                             path: "WorkPage.body[0].children[0].children[0].children[2].children[1].children[0].children[2].children[2].children[0]",
-                                            text: "セキュリティ要員は、イコッチャガールズ＆ボーイズの方で、空いた暇な時間をセキュリティ要因として兼務出来る方です！",
+                                            name: "SecurityCategoryText",
                                           ),
                                         ],
                                       ),
@@ -618,10 +384,10 @@ abstract final class WorkPageWidgets {
                                         path: "WorkPage.body[0].children[0].children[0].children[2].children[1].children[0].children[2].children[3]",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_2o0nz3aj",
+                                            key: "Text_bth41c5k",
                                             type: "Text",
                                             path: "WorkPage.body[0].children[0].children[0].children[2].children[1].children[0].children[2].children[3].children[0]",
-                                            text: "送迎要員は、イコッチャガールズ＆ボーイズの方で、空いた暇な時間を送迎要因として兼務出来る方です！",
+                                            name: "TransportCategoryText",
                                           ),
                                         ],
                                       ),

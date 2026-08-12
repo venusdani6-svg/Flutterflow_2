@@ -19,6 +19,12 @@ final class AffiliateParams {
 
 final class AffiliateState {
   const AffiliateState();
+  ffai.ProjectStateFieldHandle get dashboardData =>
+      const ffai.ProjectStateFieldHandle(
+        name: "dashboardData",
+        key: "yk0i0rl6",
+        typeName: "String",
+      );
 }
 
 abstract final class AffiliateWidgets {
@@ -28,6 +34,9 @@ abstract final class AffiliateWidgets {
       type: "Scaffold",
       path: "Affiliate",
       name: "Affiliate",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
@@ -143,10 +152,10 @@ abstract final class AffiliateWidgets {
                                     path: "Affiliate.body[0].children[0].children[0].children[0].children[0].children[3].children[0]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_lcmyx3h4",
+                                        key: "Text_8aiftmd1",
                                         type: "Text",
                                         path: "Affiliate.body[0].children[0].children[0].children[0].children[0].children[3].children[0].children[0]",
-                                        text: "UID-XXXXXXXX",
+                                        name: "ReferralCodeText",
                                       ),
                                       ffai.ProjectWidgetHandle(
                                         key: "Container_4hiwmwof",
@@ -251,10 +260,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[1].children[0].children[0].children[2].children[0].children[1].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_tzf8tm22",
+                                                key: "Text_sau2bh16",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[1].children[0].children[0].children[2].children[0].children[1].children[1].children[0]",
-                                                text: "5",
+                                                name: "AffiliateRateText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_ok0cymy2",
@@ -296,10 +305,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[1].children[0].children[0].children[2].children[0].children[3].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_nf1sis21",
+                                                key: "Text_kothpzf0",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[1].children[0].children[0].children[2].children[0].children[3].children[1].children[0]",
-                                                text: "5",
+                                                name: "TeamSizeText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_qqebybtl",
@@ -341,10 +350,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[1].children[0].children[0].children[2].children[0].children[5].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_gayx68ow",
+                                                key: "Text_radq2n1c",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[1].children[0].children[0].children[2].children[0].children[5].children[1].children[0]",
-                                                text: "3",
+                                                name: "ActiveCountText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_oz29bq63",
@@ -373,10 +382,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[1].children[0].children[0].children[2].children[0].children[6].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_ahmt2cqw",
+                                                key: "Text_2lwldnak",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[1].children[0].children[0].children[2].children[0].children[6].children[1].children[0]",
-                                                text: "2",
+                                                name: "InactiveCountText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_knkm3ywl",
@@ -476,10 +485,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[1].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_pu0l40j9",
+                                                key: "Text_dmdpt7r5",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[1].children[1].children[0]",
-                                                text: "32",
+                                                name: "WorkHoursTodayText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_gxfl4jig",
@@ -508,10 +517,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[2].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_f24x05a1",
+                                                key: "Text_mv8h8go9",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[2].children[1].children[0]",
-                                                text: "123",
+                                                name: "WorkHoursWeekText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_exb0zpgl",
@@ -540,10 +549,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[3].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_vqfm87nb",
+                                                key: "Text_40s2l0zd",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[3].children[1].children[0]",
-                                                text: "123",
+                                                name: "WorkHoursMonthText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_i15ecsrs",
@@ -572,10 +581,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[4].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_bfrrbnjx",
+                                                key: "Text_i4b4dj3g",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[4].children[1].children[0]",
-                                                text: "123",
+                                                name: "WorkHoursCumulativeText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_sjtk195f",
@@ -617,10 +626,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[6].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_b0r9zsyc",
+                                                key: "Text_y7yc6rer",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[6].children[1].children[0]",
-                                                text: "123",
+                                                name: "WorkDaysWeekText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_198k1b1o",
@@ -649,10 +658,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[7].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_tl521gdp",
+                                                key: "Text_am84u9ds",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[7].children[1].children[0]",
-                                                text: "123",
+                                                name: "WorkDaysMonthText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_2kxxse62",
@@ -681,10 +690,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[8].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_6tvvtg4x",
+                                                key: "Text_j935mg72",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[8].children[1].children[0]",
-                                                text: "123",
+                                                name: "WorkDaysCumulativeText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_r3ajtsw0",
@@ -784,10 +793,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[2].children[0].children[1].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_zmcrm0ra",
+                                                key: "Text_c29r4o0y",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[2].children[0].children[1].children[1].children[0]",
-                                                text: "123",
+                                                name: "RewardTodayText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_xs2o76y0",
@@ -816,10 +825,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[2].children[0].children[2].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_t0itbgen",
+                                                key: "Text_lp2jambl",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[2].children[0].children[2].children[1].children[0]",
-                                                text: "123",
+                                                name: "RewardWeekText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_usj3dowu",
@@ -848,10 +857,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[2].children[0].children[3].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_hocaytv9",
+                                                key: "Text_lf5vdygn",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[2].children[0].children[3].children[1].children[0]",
-                                                text: "123",
+                                                name: "RewardMonthText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_o8wbu4g4",
@@ -880,10 +889,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[2].children[0].children[4].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_ap0r0l02",
+                                                key: "Text_jh6l87lg",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[2].children[0].children[4].children[1].children[0]",
-                                                text: "123",
+                                                name: "RewardCumulativeText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_6626l0at",
@@ -939,10 +948,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[3].children[0].children[1].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_haz55nvg",
+                                                key: "Text_88jvfsb9",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[3].children[0].children[1].children[1].children[0]",
-                                                text: "5",
+                                                name: "PaymentDayText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_vohimsfd",
@@ -1003,10 +1012,10 @@ abstract final class AffiliateWidgets {
                                             path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[3].children[0].children[3].children[1]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_yjv0ognw",
+                                                key: "Text_7wm66lmx",
                                                 type: "Text",
                                                 path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[3].children[0].children[3].children[1].children[0]",
-                                                text: "123",
+                                                name: "CurrentMonthPendingText",
                                               ),
                                               ffai.ProjectWidgetHandle(
                                                 key: "Text_d9ykczu6",
@@ -1034,6 +1043,9 @@ abstract final class AffiliateWidgets {
                                             type: "Button",
                                             path: "Affiliate.body[0].children[0].children[3].children[0].children[0].children[3].children[0].children[4].children[1]",
                                             text: "申請する",
+                                            triggers: const <String>[
+                                              "ON_TAP",
+                                            ],
                                           ),
                                         ],
                                       ),

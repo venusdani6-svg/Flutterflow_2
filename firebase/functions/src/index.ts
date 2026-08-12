@@ -5,19 +5,34 @@
 
 import { setGlobalOptions } from "firebase-functions/v2";
 
-// cpu/maxInstances lowered from the implicit defaults (1 vCPU, effectively
-// uncapped scale-out) to fit this project's small Cloud Run CPU-per-region
-// quota (20 vCPU on a fresh project, self-service increase unavailable yet
-// pending usage history) — deploying ~55 functions at the implicit 1 vCPU
-// default exceeded it well before all functions were even deployed. These
-// are low-traffic admin/CRUD/webhook functions with no heavy compute need,
-// so 0.5 vCPU / 10 max instances per function is a safe fit, not just a
-// workaround — revisit upward once real traffic and/or an approved quota
-// increase justify it. Note: only applies to v2 functions (onCall/onRequest/
-// onSchedule from firebase-functions/v2/*) — the few 1st-gen functions
-// (onUserCreated, adminApprovePayout, adminGetPayoutRequests) configure
-// their own resources separately and aren't affected by this.
-setGlobalOptions({ region: "asia-northeast1", cpu: 0.5, maxInstances: 10 });
+// maxInstances lowered from the implicit uncapped default to fit this
+// project's small Cloud Run CPU-per-region quota (20 vCPU on a fresh
+// project, self-service increase unavailable yet pending usage history).
+// FIX (2026-08-11): this block previously ALSO set `cpu: 0.5`, on the
+// (wrong) assumption from its own earlier comment that setGlobalOptions'
+// v2-only options only apply to v2 (onCall/onRequest/onSchedule from
+// firebase-functions/v2/*) functions, leaving the "few" 1st-gen functions
+// unaffected. That assumption was wrong on two counts, confirmed by
+// tracing the actual failure into firebase-tools' own source
+// (deploy/functions/validate.js's cpuConfigIsValid): (1) there are 8
+// gen-1 functions affected, not the 3 named in the old comment
+// (adminGetUsers, adminGetReservations, adminGetAffiliateOverview,
+// adminGetLedger, adminGetStripeLogs, adminUpsertBanner,
+// adminApprovePayout, adminGetDashboardStats — all genuinely written with
+// the v1 SDK, confirmed via grep, not a declaration mistake); (2) despite
+// being v1-declared with no `cpu` option of their own to override,
+// firebase-tools' own endpoint-extraction step was applying
+// setGlobalOptions' `cpu` value to their internal endpoint representation
+// regardless of platform, which cpuConfigIsValid then correctly rejects
+// ("Cannot set CPU on the functions ... because they are GCF gen 1") —
+// blocking EVERY deploy, not just ones touching these functions. No safe
+// per-function fix exists for this (v1 syntax has no cpu override point),
+// so `cpu` is dropped here entirely rather than patched around. This
+// re-risks the ORIGINAL vCPU-quota-exceeded failure this line was added
+// to avoid — a known, already-diagnosed failure mode, not a mystery — if
+// it resurfaces, revisit via `gcloud` quota increase or per-function
+// (not global) `cpu` overrides scoped to genuinely v2-only declarations.
+setGlobalOptions({ region: "asia-northeast1", maxInstances: 10 });
 
 // ============================================
 // Auth & User Management
@@ -33,6 +48,8 @@ export {
   blockUser,
   reportUser,
   requestWithdrawal,
+  getServiceAreas,
+  getDiscoveryCasts,
 } from "./auth";
 
 // ============================================
@@ -47,6 +64,7 @@ export {
   processTip,
   createSetupIntent,
   requestPayout,
+  getWalletBalance,
 } from "./stripe-payments";
 
 // ============================================
@@ -65,6 +83,9 @@ export {
   submitReview,
   autoCancelExpiredAuth,
   autoCompleteReviews,
+  sendChatMessage,
+  getChatRoomInfo,
+  getMyMatchaList,
 } from "./reservations";
 
 // ============================================
@@ -74,6 +95,17 @@ export {
   processMonthlyAffiliatePayments,
   getAffiliateDashboard,
 } from "./affiliate";
+
+// ============================================
+// Work Board
+// ============================================
+export {
+  applyToWorkPost,
+  selectWorkApplicant,
+  fetchWorkPosts,
+  getWorkPostDetail,
+  fetchMyWorkPosts,
+} from "./work-posts";
 
 // ============================================
 // Admin Panel
@@ -90,6 +122,7 @@ export {
   adminGetReservationExtras,
   adminUpdateReservationLocation,
   adminUpdateAffiliateRate,
+  adminGetAffiliateRateHistory,
   adminGetAffiliateOverview,
   adminGetLedger,
   adminGetStripeLogs,

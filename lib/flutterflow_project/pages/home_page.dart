@@ -19,6 +19,12 @@ final class HomePageParams {
 
 final class HomePageState {
   const HomePageState();
+  ffai.ProjectStateFieldHandle get discoveryCasts =>
+      const ffai.ProjectStateFieldHandle(
+        name: "discoveryCasts",
+        key: "nzf8hkne",
+        typeName: "List<String>",
+      );
 }
 
 abstract final class HomePageWidgets {
@@ -129,255 +135,65 @@ abstract final class HomePageWidgets {
                         path: "HomePage.body[0].children[0].children[0].children[0]",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Container_z3poslih",
-                            type: "Container",
+                            key: "GridView_8292ke7j",
+                            type: "GridView",
                             path: "HomePage.body[0].children[0].children[0].children[0].children[0]",
+                            name: "DiscoveryCastGrid",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "PageView_59t0cb1b",
-                                type: "PageView",
+                                key: "Container_cwvcx4p8",
+                                type: "Container",
                                 path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0]",
+                                name: "DiscoveryCastCard",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "PlaceholderWidget_q2a8siws",
-                                    type: "PlaceholderWidget",
+                                    key: "Column_ulz1sfji",
+                                    type: "Column",
                                     path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[0]",
+                                    name: "Column",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_vjpcftcm",
-                                        type: "Column",
+                                        key: "Stack_lmtg3j3u",
+                                        type: "Stack",
                                         path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0]",
+                                        name: "Stack",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Stack_zmrhjxof",
-                                            type: "Stack",
+                                            key: "Image_3jrrjpmy",
+                                            type: "Image",
                                             path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0]",
+                                            name: "DiscoveryCastImage",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Container_z1o3s0ik",
+                                            type: "Container",
+                                            path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1]",
+                                            name: "DiscoveryCastOnlineDot Margin",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Image_coo8kk2n",
-                                                type: "Image",
-                                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0]",
-                                              ),
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Row_cl4xagd2",
-                                                type: "Row",
-                                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_m2yy2hm9",
-                                                    type: "Icon",
-                                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0]",
-                                                    triggers: const <String>[
-                                                      "ON_TAP",
-                                                    ],
-                                                  ),
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_9ym0jb72",
-                                                    type: "Icon",
-                                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[1]",
-                                                    triggers: const <String>[
-                                                      "ON_TAP",
-                                                    ],
-                                                  ),
-                                                ],
+                                                key: "Container_iprq2yfg",
+                                                type: "Container",
+                                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0]",
+                                                name: "DiscoveryCastOnlineDot",
                                               ),
                                             ],
                                           ),
                                         ],
                                       ),
-                                    ],
-                                  ),
-                                  ffai.ProjectWidgetHandle(
-                                    key: "PlaceholderWidget_o3ii2gwh",
-                                    type: "PlaceholderWidget",
-                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[1]",
-                                    children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_eojipspy",
-                                        type: "Column",
-                                        path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0]",
+                                        key: "Container_5qn43csz",
+                                        type: "Container",
+                                        path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1]",
+                                        name: "Container",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Stack_4bagaij8",
-                                            type: "Stack",
-                                            path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0].children[0]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Image_mwawvd3d",
-                                                type: "Image",
-                                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[0]",
-                                              ),
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Row_jew39btb",
-                                                type: "Row",
-                                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[1]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_gx2m8ly6",
-                                                    type: "Icon",
-                                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[1].children[0]",
-                                                    triggers: const <String>[
-                                                      "ON_TAP",
-                                                    ],
-                                                  ),
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_r16zzs53",
-                                                    type: "Icon",
-                                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0].children[0].children[1].children[1]",
-                                                    triggers: const <String>[
-                                                      "ON_TAP",
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  ffai.ProjectWidgetHandle(
-                                    key: "PlaceholderWidget_r60o6xlo",
-                                    type: "PlaceholderWidget",
-                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[2]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Column_xgllxe5j",
-                                        type: "Column",
-                                        path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[2].children[0]",
-                                        children: <ffai.ProjectWidgetHandle>[
-                                          ffai.ProjectWidgetHandle(
-                                            key: "Stack_r7a36gnj",
-                                            type: "Stack",
-                                            path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[2].children[0].children[0]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Image_wyy8kb42",
-                                                type: "Image",
-                                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[0]",
-                                              ),
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Row_es8i92lv",
-                                                type: "Row",
-                                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[1]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_71lfxpd2",
-                                                    type: "Icon",
-                                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[1].children[0]",
-                                                    triggers: const <String>[
-                                                      "ON_TAP",
-                                                    ],
-                                                  ),
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_eup5jrpn",
-                                                    type: "Icon",
-                                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[2].children[0].children[0].children[1].children[1]",
-                                                    triggers: const <String>[
-                                                      "ON_TAP",
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  ffai.ProjectWidgetHandle(
-                                    key: "PlaceholderWidget_spqskz9x",
-                                    type: "PlaceholderWidget",
-                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[3]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Column_zw4oy0ry",
-                                        type: "Column",
-                                        path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[3].children[0]",
-                                        children: <ffai.ProjectWidgetHandle>[
-                                          ffai.ProjectWidgetHandle(
-                                            key: "Stack_s7nbmuzv",
-                                            type: "Stack",
-                                            path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[3].children[0].children[0]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Image_o3m3b26k",
-                                                type: "Image",
-                                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[0]",
-                                              ),
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Row_161kq23p",
-                                                type: "Row",
-                                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[1]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_15gthsag",
-                                                    type: "Icon",
-                                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[1].children[0]",
-                                                    triggers: const <String>[
-                                                      "ON_TAP",
-                                                    ],
-                                                  ),
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_c0nu3h42",
-                                                    type: "Icon",
-                                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[3].children[0].children[0].children[1].children[1]",
-                                                    triggers: const <String>[
-                                                      "ON_TAP",
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  ffai.ProjectWidgetHandle(
-                                    key: "PlaceholderWidget_nvh2thtb",
-                                    type: "PlaceholderWidget",
-                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[4]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Column_vd9bza3f",
-                                        type: "Column",
-                                        path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[4].children[0]",
-                                        children: <ffai.ProjectWidgetHandle>[
-                                          ffai.ProjectWidgetHandle(
-                                            key: "Stack_j7ybqgu0",
-                                            type: "Stack",
-                                            path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[4].children[0].children[0]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Image_f4z9x8g9",
-                                                type: "Image",
-                                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[4].children[0].children[0].children[0]",
-                                              ),
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Row_5ev39rmt",
-                                                type: "Row",
-                                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[4].children[0].children[0].children[1]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_deq6vydm",
-                                                    type: "Icon",
-                                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[4].children[0].children[0].children[1].children[0]",
-                                                    triggers: const <String>[
-                                                      "ON_TAP",
-                                                    ],
-                                                  ),
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_235qgy8q",
-                                                    type: "Icon",
-                                                    path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[4].children[0].children[0].children[1].children[1]",
-                                                    triggers: const <String>[
-                                                      "ON_TAP",
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
+                                            key: "Text_53otm2xy",
+                                            type: "Text",
+                                            path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0]",
+                                            name: "DiscoveryCastNickname",
                                           ),
                                         ],
                                       ),

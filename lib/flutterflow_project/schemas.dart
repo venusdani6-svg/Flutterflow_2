@@ -7,7 +7,99 @@ import 'dart:collection';
 import 'package:flutterflow_ai/flutterflow_ai.dart' as ffai;
 
 abstract final class Enums {
-  static const all = <ffai.EnumHandle>[];
+  static final affiliateRewardStatus = ffai.EnumHandle(
+    "AffiliateRewardStatus",
+    const <String>[
+      "pending",
+      "paid",
+      "forfeited",
+    ],
+  );
+  static final approvalStatus = ffai.EnumHandle(
+    "ApprovalStatus",
+    const <String>[
+      "pending",
+      "approved",
+      "rejected",
+    ],
+  );
+  static final kycStatus = ffai.EnumHandle(
+    "KycStatus",
+    const <String>[
+      "pending",
+      "submitted",
+      "approved",
+      "rejected",
+    ],
+  );
+  static final ledgerEntryType = ffai.EnumHandle(
+    "LedgerEntryType",
+    const <String>[
+      "reward",
+      "staff_fee",
+      "extension",
+      "tip",
+      "affiliate",
+      "refund",
+    ],
+  );
+  static final payoutRequestStatus = ffai.EnumHandle(
+    "PayoutRequestStatus",
+    const <String>[
+      "pending",
+      "approved",
+      "on_hold",
+      "rejected",
+    ],
+  );
+  static final reservationStatus = ffai.EnumHandle(
+    "ReservationStatus",
+    const <String>[
+      "request_pending",
+      "authorized",
+      "confirmed",
+      "in_progress",
+      "completion_pending",
+      "review_pending",
+      "completed",
+      "cancelled",
+      "expired",
+    ],
+  );
+  static final staffType = ffai.EnumHandle(
+    "StaffType",
+    const <String>[
+      "none",
+      "security",
+      "transport",
+      "both",
+    ],
+  );
+  static final userAccountType = ffai.EnumHandle(
+    "UserAccountType",
+    const <String>[
+      "guest",
+      "cast",
+    ],
+  );
+  static final userRole = ffai.EnumHandle(
+    "UserRole",
+    const <String>[
+      "user",
+      "admin",
+    ],
+  );
+  static final all = <ffai.EnumHandle>[
+    affiliateRewardStatus,
+    approvalStatus,
+    kycStatus,
+    ledgerEntryType,
+    payoutRequestStatus,
+    reservationStatus,
+    staffType,
+    userAccountType,
+    userRole,
+  ];
 }
 
 abstract final class Structs {
@@ -15,6 +107,11 @@ abstract final class Structs {
 }
 
 abstract final class Collections {
+  static final affiliateRateHistory = ffai.ProjectCollectionHandle<AffiliateRateHistoryFields>(
+    name: "affiliate_rate_history",
+    description: "アフィリエイト料率変更履歴（管理画面の手動レート変更を記録）。",
+    fields: AffiliateRateHistoryFields(),
+  );
   static final affiliateRewards = ffai.ProjectCollectionHandle<AffiliateRewardsFields>(
     name: "affiliate_rewards",
     description: "",
@@ -49,11 +146,6 @@ abstract final class Collections {
     name: "debt_history",
     description: "",
     fields: DebtHistoryFields(),
-  );
-  static final extensionPayments = ffai.ProjectCollectionHandle<ExtensionPaymentsFields>(
-    name: "extension_payments",
-    description: "",
-    fields: ExtensionPaymentsFields(),
   );
   static final extensions = ffai.ProjectCollectionHandle<ExtensionsFields>(
     name: "extensions",
@@ -95,6 +187,11 @@ abstract final class Collections {
     description: "",
     fields: PaymentsFields(),
   );
+  static final payoutRequests = ffai.ProjectCollectionHandle<PayoutRequestsFields>(
+    name: "payout_requests",
+    description: "出金申請（§6 defect #9 — requestPayout が作成、admin側が承認/却下）。",
+    fields: PayoutRequestsFields(),
+  );
   static final processedEvents = ffai.ProjectCollectionHandle<ProcessedEventsFields>(
     name: "processed_events",
     description: "",
@@ -135,12 +232,13 @@ abstract final class Collections {
     description: "",
     fields: UsersFields(),
   );
-  static final workPost = ffai.ProjectCollectionHandle<WorkPostFields>(
-    name: "work_post",
+  static final workPosts = ffai.ProjectCollectionHandle<WorkPostsFields>(
+    name: "work_posts",
     description: "",
-    fields: WorkPostFields(),
+    fields: WorkPostsFields(),
   );
   static final all = <ffai.ProjectCollectionHandle>[
+    affiliateRateHistory,
     affiliateRewards,
     auditLogs,
     banners,
@@ -148,7 +246,6 @@ abstract final class Collections {
     chats,
     cocotenShops,
     debtHistory,
-    extensionPayments,
     extensions,
     favorites,
     ledger,
@@ -157,6 +254,7 @@ abstract final class Collections {
     notifications,
     pairHistory,
     payments,
+    payoutRequests,
     processedEvents,
     reports,
     reservations,
@@ -165,13 +263,81 @@ abstract final class Collections {
     stripeLogs,
     systemConfig,
     users,
-    workPost,
+    workPosts,
   ];
 }
 
+final class AffiliateRateHistoryFields extends MapBase<String, ffai.DslType> {
+  final affiliatorUid = ffai.ProjectCollectionFieldHandle(
+    name: "affiliator_uid",
+    key: "enwz3p18",
+    typeName: "String",
+    type: ffai.string,
+    description: "",
+  );
+  final changedAt = ffai.ProjectCollectionFieldHandle(
+    name: "changed_at",
+    key: "1vp1apeo",
+    typeName: "DateTime",
+    type: ffai.dateTime,
+    description: "",
+  );
+  final changedByAdminId = ffai.ProjectCollectionFieldHandle(
+    name: "changed_by_admin_id",
+    key: "2djysz9a",
+    typeName: "String",
+    type: ffai.string,
+    description: "",
+  );
+  final newRate = ffai.ProjectCollectionFieldHandle(
+    name: "new_rate",
+    key: "mge5sq5p",
+    typeName: "Double",
+    type: ffai.double_,
+    description: "",
+  );
+  final oldRate = ffai.ProjectCollectionFieldHandle(
+    name: "old_rate",
+    key: "sbn7cbj4",
+    typeName: "Double",
+    type: ffai.double_,
+    description: "",
+  );
+
+  @override
+  Iterable<String> get keys => const <String>[
+    "affiliator_uid",
+    "changed_at",
+    "changed_by_admin_id",
+    "new_rate",
+    "old_rate",
+  ];
+
+  @override
+  ffai.DslType? operator [](Object? key) => switch (key) {
+    "affiliator_uid" => affiliatorUid,
+    "changed_at" => changedAt,
+    "changed_by_admin_id" => changedByAdminId,
+    "new_rate" => newRate,
+    "old_rate" => oldRate,
+    _ => null,
+  };
+
+  @override
+  void operator []=(String key, ffai.DslType value) =>
+      throw UnsupportedError('Generated project SDK fields are read-only.');
+
+  @override
+  void clear() => throw UnsupportedError('Generated project SDK fields are read-only.');
+
+  @override
+  ffai.DslType? remove(Object? key) =>
+      throw UnsupportedError('Generated project SDK fields are read-only.');
+}
+
 final class AffiliateRewardsFields extends MapBase<String, ffai.DslType> {
-  final affiliateUid = ffai.ProjectCollectionFieldHandle(
-    name: "affiliate_uid",
+  final affiliatorUid = ffai.ProjectCollectionFieldHandle(
+    name: "affiliator_uid",
     key: "",
     typeName: "String",
     type: ffai.string,
@@ -236,14 +402,14 @@ final class AffiliateRewardsFields extends MapBase<String, ffai.DslType> {
   final status = ffai.ProjectCollectionFieldHandle(
     name: "status",
     key: "",
-    typeName: "String",
-    type: ffai.string,
+    typeName: "Enum<AffiliateRewardStatus>",
+    type: ffai.enum_(Enums.affiliateRewardStatus),
     description: "",
   );
 
   @override
   Iterable<String> get keys => const <String>[
-    "affiliate_uid",
+    "affiliator_uid",
     "base_amount",
     "created_at",
     "month",
@@ -257,7 +423,7 @@ final class AffiliateRewardsFields extends MapBase<String, ffai.DslType> {
 
   @override
   ffai.DslType? operator [](Object? key) => switch (key) {
-    "affiliate_uid" => affiliateUid,
+    "affiliator_uid" => affiliatorUid,
     "base_amount" => baseAmount,
     "created_at" => createdAt,
     "month" => month,
@@ -511,13 +677,6 @@ final class ChatRoomsFields extends MapBase<String, ffai.DslType> {
     type: ffai.string,
     description: "",
   );
-  final users = ffai.ProjectCollectionFieldHandle(
-    name: "users",
-    key: "",
-    typeName: "List<DocumentReference>",
-    type: ffai.listOf(ffai.docRef(Collections.users)),
-    description: "",
-  );
 
   @override
   Iterable<String> get keys => const <String>[
@@ -529,7 +688,6 @@ final class ChatRoomsFields extends MapBase<String, ffai.DslType> {
     "participants",
     "res_id",
     "room_id",
-    "users",
   ];
 
   @override
@@ -542,7 +700,6 @@ final class ChatRoomsFields extends MapBase<String, ffai.DslType> {
     "participants" => participants,
     "res_id" => resId,
     "room_id" => roomId,
-    "users" => users,
     _ => null,
   };
 
@@ -798,92 +955,6 @@ final class DebtHistoryFields extends MapBase<String, ffai.DslType> {
       throw UnsupportedError('Generated project SDK fields are read-only.');
 }
 
-final class ExtensionPaymentsFields extends MapBase<String, ffai.DslType> {
-  final amount = ffai.ProjectCollectionFieldHandle(
-    name: "amount",
-    key: "",
-    typeName: "Integer",
-    type: ffai.int_,
-    description: "",
-  );
-  final createdAt = ffai.ProjectCollectionFieldHandle(
-    name: "createdAt",
-    key: "",
-    typeName: "DateTime",
-    type: ffai.dateTime,
-    description: "",
-  );
-  final minutes = ffai.ProjectCollectionFieldHandle(
-    name: "minutes",
-    key: "",
-    typeName: "Integer",
-    type: ffai.int_,
-    description: "",
-  );
-  final paymentID = ffai.ProjectCollectionFieldHandle(
-    name: "paymentID",
-    key: "",
-    typeName: "String",
-    type: ffai.string,
-    description: "",
-  );
-  final reservationld = ffai.ProjectCollectionFieldHandle(
-    name: "reservationld",
-    key: "",
-    typeName: "String",
-    type: ffai.string,
-    description: "",
-  );
-  final status = ffai.ProjectCollectionFieldHandle(
-    name: "status",
-    key: "",
-    typeName: "String",
-    type: ffai.string,
-    description: "",
-  );
-  final userld = ffai.ProjectCollectionFieldHandle(
-    name: "userld",
-    key: "",
-    typeName: "String",
-    type: ffai.string,
-    description: "",
-  );
-
-  @override
-  Iterable<String> get keys => const <String>[
-    "amount",
-    "createdAt",
-    "minutes",
-    "paymentID",
-    "reservationld",
-    "status",
-    "userld",
-  ];
-
-  @override
-  ffai.DslType? operator [](Object? key) => switch (key) {
-    "amount" => amount,
-    "createdAt" => createdAt,
-    "minutes" => minutes,
-    "paymentID" => paymentID,
-    "reservationld" => reservationld,
-    "status" => status,
-    "userld" => userld,
-    _ => null,
-  };
-
-  @override
-  void operator []=(String key, ffai.DslType value) =>
-      throw UnsupportedError('Generated project SDK fields are read-only.');
-
-  @override
-  void clear() => throw UnsupportedError('Generated project SDK fields are read-only.');
-
-  @override
-  ffai.DslType? remove(Object? key) =>
-      throw UnsupportedError('Generated project SDK fields are read-only.');
-}
-
 final class ExtensionsFields extends MapBase<String, ffai.DslType> {
   final amount = ffai.ProjectCollectionFieldHandle(
     name: "amount",
@@ -1111,8 +1182,8 @@ final class LedgerFields extends MapBase<String, ffai.DslType> {
   final type = ffai.ProjectCollectionFieldHandle(
     name: "type",
     key: "",
-    typeName: "String",
-    type: ffai.string,
+    typeName: "Enum<LedgerEntryType>",
+    type: ffai.enum_(Enums.ledgerEntryType),
     description: "",
   );
   final userId = ffai.ProjectCollectionFieldHandle(
@@ -1599,6 +1670,65 @@ final class PaymentsFields extends MapBase<String, ffai.DslType> {
       throw UnsupportedError('Generated project SDK fields are read-only.');
 }
 
+final class PayoutRequestsFields extends MapBase<String, ffai.DslType> {
+  final createdAt = ffai.ProjectCollectionFieldHandle(
+    name: "created_at",
+    key: "f8s9elx2",
+    typeName: "DateTime",
+    type: ffai.dateTime,
+    description: "",
+  );
+  final status = ffai.ProjectCollectionFieldHandle(
+    name: "status",
+    key: "b9d4y9e2",
+    typeName: "Enum<PayoutRequestStatus>",
+    type: ffai.enum_(Enums.payoutRequestStatus),
+    description: "",
+  );
+  final updatedAt = ffai.ProjectCollectionFieldHandle(
+    name: "updated_at",
+    key: "33ihxiy7",
+    typeName: "DateTime",
+    type: ffai.dateTime,
+    description: "",
+  );
+  final userId = ffai.ProjectCollectionFieldHandle(
+    name: "user_id",
+    key: "9wurq6o0",
+    typeName: "String",
+    type: ffai.string,
+    description: "",
+  );
+
+  @override
+  Iterable<String> get keys => const <String>[
+    "created_at",
+    "status",
+    "updated_at",
+    "user_id",
+  ];
+
+  @override
+  ffai.DslType? operator [](Object? key) => switch (key) {
+    "created_at" => createdAt,
+    "status" => status,
+    "updated_at" => updatedAt,
+    "user_id" => userId,
+    _ => null,
+  };
+
+  @override
+  void operator []=(String key, ffai.DslType value) =>
+      throw UnsupportedError('Generated project SDK fields are read-only.');
+
+  @override
+  void clear() => throw UnsupportedError('Generated project SDK fields are read-only.');
+
+  @override
+  ffai.DslType? remove(Object? key) =>
+      throw UnsupportedError('Generated project SDK fields are read-only.');
+}
+
 final class ProcessedEventsFields extends MapBase<String, ffai.DslType> {
   final eventType = ffai.ProjectCollectionFieldHandle(
     name: "event_type",
@@ -1757,6 +1887,13 @@ final class ReservationsFields extends MapBase<String, ffai.DslType> {
     type: ffai.string,
     description: "",
   );
+  final castConfirmedMeetup = ffai.ProjectCollectionFieldHandle(
+    name: "cast_confirmed_meetup",
+    key: "qp0ky20y",
+    typeName: "Boolean",
+    type: ffai.bool_,
+    description: "キャストが合流確認をタップ済みか。",
+  );
   final castIds = ffai.ProjectCollectionFieldHandle(
     name: "cast_ids",
     key: "",
@@ -1813,6 +1950,13 @@ final class ReservationsFields extends MapBase<String, ffai.DslType> {
     type: ffai.int_,
     description: "",
   );
+  final guestConfirmedMeetup = ffai.ProjectCollectionFieldHandle(
+    name: "guest_confirmed_meetup",
+    key: "kkgho3ps",
+    typeName: "Boolean",
+    type: ffai.bool_,
+    description: "ゲストが合流確認をタップ済みか。",
+  );
   final guestId = ffai.ProjectCollectionFieldHandle(
     name: "guest_id",
     key: "",
@@ -1841,6 +1985,20 @@ final class ReservationsFields extends MapBase<String, ffai.DslType> {
     type: ffai.string,
     description: "",
   );
+  final needsSecurity = ffai.ProjectCollectionFieldHandle(
+    name: "needs_security",
+    key: "oglnomfl",
+    typeName: "Boolean",
+    type: ffai.bool_,
+    description: "予約作成時にゲストが警備スタッフを希望したか。",
+  );
+  final needsTransport = ffai.ProjectCollectionFieldHandle(
+    name: "needs_transport",
+    key: "c22ugte5",
+    typeName: "Boolean",
+    type: ffai.bool_,
+    description: "予約作成時にゲストが送迎スタッフを希望したか。",
+  );
   final paymentIntentId = ffai.ProjectCollectionFieldHandle(
     name: "payment_intent_id",
     key: "",
@@ -1848,8 +2006,8 @@ final class ReservationsFields extends MapBase<String, ffai.DslType> {
     type: ffai.string,
     description: "",
   );
-  final resIc = ffai.ProjectCollectionFieldHandle(
-    name: "res_ic",
+  final resId = ffai.ProjectCollectionFieldHandle(
+    name: "res_id",
     key: "",
     typeName: "String",
     type: ffai.string,
@@ -1872,8 +2030,8 @@ final class ReservationsFields extends MapBase<String, ffai.DslType> {
   final status = ffai.ProjectCollectionFieldHandle(
     name: "status",
     key: "",
-    typeName: "String",
-    type: ffai.string,
+    typeName: "Enum<ReservationStatus>",
+    type: ffai.enum_(Enums.reservationStatus),
     description: "",
   );
   final thirtyMinRuleApplied = ffai.ProjectCollectionFieldHandle(
@@ -1931,6 +2089,7 @@ final class ReservationsFields extends MapBase<String, ffai.DslType> {
     "base_amount",
     "cancel_reason",
     "cancelled_by",
+    "cast_confirmed_meetup",
     "cast_ids",
     "created_at",
     "date",
@@ -1939,12 +2098,15 @@ final class ReservationsFields extends MapBase<String, ffai.DslType> {
     "extension_count",
     "group_invite",
     "group_size",
+    "guest_confirmed_meetup",
     "guest_id",
     "last_capture_at",
     "location",
     "meeting_point",
+    "needs_security",
+    "needs_transport",
     "payment_intent_id",
-    "res_ic",
+    "res_id",
     "staff_fee",
     "staff_ids",
     "status",
@@ -1962,6 +2124,7 @@ final class ReservationsFields extends MapBase<String, ffai.DslType> {
     "base_amount" => baseAmount,
     "cancel_reason" => cancelReason,
     "cancelled_by" => cancelledBy,
+    "cast_confirmed_meetup" => castConfirmedMeetup,
     "cast_ids" => castIds,
     "created_at" => createdAt,
     "date" => date,
@@ -1970,12 +2133,15 @@ final class ReservationsFields extends MapBase<String, ffai.DslType> {
     "extension_count" => extensionCount,
     "group_invite" => groupInvite,
     "group_size" => groupSize,
+    "guest_confirmed_meetup" => guestConfirmedMeetup,
     "guest_id" => guestId,
     "last_capture_at" => lastCaptureAt,
     "location" => location,
     "meeting_point" => meetingPoint,
+    "needs_security" => needsSecurity,
+    "needs_transport" => needsTransport,
     "payment_intent_id" => paymentIntentId,
-    "res_ic" => resIc,
+    "res_id" => resId,
     "staff_fee" => staffFee,
     "staff_ids" => staffIds,
     "status" => status,
@@ -2241,8 +2407,8 @@ final class SystemConfigFields extends MapBase<String, ffai.DslType> {
   final cancelFeeRates = ffai.ProjectCollectionFieldHandle(
     name: "cancel_fee_rates",
     key: "",
-    typeName: "String",
-    type: ffai.string,
+    typeName: "JSON",
+    type: ffai.json,
     description: "",
   );
   final chatCloseSec = ffai.ProjectCollectionFieldHandle(
@@ -2255,16 +2421,23 @@ final class SystemConfigFields extends MapBase<String, ffai.DslType> {
   final defaultAffiliateRate = ffai.ProjectCollectionFieldHandle(
     name: "default_affiliate_rate",
     key: "",
-    typeName: "Integer",
-    type: ffai.int_,
+    typeName: "Double",
+    type: ffai.double_,
     description: "",
   );
   final defaultCastRate = ffai.ProjectCollectionFieldHandle(
     name: "default_cast_rate",
     key: "",
-    typeName: "Integer",
-    type: ffai.int_,
+    typeName: "Double",
+    type: ffai.double_,
     description: "",
+  );
+  final featuresEnabled = ffai.ProjectCollectionFieldHandle(
+    name: "features_enabled",
+    key: "4m8tvkyw",
+    typeName: "JSON",
+    type: ffai.json,
+    description: "機能フラグのマップ。",
   );
   final maxTotalHours = ffai.ProjectCollectionFieldHandle(
     name: "max_total_hours",
@@ -2280,18 +2453,25 @@ final class SystemConfigFields extends MapBase<String, ffai.DslType> {
     type: ffai.listOf(ffai.string),
     description: "",
   );
+  final securityStaffFee = ffai.ProjectCollectionFieldHandle(
+    name: "security_staff_fee",
+    key: "3yrxejra",
+    typeName: "Integer",
+    type: ffai.int_,
+    description: "警備スタッフ固定報酬（円）。旧一律 staff_fee を役割別に分割。",
+  );
   final serviceAreas = ffai.ProjectCollectionFieldHandle(
     name: "service_areas",
     key: "",
-    typeName: "List<String>",
-    type: ffai.listOf(ffai.string),
+    typeName: "JSON",
+    type: ffai.json,
     description: "",
   );
   final taxRate = ffai.ProjectCollectionFieldHandle(
     name: "tax_rate",
     key: "",
-    typeName: "Integer",
-    type: ffai.int_,
+    typeName: "Double",
+    type: ffai.double_,
     description: "",
   );
   final transportFeeAmount = ffai.ProjectCollectionFieldHandle(
@@ -2308,6 +2488,13 @@ final class SystemConfigFields extends MapBase<String, ffai.DslType> {
     type: ffai.int_,
     description: "",
   );
+  final transportStaffFee = ffai.ProjectCollectionFieldHandle(
+    name: "transport_staff_fee",
+    key: "4zb9qilr",
+    typeName: "Integer",
+    type: ffai.int_,
+    description: "送迎スタッフ固定報酬（円）。旧一律 staff_fee を役割別に分割。",
+  );
 
   @override
   Iterable<String> get keys => const <String>[
@@ -2317,12 +2504,15 @@ final class SystemConfigFields extends MapBase<String, ffai.DslType> {
     "chat_close_sec",
     "default_affiliate_rate",
     "default_cast_rate",
+    "features_enabled",
     "max_total_hours",
     "night_time_slots",
+    "security_staff_fee",
     "service_areas",
     "tax_rate",
     "transport_fee_amount",
     "transport_fee_threshold_sec",
+    "transport_staff_fee",
   ];
 
   @override
@@ -2333,12 +2523,15 @@ final class SystemConfigFields extends MapBase<String, ffai.DslType> {
     "chat_close_sec" => chatCloseSec,
     "default_affiliate_rate" => defaultAffiliateRate,
     "default_cast_rate" => defaultCastRate,
+    "features_enabled" => featuresEnabled,
     "max_total_hours" => maxTotalHours,
     "night_time_slots" => nightTimeSlots,
+    "security_staff_fee" => securityStaffFee,
     "service_areas" => serviceAreas,
     "tax_rate" => taxRate,
     "transport_fee_amount" => transportFeeAmount,
     "transport_fee_threshold_sec" => transportFeeThresholdSec,
+    "transport_staff_fee" => transportStaffFee,
     _ => null,
   };
 
@@ -2358,8 +2551,8 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
   final accountType = ffai.ProjectCollectionFieldHandle(
     name: "account_type",
     key: "",
-    typeName: "String",
-    type: ffai.string,
+    typeName: "Enum<UserAccountType>",
+    type: ffai.enum_(Enums.userAccountType),
     description: "",
   );
   final activityCity = ffai.ProjectCollectionFieldHandle(
@@ -2400,8 +2593,8 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
   final approvalStatus = ffai.ProjectCollectionFieldHandle(
     name: "approval_status",
     key: "",
-    typeName: "String",
-    type: ffai.string,
+    typeName: "Enum<ApprovalStatus>",
+    type: ffai.enum_(Enums.approvalStatus),
     description: "",
   );
   final atmosphere = ffai.ProjectCollectionFieldHandle(
@@ -2448,13 +2641,6 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
   );
   final desiredInteraction = ffai.ProjectCollectionFieldHandle(
     name: "desired_interaction",
-    key: "",
-    typeName: "String",
-    type: ffai.string,
-    description: "",
-  );
-  final displayName = ffai.ProjectCollectionFieldHandle(
-    name: "display_name",
     key: "",
     typeName: "String",
     type: ffai.string,
@@ -2544,6 +2730,13 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     type: ffai.bool_,
     description: "",
   );
+  final isStripeRestricted = ffai.ProjectCollectionFieldHandle(
+    name: "is_stripe_restricted",
+    key: "2m6jojyt",
+    typeName: "Boolean",
+    type: ffai.bool_,
+    description: "Stripe Connectアカウントが restricted 状態か。account.updated Webhookが同期。",
+  );
   final isVerified = ffai.ProjectCollectionFieldHandle(
     name: "is_verified",
     key: "",
@@ -2568,8 +2761,8 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
   final kycStatus = ffai.ProjectCollectionFieldHandle(
     name: "kyc_status",
     key: "",
-    typeName: "String",
-    type: ffai.string,
+    typeName: "Enum<KycStatus>",
+    type: ffai.enum_(Enums.kycStatus),
     description: "",
   );
   final lastLoginAt = ffai.ProjectCollectionFieldHandle(
@@ -2593,6 +2786,13 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     type: ffai.int_,
     description: "",
   );
+  final nickname = ffai.ProjectCollectionFieldHandle(
+    name: "nickname",
+    key: "",
+    typeName: "String",
+    type: ffai.string,
+    description: "",
+  );
   final offeredInteraction = ffai.ProjectCollectionFieldHandle(
     name: "offered_interaction",
     key: "",
@@ -2607,15 +2807,8 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     type: ffai.string,
     description: "",
   );
-  final passwordHash = ffai.ProjectCollectionFieldHandle(
-    name: "password_hash",
-    key: "",
-    typeName: "String",
-    type: ffai.string,
-    description: "",
-  );
-  final phoneNumber = ffai.ProjectCollectionFieldHandle(
-    name: "phone_number",
+  final phone = ffai.ProjectCollectionFieldHandle(
+    name: "phone",
     key: "",
     typeName: "String",
     type: ffai.string,
@@ -2652,8 +2845,8 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
   final role = ffai.ProjectCollectionFieldHandle(
     name: "role",
     key: "",
-    typeName: "String",
-    type: ffai.string,
+    typeName: "Enum<UserRole>",
+    type: ffai.enum_(Enums.userRole),
     description: "",
   );
   final selfIntroduction = ffai.ProjectCollectionFieldHandle(
@@ -2680,8 +2873,8 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
   final staffType = ffai.ProjectCollectionFieldHandle(
     name: "staff_type",
     key: "",
-    typeName: "String",
-    type: ffai.string,
+    typeName: "Enum<StaffType>",
+    type: ffai.enum_(Enums.staffType),
     description: "",
   );
   final stripeAccountId = ffai.ProjectCollectionFieldHandle(
@@ -2691,12 +2884,40 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     type: ffai.string,
     description: "",
   );
+  final stripeChargesEnabled = ffai.ProjectCollectionFieldHandle(
+    name: "stripe_charges_enabled",
+    key: "4fpamumk",
+    typeName: "Boolean",
+    type: ffai.bool_,
+    description: "Stripe Account.charges_enabled のミラー。",
+  );
   final stripeCustomerId = ffai.ProjectCollectionFieldHandle(
     name: "stripe_customer_id",
     key: "",
     typeName: "String",
     type: ffai.string,
     description: "",
+  );
+  final stripeOnboardingSubmittedAt = ffai.ProjectCollectionFieldHandle(
+    name: "stripe_onboarding_submitted_at",
+    key: "4e7xjukq",
+    typeName: "DateTime",
+    type: ffai.dateTime,
+    description: "submitConnectOnboarding呼び出し日時。",
+  );
+  final stripePayoutsEnabled = ffai.ProjectCollectionFieldHandle(
+    name: "stripe_payouts_enabled",
+    key: "wshh8rea",
+    typeName: "Boolean",
+    type: ffai.bool_,
+    description: "Stripe Account.payouts_enabled のミラー。",
+  );
+  final stripeRequirementsDue = ffai.ProjectCollectionFieldHandle(
+    name: "stripe_requirements_due",
+    key: "86ktypvt",
+    typeName: "List<String>",
+    type: ffai.listOf(ffai.string),
+    description: "Stripe Account.requirements.currently_due のミラー。",
   );
   final uid = ffai.ProjectCollectionFieldHandle(
     name: "uid",
@@ -2729,7 +2950,6 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     "consent_at",
     "created_time",
     "desired_interaction",
-    "display_name",
     "drinking",
     "email",
     "favorite_food_tags",
@@ -2742,6 +2962,7 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     "is_agreed",
     "is_frozen",
     "is_online",
+    "is_stripe_restricted",
     "is_verified",
     "kyc_doc_url",
     "kyc_selfie_url",
@@ -2749,10 +2970,10 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     "last_login_at",
     "location",
     "logical_debt",
+    "nickname",
     "offered_interaction",
     "one_line_message",
-    "password_hash",
-    "phone_number",
+    "phone",
     "photo_url",
     "prefecture",
     "profile_image_url",
@@ -2763,7 +2984,11 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     "smoking",
     "staff_type",
     "stripe_account_id",
+    "stripe_charges_enabled",
     "stripe_customer_id",
+    "stripe_onboarding_submitted_at",
+    "stripe_payouts_enabled",
+    "stripe_requirements_due",
     "uid",
     "updated_at",
   ];
@@ -2784,7 +3009,6 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     "consent_at" => consentAt,
     "created_time" => createdTime,
     "desired_interaction" => desiredInteraction,
-    "display_name" => displayName,
     "drinking" => drinking,
     "email" => email,
     "favorite_food_tags" => favoriteFoodTags,
@@ -2797,6 +3021,7 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     "is_agreed" => isAgreed,
     "is_frozen" => isFrozen,
     "is_online" => isOnline,
+    "is_stripe_restricted" => isStripeRestricted,
     "is_verified" => isVerified,
     "kyc_doc_url" => kycDocUrl,
     "kyc_selfie_url" => kycSelfieUrl,
@@ -2804,10 +3029,10 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     "last_login_at" => lastLoginAt,
     "location" => location,
     "logical_debt" => logicalDebt,
+    "nickname" => nickname,
     "offered_interaction" => offeredInteraction,
     "one_line_message" => oneLineMessage,
-    "password_hash" => passwordHash,
-    "phone_number" => phoneNumber,
+    "phone" => phone,
     "photo_url" => photoUrl,
     "prefecture" => prefecture,
     "profile_image_url" => profileImageUrl,
@@ -2818,7 +3043,11 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
     "smoking" => smoking,
     "staff_type" => staffType,
     "stripe_account_id" => stripeAccountId,
+    "stripe_charges_enabled" => stripeChargesEnabled,
     "stripe_customer_id" => stripeCustomerId,
+    "stripe_onboarding_submitted_at" => stripeOnboardingSubmittedAt,
+    "stripe_payouts_enabled" => stripePayoutsEnabled,
+    "stripe_requirements_due" => stripeRequirementsDue,
     "uid" => uid,
     "updated_at" => updatedAt,
     _ => null,
@@ -2836,26 +3065,12 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
       throw UnsupportedError('Generated project SDK fields are read-only.');
 }
 
-final class WorkPostFields extends MapBase<String, ffai.DslType> {
+final class WorkPostsFields extends MapBase<String, ffai.DslType> {
   final applicants = ffai.ProjectCollectionFieldHandle(
     name: "applicants",
     key: "",
     typeName: "List<String>",
     type: ffai.listOf(ffai.string),
-    description: "",
-  );
-  final category = ffai.ProjectCollectionFieldHandle(
-    name: "category",
-    key: "",
-    typeName: "String",
-    type: ffai.string,
-    description: "",
-  );
-  final content = ffai.ProjectCollectionFieldHandle(
-    name: "content",
-    key: "",
-    typeName: "String",
-    type: ffai.string,
     description: "",
   );
   final createdAt = ffai.ProjectCollectionFieldHandle(
@@ -2872,18 +3087,18 @@ final class WorkPostFields extends MapBase<String, ffai.DslType> {
     type: ffai.dateTime,
     description: "",
   );
+  final description = ffai.ProjectCollectionFieldHandle(
+    name: "description",
+    key: "2xh57nww",
+    typeName: "String",
+    type: ffai.string,
+    description: "ワーク投稿の説明文。バックエンドが実際に書き込むフィールド（旧schemaのcontentは不使用）。",
+  );
   final fee = ffai.ProjectCollectionFieldHandle(
     name: "fee",
     key: "",
     typeName: "Integer",
     type: ffai.int_,
-    description: "",
-  );
-  final isActive = ffai.ProjectCollectionFieldHandle(
-    name: "is_active",
-    key: "",
-    typeName: "Boolean",
-    type: ffai.bool_,
     description: "",
   );
   final location = ffai.ProjectCollectionFieldHandle(
@@ -2921,13 +3136,6 @@ final class WorkPostFields extends MapBase<String, ffai.DslType> {
     type: ffai.string,
     description: "",
   );
-  final title = ffai.ProjectCollectionFieldHandle(
-    name: "title",
-    key: "",
-    typeName: "String",
-    type: ffai.string,
-    description: "",
-  );
   final type = ffai.ProjectCollectionFieldHandle(
     name: "type",
     key: "",
@@ -2935,68 +3143,35 @@ final class WorkPostFields extends MapBase<String, ffai.DslType> {
     type: ffai.string,
     description: "",
   );
-  final userName = ffai.ProjectCollectionFieldHandle(
-    name: "user_name",
-    key: "",
-    typeName: "String",
-    type: ffai.string,
-    description: "",
-  );
-  final userPhoto = ffai.ProjectCollectionFieldHandle(
-    name: "user_photo",
-    key: "",
-    typeName: "ImagePath",
-    type: ffai.imagePath,
-    description: "",
-  );
-  final userRef = ffai.ProjectCollectionFieldHandle(
-    name: "user_ref",
-    key: "",
-    typeName: "DocumentReference",
-    type: ffai.docRef(Collections.users),
-    description: "",
-  );
 
   @override
   Iterable<String> get keys => const <String>[
     "applicants",
-    "category",
-    "content",
     "created_at",
     "date",
+    "description",
     "fee",
-    "is_active",
     "location",
     "poster_id",
     "res_id",
     "selected_id",
     "status",
-    "title",
     "type",
-    "user_name",
-    "user_photo",
-    "user_ref",
   ];
 
   @override
   ffai.DslType? operator [](Object? key) => switch (key) {
     "applicants" => applicants,
-    "category" => category,
-    "content" => content,
     "created_at" => createdAt,
     "date" => date,
+    "description" => description,
     "fee" => fee,
-    "is_active" => isActive,
     "location" => location,
     "poster_id" => posterId,
     "res_id" => resId,
     "selected_id" => selectedId,
     "status" => status,
-    "title" => title,
     "type" => type,
-    "user_name" => userName,
-    "user_photo" => userPhoto,
-    "user_ref" => userRef,
     _ => null,
   };
 
@@ -3018,11 +3193,116 @@ abstract final class Tables {
 
 abstract final class CustomCode {
   static const functions = <String>[
+    "appendOpenCountLabel",
+    "averageRatingLabel",
     "calculateExtensionPrice",
+    "canApplyToWorkPost",
+    "canCancelReservationNow",
+    "canConfirmReservationMeetup",
+    "canReportReservationCompletion",
+    "canRespondToReservation",
+    "canSendTip",
+    "canSubmitReservationReview",
+    "canWithdrawNow",
+    "countOpenPostsByType",
+    "discoveryCastId",
+    "discoveryCastIsOnline",
+    "discoveryCastNickname",
+    "discoveryCastPhotoUrl",
+    "filterListByField",
+    "formatNumber",
+    "formatYen",
+    "kycReviewItemAccountType",
+    "kycReviewItemDocUrl",
+    "kycReviewItemNickname",
+    "kycReviewItemSelfieUrl",
+    "kycReviewItemUid",
+    "ledgerStatusLabel",
+    "ledgerTypeLabel",
+    "profileField",
+    "readStatusLabel",
+    "reservationListItemCastId",
+    "reservationListItemLabel",
+    "reservationListItemResId",
+    "reservationSummaryDateLabel",
+    "reservationSummaryLocation",
+    "reservationSummaryStatusLabel",
+    "reviewItemRatingLabel",
+    "splitField",
+    "staffTypeToEnglish",
+    "staffTypeToJapanese",
+    "workPostStatusLabel",
+    "workPostTypeLabel",
+    "workTypeLabel",
   ];
   static const actions = <String>[
+    "callAdminApproveKyc",
+    "callAdminGetPendingKyc",
+    "callApplyToWorkPost",
+    "callBlockUser",
+    "callCancelReservation",
+    "callCompleteOnboarding",
+    "callConfirmMeetup",
     "callCreatePaymentIntent",
+    "callCreateReservation",
+    "callCreateReservationWithStaff",
+    "callMarkNotificationRead",
+    "callProcessTip",
+    "callReportCompletion",
+    "callReportUser",
+    "callRequestPayout",
+    "callRequestWithdrawal",
+    "callResolveReport",
+    "callRespondToReservation",
+    "callSelectWorkApplicant",
+    "callSendChatMessage",
+    "callSubmitConnectOnboarding",
+    "callSubmitKyc",
+    "callSubmitReview",
+    "callUpdateAffiliateRate",
+    "callUpdateProfile",
+    "callUpdateProfilePhoto",
+    "callUpdateStaffType",
+    "checkApprovalStatus",
+    "checkBasicInfoFieldsComplete",
+    "checkConnectFieldsComplete",
+    "checkEmailVerified",
+    "checkIsAdminUser",
+    "checkKycFieldsComplete",
+    "checkReservationFieldsComplete",
     "confirmStripePayment",
+    "copyReferralCodeToClipboard",
+    "fetchAffiliateDashboard",
+    "fetchAffiliateRateHistory",
+    "fetchAffiliatorList",
+    "fetchCastReviews",
+    "fetchChatMessages",
+    "fetchChatRoomInfo",
+    "fetchDiscoveryCasts",
+    "fetchMyChatRooms",
+    "fetchMyLogicalDebt",
+    "fetchMyNotifications",
+    "fetchMyProfile",
+    "fetchMyReservations",
+    "fetchMyWorkSettings",
+    "fetchPendingReports",
+    "fetchReportChatLog",
+    "fetchReservationSummary",
+    "fetchReservationVisibility",
+    "fetchWalletBalance",
+    "fetchWalletLedgerHistory",
+    "fetchWorkPostApplicantsList",
+    "fetchWorkPostDetailData",
+    "fetchWorkPostsList",
+    "getPaymentClientSecret",
+    "isNonEmptyString",
+    "isPaymentSuccess",
+    "needsConnectOnboarding",
+    "pickAndUploadImage",
+    "sendFirebaseEmailVerification",
+    "sendPhoneVerificationCode",
+    "shareReferralLink",
+    "verifyPhoneCodeAndLink",
   ];
   static const widgets = <String>[
   ];

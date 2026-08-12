@@ -1127,6 +1127,9 @@ abstract final class MyPageWidgets {
                     key: "Row_ydbc8yfa",
                     type: "Row",
                     path: "MyPage.drawer[0].children[0].children[2]",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Icon_f112rwqk",
@@ -1163,6 +1166,9 @@ abstract final class MyPageWidgets {
                     key: "Row_4184o5rw",
                     type: "Row",
                     path: "MyPage.drawer[0].children[0].children[4]",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Icon_7irz9iln",

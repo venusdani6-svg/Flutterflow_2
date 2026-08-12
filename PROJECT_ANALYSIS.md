@@ -38,6 +38,8 @@ Three separate identifiers exist for the same app, worth keeping straight:
 
 ## 3. Data Model — `lib/flutterflow_project/schemas.dart` (3,030 lines)
 
+**STALE as of 2026-08-10 — this section documents the schema as it stood before `IMPLEMENTATION_PLAN.md` §5's Phase 1 remediation was executed (see `PROJECT_KNOWLEDGE.md` §8 for the full writeup).** All items flagged below as typos/gaps/missing Enums (`res_ic`, `display_name`, `phone_number`, `work_post`, `affiliate_uid`, zero Enums, missing `guest_confirmed_meetup`/`cast_confirmed_meetup`, `password_hash` present, `extension_payments` present) have since been fixed — the collection is now 26 (was 25: `extension_payments` removed, `payout_requests` + `affiliate_rate_history` added), and 9 Enums now exist covering every closed-vocabulary field this section calls out. Left as-is below for historical context (what a from-scratch read of the pre-remediation project found), not as current truth — do not act on field names in this section without cross-checking `lib/flutterflow_project/schemas.dart` or `flutterflow ai inspect` directly.
+
 ### 3.0 Top-level shape
 
 - **`Enums`** → `static const all = []` — **empty**. No enums defined anywhere.

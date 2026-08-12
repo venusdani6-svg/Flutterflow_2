@@ -91,99 +91,23 @@ abstract final class SmsCodeWidgets {
                     text: "SMSコードを入力してください",
                   ),
                   ffai.ProjectWidgetHandle(
-                    key: "Card_qcaxhffj",
+                    key: "Card_ds9bsiu0",
                     type: "Card",
                     path: "SmsCode.body[0].children[0].children[3]",
+                    name: "SmsCodeCard",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Container_3vt1kyf2",
+                        key: "Container_t2q0szwl",
                         type: "Container",
                         path: "SmsCode.body[0].children[0].children[3].children[0]",
+                        name: "Container",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Row_vpgo2p8n",
-                            type: "Row",
+                            key: "TextField_hwayoyv5",
+                            type: "TextField",
                             path: "SmsCode.body[0].children[0].children[3].children[0].children[0]",
-                            children: <ffai.ProjectWidgetHandle>[
-                              ffai.ProjectWidgetHandle(
-                                key: "Container_d9ztxdlu",
-                                type: "Container",
-                                path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[0]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Text_yxmi12rg",
-                                    type: "Text",
-                                    path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[0].children[0]",
-                                    text: "ー",
-                                  ),
-                                ],
-                              ),
-                              ffai.ProjectWidgetHandle(
-                                key: "Container_oqzs93lw",
-                                type: "Container",
-                                path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[1]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Text_wptag4z7",
-                                    type: "Text",
-                                    path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[1].children[0]",
-                                    text: "ー",
-                                  ),
-                                ],
-                              ),
-                              ffai.ProjectWidgetHandle(
-                                key: "Container_lrnfhbvf",
-                                type: "Container",
-                                path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[2]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Text_5rf0fm12",
-                                    type: "Text",
-                                    path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[2].children[0]",
-                                    text: "ー",
-                                  ),
-                                ],
-                              ),
-                              ffai.ProjectWidgetHandle(
-                                key: "Container_nzkpbg3y",
-                                type: "Container",
-                                path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[3]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Text_gaw42mir",
-                                    type: "Text",
-                                    path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[3].children[0]",
-                                    text: "ー",
-                                  ),
-                                ],
-                              ),
-                              ffai.ProjectWidgetHandle(
-                                key: "Container_13ziln3z",
-                                type: "Container",
-                                path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[4]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Text_cel2bof9",
-                                    type: "Text",
-                                    path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[4].children[0]",
-                                    text: "ー",
-                                  ),
-                                ],
-                              ),
-                              ffai.ProjectWidgetHandle(
-                                key: "Container_6jo1roo6",
-                                type: "Container",
-                                path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[5]",
-                                children: <ffai.ProjectWidgetHandle>[
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Text_r4sdxyqs",
-                                    type: "Text",
-                                    path: "SmsCode.body[0].children[0].children[3].children[0].children[0].children[5].children[0]",
-                                    text: "ー",
-                                  ),
-                                ],
-                              ),
-                            ],
+                            name: "SmsCodeField",
+                            text: "SMS認証コード",
                           ),
                         ],
                       ),
@@ -226,12 +150,18 @@ abstract final class SmsCodeWidgets {
                     type: "Button",
                     path: "SmsCode.body[0].children[0].children[5]",
                     text: "認証する",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                   ),
                   ffai.ProjectWidgetHandle(
                     key: "Button_lo5jbbia",
                     type: "Button",
                     path: "SmsCode.body[0].children[0].children[6]",
                     text: "認証コードを再送する",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                   ),
                 ],
               ),

@@ -15,10 +15,94 @@ final reservationFormHandle = ffai.ProjectPageHandle<ReservationFormParams, Rese
 
 final class ReservationFormParams {
   const ReservationFormParams();
+  ffai.ProjectParamHandle get castId =>
+      const ffai.ProjectParamHandle(
+        name: "castId",
+        key: "ek6h7rwu",
+        typeName: "String",
+      );
 }
 
 final class ReservationFormState {
   const ReservationFormState();
+  ffai.ProjectStateFieldHandle get resBaseAmount =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resBaseAmount",
+        key: "0p06uyu9",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get resDate =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resDate",
+        key: "tudroc5d",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get resDetails =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resDetails",
+        key: "dw651l00",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get resDurationLabel =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resDurationLabel",
+        key: "csp4zxlb",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get resGroupInvite =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resGroupInvite",
+        key: "jwt367dd",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get resGroupSizeLabel =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resGroupSizeLabel",
+        key: "jfau4g3g",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get resMeetingAddress =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resMeetingAddress",
+        key: "rbvsixf4",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get resMeetingPoint =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resMeetingPoint",
+        key: "dxf06ptv",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get resNeedsSecurity =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resNeedsSecurity",
+        key: "517pmqpo",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get resNeedsTransport =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resNeedsTransport",
+        key: "rtisd51g",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get resPurpose =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resPurpose",
+        key: "cdwiwxg8",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get resStartTime =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resStartTime",
+        key: "8qjov7gt",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get resTimeSlot =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resTimeSlot",
+        key: "6f0pcp8t",
+        typeName: "String",
+      );
 }
 
 abstract final class ReservationFormWidgets {
@@ -151,15 +235,13 @@ abstract final class ReservationFormWidgets {
                                         text: "日　付",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "Container_8is5q6ti",
-                                        type: "Container",
+                                        key: "TextField_amemivlw",
+                                        type: "TextField",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[1]",
-                                        children: <ffai.ProjectWidgetHandle>[
-                                          ffai.ProjectWidgetHandle(
-                                            key: "Icon_60ilqvjv",
-                                            type: "Icon",
-                                            path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[2].children[0].children[1].children[0]",
-                                          ),
+                                        name: "ResDateField",
+                                        text: "日付",
+                                        triggers: const <String>[
+                                          "ON_TEXTFIELD_CHANGE",
                                         ],
                                       ),
                                     ],
@@ -183,9 +265,13 @@ abstract final class ReservationFormWidgets {
                                         text: "時間帯",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "DropDown_zufoed9k",
+                                        key: "DropDown_ts6d6x2c",
                                         type: "DropDown",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[3].children[0].children[1]",
+                                        name: "ResTimeSlotDropdown",
+                                        triggers: const <String>[
+                                          "ON_FORM_WIDGET_SELECTED",
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -208,9 +294,13 @@ abstract final class ReservationFormWidgets {
                                         text: "交流時間",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "DropDown_hqnthj6t",
+                                        key: "DropDown_uufzqiae",
                                         type: "DropDown",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[4].children[0].children[1]",
+                                        name: "ResDurationDropdown",
+                                        triggers: const <String>[
+                                          "ON_FORM_WIDGET_SELECTED",
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -233,9 +323,13 @@ abstract final class ReservationFormWidgets {
                                         text: "交流開始時間",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "DropDown_lf1zrpbg",
+                                        key: "DropDown_ggrglg4w",
                                         type: "DropDown",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[5].children[0].children[1]",
+                                        name: "ResStartTimeDropdown",
+                                        triggers: const <String>[
+                                          "ON_FORM_WIDGET_SELECTED",
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -258,9 +352,10 @@ abstract final class ReservationFormWidgets {
                                         text: "延長予定の有無",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "DropDown_ne646169",
+                                        key: "DropDown_1cobq24q",
                                         type: "DropDown",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[6].children[0].children[1]",
+                                        name: "ResExtensionPlanDropdown",
                                       ),
                                     ],
                                   ),
@@ -287,6 +382,9 @@ abstract final class ReservationFormWidgets {
                                         type: "TextField",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[7].children[0].children[1]",
                                         text: "東京都港区六本木1-2-3　○○ビル 3F",
+                                        triggers: const <String>[
+                                          "ON_TEXTFIELD_CHANGE",
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -313,6 +411,9 @@ abstract final class ReservationFormWidgets {
                                         type: "TextField",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[8].children[0].children[1]",
                                         text: "東京都港区六本木1-2-3　○○ビル 3F",
+                                        triggers: const <String>[
+                                          "ON_TEXTFIELD_CHANGE",
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -335,9 +436,14 @@ abstract final class ReservationFormWidgets {
                                         text: "グループお誘い希望",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "SwitchListTile_8u4clxfz",
-                                        type: "SwitchListTile",
+                                        key: "Checkbox_jnunx8mc",
+                                        type: "Checkbox",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[9].children[0].children[1]",
+                                        name: "ResGroupInviteCheckbox",
+                                        triggers: const <String>[
+                                          "ON_TOGGLE_ON",
+                                          "ON_TOGGLE_OFF",
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -360,9 +466,13 @@ abstract final class ReservationFormWidgets {
                                         text: "グループお誘い希望人数",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "DropDown_5bq2jjwz",
+                                        key: "DropDown_ptes0fmx",
                                         type: "DropDown",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[10].children[0].children[1]",
+                                        name: "ResGroupSizeDropdown",
+                                        triggers: const <String>[
+                                          "ON_FORM_WIDGET_SELECTED",
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -385,9 +495,79 @@ abstract final class ReservationFormWidgets {
                                         text: "お誘い目的（食事等）",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "DropDown_28jgr18w",
+                                        key: "DropDown_1ncsfelh",
                                         type: "DropDown",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[11].children[0].children[1]",
+                                        name: "ResPurposeDropdown",
+                                        triggers: const <String>[
+                                          "ON_FORM_WIDGET_SELECTED",
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Row_cpdykldh",
+                                type: "Row",
+                                path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[12]",
+                                name: "ResNeedsTransportRow",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Column_8wm50ezh",
+                                    type: "Column",
+                                    path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[12].children[0]",
+                                    name: "Column",
+                                    children: <ffai.ProjectWidgetHandle>[
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Text_67one20t",
+                                        type: "Text",
+                                        path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[12].children[0].children[0]",
+                                        name: "Text",
+                                        text: "送迎スタッフを希望する",
+                                      ),
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Checkbox_k24rlyeq",
+                                        type: "Checkbox",
+                                        path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[12].children[0].children[1]",
+                                        name: "ResNeedsTransportCheckbox",
+                                        triggers: const <String>[
+                                          "ON_TOGGLE_ON",
+                                          "ON_TOGGLE_OFF",
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Row_bctra1oa",
+                                type: "Row",
+                                path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[13]",
+                                name: "ResNeedsSecurityRow",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Column_2z0yavt3",
+                                    type: "Column",
+                                    path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[13].children[0]",
+                                    name: "Column",
+                                    children: <ffai.ProjectWidgetHandle>[
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Text_831bdb6s",
+                                        type: "Text",
+                                        path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[13].children[0].children[0]",
+                                        name: "Text",
+                                        text: "警備スタッフを希望する",
+                                      ),
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Checkbox_jhcjtvsq",
+                                        type: "Checkbox",
+                                        path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[13].children[0].children[1]",
+                                        name: "ResNeedsSecurityCheckbox",
+                                        triggers: const <String>[
+                                          "ON_TOGGLE_ON",
+                                          "ON_TOGGLE_OFF",
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -396,24 +576,60 @@ abstract final class ReservationFormWidgets {
                               ffai.ProjectWidgetHandle(
                                 key: "Row_8aeejqf8",
                                 type: "Row",
-                                path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[12]",
+                                path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[14]",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
                                     key: "Column_a02bn5k6",
                                     type: "Column",
-                                    path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[12].children[0]",
+                                    path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[14].children[0]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
                                         key: "Text_65b3a7m6",
                                         type: "Text",
-                                        path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[12].children[0].children[0]",
+                                        path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[14].children[0].children[0]",
                                         text: "お誘い内容詳細",
                                       ),
                                       ffai.ProjectWidgetHandle(
                                         key: "TextField_5xuym89f",
                                         type: "TextField",
-                                        path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[12].children[0].children[1]",
+                                        path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[14].children[0].children[1]",
                                         text: "六本木で、みんなで焼肉でも食べに行きませんか？\nこちらは3人いるので、お友達を誘ってグループでの参加もOK！\nもちろん一人での参加も大丈夫です！",
+                                        triggers: const <String>[
+                                          "ON_TEXTFIELD_CHANGE",
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Row_s707u2w6",
+                                type: "Row",
+                                path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[15]",
+                                name: "ResBaseAmountRow",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Column_o61i60tt",
+                                    type: "Column",
+                                    path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[15].children[0]",
+                                    name: "Column",
+                                    children: <ffai.ProjectWidgetHandle>[
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Text_utd5trka",
+                                        type: "Text",
+                                        path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[15].children[0].children[0]",
+                                        name: "Text",
+                                        text: "合計金額（円）",
+                                      ),
+                                      ffai.ProjectWidgetHandle(
+                                        key: "TextField_x4rhnsa5",
+                                        type: "TextField",
+                                        path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[15].children[0].children[1]",
+                                        name: "ResBaseAmountField",
+                                        text: "例: 15000",
+                                        triggers: const <String>[
+                                          "ON_TEXTFIELD_CHANGE",
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -434,7 +650,10 @@ abstract final class ReservationFormWidgets {
                         key: "Button_hzb6mzvi",
                         type: "Button",
                         path: "ReservationForm.body[0].children[0].children[3].children[0]",
-                        text: "合流報告",
+                        text: "リクエストを送信する",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
                       ),
                     ],
                   ),

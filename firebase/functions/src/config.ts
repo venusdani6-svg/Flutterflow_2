@@ -56,7 +56,25 @@ export const SYSTEM_DEFAULTS = {
   default_affiliate_rate: 0.05,
   affiliate_min_days: 3,
   affiliate_payment_day: 5,
-  service_areas: [] as Array<{ name: string; prefecture: string; active: boolean }>,
+  // Launch set per IMPLEMENTATION_PLAN.md §3.2.2/§8 Phase 3 — the 10
+  // prefectures confirmed for initial launch. `name`/`prefecture` are the
+  // same string (no separate display-vs-key distinction established
+  // anywhere in the backend; adminGetSystemConfig's own areaActive() only
+  // ever matches on `prefecture`). Admin-editable via the already-existing
+  // `adminUpdateSystemConfig` callable (accepts any `settings` object,
+  // merges into this same document) — no new admin write path needed.
+  service_areas: [
+    { name: "東京都", prefecture: "東京都", active: true },
+    { name: "神奈川県", prefecture: "神奈川県", active: true },
+    { name: "千葉県", prefecture: "千葉県", active: true },
+    { name: "愛知県", prefecture: "愛知県", active: true },
+    { name: "京都府", prefecture: "京都府", active: true },
+    { name: "大阪府", prefecture: "大阪府", active: true },
+    { name: "兵庫県", prefecture: "兵庫県", active: true },
+    { name: "岡山県", prefecture: "岡山県", active: true },
+    { name: "広島県", prefecture: "広島県", active: true },
+    { name: "福岡県", prefecture: "福岡県", active: true },
+  ] as Array<{ name: string; prefecture: string; active: boolean }>,
   night_time_slots: ["3部", "4部"],
   cancel_fee_rates: {} as Record<string, number>,
   features_enabled: {} as Record<string, boolean>,

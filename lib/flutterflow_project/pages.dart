@@ -3,19 +3,26 @@
 library;
 
 import 'package:flutterflow_ai/flutterflow_ai.dart' as ffai;
+import 'pages/admin_affiliate_management.dart' show adminAffiliateManagementHandle;
+import 'pages/admin_report_review_page.dart' show adminReportReviewPageHandle;
 import 'pages/affiliate.dart' show affiliateHandle;
 import 'pages/auth_complete.dart' show authCompleteHandle;
+import 'pages/basic_info_registration.dart' show basicInfoRegistrationHandle;
 import 'pages/cast_profile.dart' show castProfileHandle;
 import 'pages/cocomise_page.dart' show cocomisePageHandle;
+import 'pages/connect_onboarding.dart' show connectOnboardingHandle;
 import 'pages/email_verification.dart' show emailVerificationHandle;
 import 'pages/extension_payment.dart' show extensionPaymentHandle;
 import 'pages/home_page.dart' show homePageHandle;
 import 'pages/home_page_basic.dart' show homePageBasicHandle;
 import 'pages/kyc.dart' show kycHandle;
+import 'pages/kyc_review_page.dart' show kycReviewPageHandle;
 import 'pages/login_page.dart' show loginPageHandle;
 import 'pages/maccha_chats.dart' show macchaChatsHandle;
 import 'pages/maccha_page.dart' show macchaPageHandle;
 import 'pages/my_page.dart' show myPageHandle;
+import 'pages/my_work_content.dart' show myWorkContentHandle;
+import 'pages/notifications_page.dart' show notificationsPageHandle;
 import 'pages/outside_page_basic.dart' show outsidePageBasicHandle;
 import 'pages/payment_confirm.dart' show paymentConfirmHandle;
 import 'pages/phone_varification.dart' show phoneVarificationHandle;
@@ -23,26 +30,37 @@ import 'pages/profile_edit.dart' show profileEditHandle;
 import 'pages/reservation_confirmed.dart' show reservationConfirmedHandle;
 import 'pages/reservation_detail.dart' show reservationDetailHandle;
 import 'pages/reservation_form.dart' show reservationFormHandle;
+import 'pages/reservation_list_page.dart' show reservationListPageHandle;
 import 'pages/review_pending.dart' show reviewPendingHandle;
+import 'pages/settings_page.dart' show settingsPageHandle;
 import 'pages/signup_page.dart' show signupPageHandle;
 import 'pages/sms_code.dart' show smsCodeHandle;
 import 'pages/tutorial_page.dart' show tutorialPageHandle;
+import 'pages/wallet_page.dart' show walletPageHandle;
 import 'pages/work_page.dart' show workPageHandle;
+import 'pages/work_post_detail_page.dart' show workPostDetailPageHandle;
 
 abstract final class Pages {
+  static final adminAffiliateManagement = adminAffiliateManagementHandle;
+  static final adminReportReviewPage = adminReportReviewPageHandle;
   static final affiliate = affiliateHandle;
   static final authComplete = authCompleteHandle;
+  static final basicInfoRegistration = basicInfoRegistrationHandle;
   static final castProfile = castProfileHandle;
   static final cocomisePage = cocomisePageHandle;
+  static final connectOnboarding = connectOnboardingHandle;
   static final emailVerification = emailVerificationHandle;
   static final extensionPayment = extensionPaymentHandle;
   static final homePage = homePageHandle;
   static final homePageBasic = homePageBasicHandle;
   static final kyc = kycHandle;
+  static final kycReviewPage = kycReviewPageHandle;
   static final loginPage = loginPageHandle;
   static final macchaChats = macchaChatsHandle;
   static final macchaPage = macchaPageHandle;
   static final myPage = myPageHandle;
+  static final myWorkContent = myWorkContentHandle;
+  static final notificationsPage = notificationsPageHandle;
   static final outsidePageBasic = outsidePageBasicHandle;
   static final paymentConfirm = paymentConfirmHandle;
   static final phoneVarification = phoneVarificationHandle;
@@ -50,25 +68,36 @@ abstract final class Pages {
   static final reservationConfirmed = reservationConfirmedHandle;
   static final reservationDetail = reservationDetailHandle;
   static final reservationForm = reservationFormHandle;
+  static final reservationListPage = reservationListPageHandle;
   static final reviewPending = reviewPendingHandle;
+  static final settingsPage = settingsPageHandle;
   static final signupPage = signupPageHandle;
   static final smsCode = smsCodeHandle;
   static final tutorialPage = tutorialPageHandle;
+  static final walletPage = walletPageHandle;
   static final workPage = workPageHandle;
+  static final workPostDetailPage = workPostDetailPageHandle;
   static final all = <ffai.ProjectPageHandle>[
+    adminAffiliateManagement,
+    adminReportReviewPage,
     affiliate,
     authComplete,
+    basicInfoRegistration,
     castProfile,
     cocomisePage,
+    connectOnboarding,
     emailVerification,
     extensionPayment,
     homePage,
     homePageBasic,
     kyc,
+    kycReviewPage,
     loginPage,
     macchaChats,
     macchaPage,
     myPage,
+    myWorkContent,
+    notificationsPage,
     outsidePageBasic,
     paymentConfirm,
     phoneVarification,
@@ -76,10 +105,14 @@ abstract final class Pages {
     reservationConfirmed,
     reservationDetail,
     reservationForm,
+    reservationListPage,
     reviewPending,
+    settingsPage,
     signupPage,
     smsCode,
     tutorialPage,
+    walletPage,
     workPage,
+    workPostDetailPage,
   ];
 }

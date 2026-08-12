@@ -163,6 +163,9 @@ abstract final class PhoneVarificationWidgets {
                     type: "Button",
                     path: "PhoneVarification.body[0].children[0].children[5]",
                     text: "SMSを送信する",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                   ),
                 ],
               ),

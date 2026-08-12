@@ -15,10 +15,28 @@ final castProfileHandle = ffai.ProjectPageHandle<CastProfileParams, CastProfileS
 
 final class CastProfileParams {
   const CastProfileParams();
+  ffai.ProjectParamHandle get castId =>
+      const ffai.ProjectParamHandle(
+        name: "castId",
+        key: "yft8hba9",
+        typeName: "String",
+      );
 }
 
 final class CastProfileState {
   const CastProfileState();
+  ffai.ProjectStateFieldHandle get castReviewsList =>
+      const ffai.ProjectStateFieldHandle(
+        name: "castReviewsList",
+        key: "eu8ts84x",
+        typeName: "List<String>",
+      );
+  ffai.ProjectStateFieldHandle get reportReason =>
+      const ffai.ProjectStateFieldHandle(
+        name: "reportReason",
+        key: "yjmccpbj",
+        typeName: "String",
+      );
 }
 
 abstract final class CastProfileWidgets {
@@ -392,12 +410,18 @@ abstract final class CastProfileWidgets {
                             type: "Button",
                             path: "CastProfile.body[0].children[0].children[0].children[4].children[0]",
                             text: "誘　う",
+                            triggers: const <String>[
+                              "ON_TAP",
+                            ],
                           ),
                           ffai.ProjectWidgetHandle(
                             key: "Button_z76lh1eh",
                             type: "Button",
                             path: "CastProfile.body[0].children[0].children[0].children[4].children[1]",
                             text: "ココ店で誘う",
+                            triggers: const <String>[
+                              "ON_TAP",
+                            ],
                           ),
                         ],
                       ),
@@ -980,6 +1004,144 @@ abstract final class CastProfileWidgets {
                                         path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[1].children[2].children[1]",
                                         text: "予定表",
                                       ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Container_3f5lzu97",
+                        type: "Container",
+                        path: "CastProfile.body[0].children[0].children[0].children[7]",
+                        name: "CastReviewsAndSafetySection",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Column_kevh5mqi",
+                            type: "Column",
+                            path: "CastProfile.body[0].children[0].children[0].children[7].children[0]",
+                            name: "Column",
+                            children: <ffai.ProjectWidgetHandle>[
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_685n1xtv",
+                                type: "Text",
+                                path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[0]",
+                                name: "Text",
+                                text: "レビュー",
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_wkaaoicl",
+                                type: "Text",
+                                path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[1]",
+                                name: "Text",
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "ListView_yz7maprf",
+                                type: "ListView",
+                                path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[2]",
+                                name: "CastReviewsListView",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Card_vhl1isxp",
+                                    type: "Card",
+                                    path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[2].children[0]",
+                                    name: "ReviewCard",
+                                    children: <ffai.ProjectWidgetHandle>[
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Container_e0z6ljog",
+                                        type: "Container",
+                                        path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[2].children[0].children[0]",
+                                        name: "Container",
+                                        children: <ffai.ProjectWidgetHandle>[
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Column_5unw0k06",
+                                            type: "Column",
+                                            path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[2].children[0].children[0].children[0]",
+                                            name: "Column",
+                                            children: <ffai.ProjectWidgetHandle>[
+                                              ffai.ProjectWidgetHandle(
+                                                key: "Row_spnmxr48",
+                                                type: "Row",
+                                                path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[2].children[0].children[0].children[0].children[0]",
+                                                name: "Row",
+                                                children: <ffai.ProjectWidgetHandle>[
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Text_mcrtzh4n",
+                                                    type: "Text",
+                                                    path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[2].children[0].children[0].children[0].children[0].children[0]",
+                                                    name: "Text",
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Text_puwctjeg",
+                                                    type: "Text",
+                                                    path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[2].children[0].children[0].children[0].children[0].children[1]",
+                                                    name: "Text",
+                                                  ),
+                                                ],
+                                              ),
+                                              ffai.ProjectWidgetHandle(
+                                                key: "Text_oh2ggp6k",
+                                                type: "Text",
+                                                path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[2].children[0].children[0].children[0].children[1]",
+                                                name: "Text",
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Divider_00qq9ohq",
+                                type: "Divider",
+                                path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[3]",
+                                name: "Divider",
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_uq1n2l0m",
+                                type: "Text",
+                                path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[4]",
+                                name: "Text",
+                                text: "このユーザーを通報・ブロックする",
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "TextField_i1ac2ujh",
+                                type: "TextField",
+                                path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[5]",
+                                name: "ReportReasonField",
+                                text: "通報理由を入力してください",
+                                triggers: const <String>[
+                                  "ON_TEXTFIELD_CHANGE",
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Row_9pj52i9k",
+                                type: "Row",
+                                path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[6]",
+                                name: "Row",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Button_835bgi31",
+                                    type: "Button",
+                                    path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[6].children[0]",
+                                    name: "Button",
+                                    text: "通報する",
+                                    triggers: const <String>[
+                                      "ON_TAP",
+                                    ],
+                                  ),
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Button_ys84165u",
+                                    type: "Button",
+                                    path: "CastProfile.body[0].children[0].children[0].children[7].children[0].children[6].children[1]",
+                                    name: "Button",
+                                    text: "ブロックする",
+                                    triggers: const <String>[
+                                      "ON_TAP",
                                     ],
                                   ),
                                 ],

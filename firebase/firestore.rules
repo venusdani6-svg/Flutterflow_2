@@ -32,6 +32,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Phase 6 (2026-08-11): closes the gap the 2026-08-03 comment above
+    // explicitly flagged and deliberately left open ("NOT governed by this
+    // rule at all... has no rule of its own either"). Content-based via a
+    // `get()` on the parent `chat_rooms` doc, same technique `isAdmin()`
+    // already uses on `users/{uid}` - provably satisfiable for exactly the
+    // room's own participants, denied for everyone else. Write stays
+    // Cloud-Functions-only (`sendChatMessage`, reservations.ts) so the
+    // posting-lock (`chat_rooms.active`) and `last_message`/
+    // `last_message_time` mirroring can be enforced atomically server-side;
+    // a client-direct write here would bypass both.
+    match /chat_rooms/{roomId}/messages/{messageId} {
+      allow read: if isAdmin()
+        || (isSignedIn()
+            && get(/databases/$(database)/documents/chat_rooms/$(roomId)).data.participants.hasAny([request.auth.uid]));
+      allow create, update, delete: if false;
+    }
+
     // Tier-5 hardening (2026-08-03, plan item 19): confirmed a REAL,
     // actively-used collection (6 operations in admin.ts - list/get/count/
     // update/create/delete) distinct from the `cocomise` match block below,
@@ -134,6 +151,25 @@ service cloud.firestore {
       allow delete: if request.auth.uid == document;
     }
 
+    // Phase 6 (2026-08-11): `users/{uid}/notifications` subcollection - had
+    // NO rule of its own (Firestore rules aren't recursive, so the parent
+    // `users/{document}` block above doesn't cover it - confirmed absent
+    // from the live ruleset, same "no rule = deny-all" gap class as the
+    // `chat_rooms/{id}/messages` one above, not assumed). Written
+    // exclusively by Cloud Functions across 17 call sites (auth.ts,
+    // admin.ts, affiliate.ts, reservations.ts, stripe-payments.ts,
+    // stripe-webhooks.ts, all Admin SDK - confirmed via grep, no client
+    // create path exists), so create/delete stay blocked. Read is owner-
+    // or-admin. Update is owner-only and restricted to flipping `read`
+    // ONLY (via `diff().affectedKeys()`) - a user can mark their own
+    // notification read, never rewrite its title/body/type/data.
+    match /users/{userId}/notifications/{notifId} {
+      allow read: if isAdmin() || isOwner(userId);
+      allow update: if isOwner(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create, delete: if false;
+    }
+
     // ── invitions ────────────────────────────────────────────────────────
     // TODO: tighten create/read once invite flow moves to Cloud Functions
     //
@@ -206,6 +242,25 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Phase 7 (2026-08-11): had NO rule at all (default deny-all, same
+    // "no rule = deny-all" gap class as `chat_rooms/{id}/messages` and
+    // `users/{uid}/notifications` found earlier this session) — confirmed
+    // via a direct read of this file, not assumed. Reviews are guest-
+    // written star-rating/comment records meant to be publicly browsable on
+    // a cast's own profile (§3.7.13, "star-rating/review viewing, read-only,
+    // from guest") — read stays open, matching the already-established
+    // `cocoten_shops`/`banners`/`prefectures` pattern for guest-facing
+    // browsable content, rather than adding a Cloud Function purely to
+    // route around a rule that can just be made correctly public. Create is
+    // Cloud-Functions-only (`submitReview`, reservations.ts, Admin SDK) —
+    // no legitimate client-direct-create path exists, matching `reports`.
+    match /reviews/{document} {
+      allow read: if true;
+      allow create: if false;
+      allow write: if false;
+      allow delete: if false;
+    }
+
     match /affiliates/{docId} {
       allow read, write: if isAdmin();
     }
@@ -261,6 +316,19 @@ service cloud.firestore {
     // adminGetAuditLogs Cloud Function (also Admin SDK). No legitimate
     // direct client read or write of any kind.
     match /audit_logs/{document} {
+      allow create: if false;
+      allow read: if isAdmin();
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    // Affiliate rate change history (アフィリエイト料率変更履歴) - written
+    // exclusively by adminUpdateAffiliateRate via Admin SDK, read by the
+    // admin affiliate rate-override UI. Found with no rule of its own at all
+    // (schema pre-existed, unused) during the Phase 9 backend audit - same
+    // lockdown as audit_logs since it is the same kind of admin-only,
+    // server-written change log.
+    match /affiliate_rate_history/{document} {
       allow create: if false;
       allow read: if isAdmin();
       allow write: if false;

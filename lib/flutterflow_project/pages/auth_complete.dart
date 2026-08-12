@@ -95,6 +95,9 @@ abstract final class AuthCompleteWidgets {
                     type: "Button",
                     path: "AuthComplete.body[0].children[0].children[3]",
                     text: "次へ",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                   ),
                 ],
               ),

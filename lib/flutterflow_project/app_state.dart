@@ -53,6 +53,12 @@ abstract final class AppState {
     typeName: "String",
     persisted: false,
   );
+  static const verificationPhoneNumber = ffai.ProjectAppStateFieldHandle(
+    name: "verificationPhoneNumber",
+    key: "ogjg7oo3",
+    typeName: "String",
+    persisted: false,
+  );
   static const all = <ffai.ProjectAppStateFieldHandle>[
     checkBox,
     currentFilter,
@@ -62,6 +68,7 @@ abstract final class AppState {
     navIndex,
     searchCastKeyword,
     searchShopKeyword,
+    verificationPhoneNumber,
   ];
 }
 

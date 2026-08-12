@@ -15,10 +15,22 @@ final reservationConfirmedHandle = ffai.ProjectPageHandle<ReservationConfirmedPa
 
 final class ReservationConfirmedParams {
   const ReservationConfirmedParams();
+  ffai.ProjectParamHandle get resId =>
+      const ffai.ProjectParamHandle(
+        name: "resId",
+        key: "l73nn4cy",
+        typeName: "String",
+      );
 }
 
 final class ReservationConfirmedState {
   const ReservationConfirmedState();
+  ffai.ProjectStateFieldHandle get resSummaryData =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resSummaryData",
+        key: "c1jdmvi0",
+        typeName: "String",
+      );
 }
 
 abstract final class ReservationConfirmedWidgets {
@@ -28,6 +40,9 @@ abstract final class ReservationConfirmedWidgets {
       type: "Scaffold",
       path: "ReservationConfirmed",
       name: "ReservationConfirmed",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
@@ -144,48 +159,52 @@ abstract final class ReservationConfirmedWidgets {
                                     text: "ステータス",
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Button_2j1voyws",
+                                    key: "Button_m9nhrlbw",
                                     type: "Button",
                                     path: "ReservationConfirmed.body[0].children[0].children[3].children[0].children[0].children[2].children[1]",
-                                    text: "確認中",
+                                    name: "ReservationSummaryStatusValue",
                                   ),
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Row_cjsbcl8i",
+                                key: "Row_81q3qevw",
                                 type: "Row",
                                 path: "ReservationConfirmed.body[0].children[0].children[3].children[0].children[0].children[3]",
+                                name: "ReservationSummaryDateRow",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_zwcq9p45",
+                                    key: "Text_iir2z3ms",
                                     type: "Text",
                                     path: "ReservationConfirmed.body[0].children[0].children[3].children[0].children[0].children[3].children[0]",
+                                    name: "Text",
                                     text: "日　時",
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_ij4v2tka",
+                                    key: "Text_pqemkdfk",
                                     type: "Text",
                                     path: "ReservationConfirmed.body[0].children[0].children[3].children[0].children[0].children[3].children[1]",
-                                    text: "2026年 12月 24日 20：30",
+                                    name: "ReservationSummaryDateValue",
                                   ),
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Row_djhmcxhc",
+                                key: "Row_icg1hyc2",
                                 type: "Row",
                                 path: "ReservationConfirmed.body[0].children[0].children[3].children[0].children[0].children[4]",
+                                name: "ReservationSummaryLocationRow",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_80vc1b7i",
+                                    key: "Text_gqcjf0a1",
                                     type: "Text",
                                     path: "ReservationConfirmed.body[0].children[0].children[3].children[0].children[0].children[4].children[0]",
+                                    name: "Text",
                                     text: "場　所",
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_vvkdealn",
+                                    key: "Text_80qr05cs",
                                     type: "Text",
                                     path: "ReservationConfirmed.body[0].children[0].children[3].children[0].children[0].children[4].children[1]",
-                                    text: "ステータス",
+                                    name: "ReservationSummaryLocationValue",
                                   ),
                                 ],
                               ),
@@ -200,12 +219,18 @@ abstract final class ReservationConfirmedWidgets {
                     type: "Button",
                     path: "ReservationConfirmed.body[0].children[0].children[4]",
                     text: "マッチャを確認する",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                   ),
                   ffai.ProjectWidgetHandle(
                     key: "Button_x7oa1u8a",
                     type: "Button",
                     path: "ReservationConfirmed.body[0].children[0].children[5]",
                     text: "ホームに戻る",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                   ),
                 ],
               ),

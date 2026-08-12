@@ -15,10 +15,46 @@ final reservationDetailHandle = ffai.ProjectPageHandle<ReservationDetailParams, 
 
 final class ReservationDetailParams {
   const ReservationDetailParams();
+  ffai.ProjectParamHandle get castId =>
+      const ffai.ProjectParamHandle(
+        name: "castId",
+        key: "q6dxjxmp",
+        typeName: "String",
+      );
+  ffai.ProjectParamHandle get resId =>
+      const ffai.ProjectParamHandle(
+        name: "resId",
+        key: "617x46mm",
+        typeName: "String",
+      );
 }
 
 final class ReservationDetailState {
   const ReservationDetailState();
+  ffai.ProjectStateFieldHandle get resVisibilityData =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resVisibilityData",
+        key: "44objbh6",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get reviewComment =>
+      const ffai.ProjectStateFieldHandle(
+        name: "reviewComment",
+        key: "4f4afcuu",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get reviewRating =>
+      const ffai.ProjectStateFieldHandle(
+        name: "reviewRating",
+        key: "wtiijn4v",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get tipAmount =>
+      const ffai.ProjectStateFieldHandle(
+        name: "tipAmount",
+        key: "1trcd46g",
+        typeName: "String",
+      );
 }
 
 abstract final class ReservationDetailWidgets {
@@ -28,6 +64,9 @@ abstract final class ReservationDetailWidgets {
       type: "Scaffold",
       path: "ReservationDetail",
       name: "ReservationDetail",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
@@ -624,73 +663,187 @@ abstract final class ReservationDetailWidgets {
                     ],
                   ),
                   ffai.ProjectWidgetHandle(
-                    key: "Row_zkz67xy3",
+                    key: "Row_llse1xzq",
                     type: "Row",
                     path: "ReservationDetail.body[0].children[0].children[4]",
+                    name: "ApproveDeclineRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Button_i8a0ibu2",
+                        key: "Button_ejb4ehm1",
                         type: "Button",
                         path: "ReservationDetail.body[0].children[0].children[4].children[0]",
+                        name: "ApproveButton",
                         text: "お誘いを承認する",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
                       ),
                       ffai.ProjectWidgetHandle(
-                        key: "Button_4bn0e7q6",
+                        key: "Button_vokkqeru",
                         type: "Button",
                         path: "ReservationDetail.body[0].children[0].children[4].children[1]",
+                        name: "DeclineButton",
                         text: "お誘いを断る",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
                       ),
                     ],
                   ),
                   ffai.ProjectWidgetHandle(
-                    key: "Row_cr8et390",
+                    key: "Row_qv779nx8",
                     type: "Row",
                     path: "ReservationDetail.body[0].children[0].children[5]",
+                    name: "ConfirmMeetupRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Button_ywx57vu4",
+                        key: "Button_bubagexh",
                         type: "Button",
                         path: "ReservationDetail.body[0].children[0].children[5].children[0]",
+                        name: "ConfirmMeetupButton",
                         text: "合流報告",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
                       ),
                     ],
                   ),
                   ffai.ProjectWidgetHandle(
-                    key: "Row_qqj87c5s",
+                    key: "Row_1cdpx9ig",
                     type: "Row",
                     path: "ReservationDetail.body[0].children[0].children[6]",
+                    name: "ReportCompletionRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Button_zm9z7vuz",
+                        key: "Button_6ccmgnme",
                         type: "Button",
                         path: "ReservationDetail.body[0].children[0].children[6].children[0]",
+                        name: "ReportCompletionButton",
                         text: "完了報告",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
                       ),
                     ],
                   ),
                   ffai.ProjectWidgetHandle(
-                    key: "Row_dw9z46os",
+                    key: "Row_9ukyha0q",
                     type: "Row",
                     path: "ReservationDetail.body[0].children[0].children[7]",
+                    name: "ReviewInputRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Button_wygsdhu0",
-                        type: "Button",
+                        key: "Column_fky134z5",
+                        type: "Column",
                         path: "ReservationDetail.body[0].children[0].children[7].children[0]",
-                        text: "評価する",
+                        name: "Column",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_csu8tobp",
+                            type: "Text",
+                            path: "ReservationDetail.body[0].children[0].children[7].children[0].children[0]",
+                            name: "Text",
+                            text: "評価",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "DropDown_cshhzjao",
+                            type: "DropDown",
+                            path: "ReservationDetail.body[0].children[0].children[7].children[0].children[1]",
+                            name: "Dropdown",
+                            triggers: const <String>[
+                              "ON_FORM_WIDGET_SELECTED",
+                            ],
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "TextField_kac4jgrl",
+                            type: "TextField",
+                            path: "ReservationDetail.body[0].children[0].children[7].children[0].children[2]",
+                            name: "ReviewCommentField",
+                            text: "コメント（任意）",
+                            triggers: const <String>[
+                              "ON_TEXTFIELD_CHANGE",
+                            ],
+                          ),
+                        ],
                       ),
                     ],
                   ),
                   ffai.ProjectWidgetHandle(
-                    key: "Row_ehfeqy1x",
+                    key: "Row_5d46emlt",
                     type: "Row",
                     path: "ReservationDetail.body[0].children[0].children[8]",
+                    name: "SubmitReviewRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Button_t77bzb4o",
+                        key: "Button_k3pfm5ry",
                         type: "Button",
                         path: "ReservationDetail.body[0].children[0].children[8].children[0]",
+                        name: "SubmitReviewButton",
+                        text: "評価する",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Container_6gw6zsxt",
+                    type: "Container",
+                    path: "ReservationDetail.body[0].children[0].children[9]",
+                    name: "TipSection",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Column_vkds5o34",
+                        type: "Column",
+                        path: "ReservationDetail.body[0].children[0].children[9].children[0]",
+                        name: "Column",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_j3pwyjab",
+                            type: "Text",
+                            path: "ReservationDetail.body[0].children[0].children[9].children[0].children[0]",
+                            name: "Text",
+                            text: "チップを送る",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "TextField_8ou0upof",
+                            type: "TextField",
+                            path: "ReservationDetail.body[0].children[0].children[9].children[0].children[1]",
+                            name: "TipAmountField",
+                            text: "金額（円）例: 1000",
+                            triggers: const <String>[
+                              "ON_TEXTFIELD_CHANGE",
+                            ],
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Button_qaw6isi5",
+                            type: "Button",
+                            path: "ReservationDetail.body[0].children[0].children[9].children[0].children[2]",
+                            name: "Button",
+                            text: "送る",
+                            triggers: const <String>[
+                              "ON_TAP",
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_5xrhh8tz",
+                    type: "Row",
+                    path: "ReservationDetail.body[0].children[0].children[10]",
+                    name: "CancelReservationRow",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Button_jdm282w6",
+                        type: "Button",
+                        path: "ReservationDetail.body[0].children[0].children[10].children[0]",
+                        name: "CancelReservationButton",
                         text: "キャンセルする",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
                       ),
                     ],
                   ),

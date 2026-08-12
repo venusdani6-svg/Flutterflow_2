@@ -19,6 +19,126 @@ final class ProfileEditParams {
 
 final class ProfileEditState {
   const ProfileEditState();
+  ffai.ProjectStateFieldHandle get editDrinking =>
+      const ffai.ProjectStateFieldHandle(
+        name: "editDrinking",
+        key: "w7kc5esy",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get editGender =>
+      const ffai.ProjectStateFieldHandle(
+        name: "editGender",
+        key: "gf5v6wc9",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get editPrefecture =>
+      const ffai.ProjectStateFieldHandle(
+        name: "editPrefecture",
+        key: "a8cgrvxv",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get editProfileImageUrl =>
+      const ffai.ProjectStateFieldHandle(
+        name: "editProfileImageUrl",
+        key: "s3p60ewx",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get editSmoking =>
+      const ffai.ProjectStateFieldHandle(
+        name: "editSmoking",
+        key: "is4f8zwl",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get newCity =>
+      const ffai.ProjectStateFieldHandle(
+        name: "newCity",
+        key: "9d473abn",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get newFavoriteFood =>
+      const ffai.ProjectStateFieldHandle(
+        name: "newFavoriteFood",
+        key: "53cg9vgo",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get newHobbies =>
+      const ffai.ProjectStateFieldHandle(
+        name: "newHobbies",
+        key: "yrdg7wc3",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get newNickname =>
+      const ffai.ProjectStateFieldHandle(
+        name: "newNickname",
+        key: "3fkiwv78",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get newOneLineMessage =>
+      const ffai.ProjectStateFieldHandle(
+        name: "newOneLineMessage",
+        key: "kmw678yq",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get newSelfIntro =>
+      const ffai.ProjectStateFieldHandle(
+        name: "newSelfIntro",
+        key: "4sof3g63",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get newSkills =>
+      const ffai.ProjectStateFieldHandle(
+        name: "newSkills",
+        key: "fvow31s0",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get origCity =>
+      const ffai.ProjectStateFieldHandle(
+        name: "origCity",
+        key: "i9211dds",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get origFavoriteFood =>
+      const ffai.ProjectStateFieldHandle(
+        name: "origFavoriteFood",
+        key: "o8hpc7m0",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get origHobbies =>
+      const ffai.ProjectStateFieldHandle(
+        name: "origHobbies",
+        key: "y5q78npm",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get origNickname =>
+      const ffai.ProjectStateFieldHandle(
+        name: "origNickname",
+        key: "2wo3dlif",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get origOneLineMessage =>
+      const ffai.ProjectStateFieldHandle(
+        name: "origOneLineMessage",
+        key: "5r6vkn6d",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get origSelfIntro =>
+      const ffai.ProjectStateFieldHandle(
+        name: "origSelfIntro",
+        key: "712e60rb",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get origSkills =>
+      const ffai.ProjectStateFieldHandle(
+        name: "origSkills",
+        key: "u0q01trm",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get profileLoaded =>
+      const ffai.ProjectStateFieldHandle(
+        name: "profileLoaded",
+        key: "z2p6lv78",
+        typeName: "Boolean",
+      );
 }
 
 abstract final class ProfileEditWidgets {
@@ -28,6 +148,9 @@ abstract final class ProfileEditWidgets {
       type: "Scaffold",
       path: "ProfileEdit",
       name: "ProfileEdit",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
@@ -103,9 +226,10 @@ abstract final class ProfileEditWidgets {
                             path: "ProfileEdit.body[0].children[0].children[0].children[1].children[0]",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "CircleImage_m2ut512l",
+                                key: "CircleImage_fy6oz5ts",
                                 type: "CircleImage",
                                 path: "ProfileEdit.body[0].children[0].children[0].children[1].children[0].children[0]",
+                                name: "ProfileAvatarImage",
                               ),
                             ],
                           ),
@@ -114,6 +238,9 @@ abstract final class ProfileEditWidgets {
                             type: "Button",
                             path: "ProfileEdit.body[0].children[0].children[0].children[1].children[1]",
                             text: "プロフ画像変更",
+                            triggers: const <String>[
+                              "ON_TAP",
+                            ],
                           ),
                         ],
                       ),
@@ -161,21 +288,40 @@ abstract final class ProfileEditWidgets {
                                     path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[2]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_7qhwnnsh",
+                                        key: "Column_zu6rqb3r",
                                         type: "Column",
                                         path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[2].children[0]",
+                                        name: "NicknameEditColumn",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_2pkhdh2k",
+                                            key: "Text_xete5fbt",
                                             type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[2].children[0].children[0]",
+                                            name: "Text",
                                             text: "ニックネーム",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "TextField_rxe3p7zc",
-                                            type: "TextField",
+                                            key: "Text_kypjioxx",
+                                            type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[2].children[0].children[1]",
-                                            text: "はなこ",
+                                            name: "Text",
+                                            text: "現在の設定:",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Text_mno5es0b",
+                                            type: "Text",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[2].children[0].children[2]",
+                                            name: "Text",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "TextField_9pe9bxzg",
+                                            type: "TextField",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[2].children[0].children[3]",
+                                            name: "NewNicknameField",
+                                            text: "新しいニックネーム（変更する場合のみ入力）",
+                                            triggers: const <String>[
+                                              "ON_TEXTFIELD_CHANGE",
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -198,9 +344,13 @@ abstract final class ProfileEditWidgets {
                                             text: "性　別",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "DropDown_19vreqt8",
+                                            key: "DropDown_66tz76pw",
                                             type: "DropDown",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[3].children[0].children[1]",
+                                            name: "GenderDropdown",
+                                            triggers: const <String>[
+                                              "ON_FORM_WIDGET_SELECTED",
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -223,9 +373,13 @@ abstract final class ProfileEditWidgets {
                                             text: "地域（都道府県）",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "DropDown_rl1btgwp",
+                                            key: "DropDown_dwwhijrl",
                                             type: "DropDown",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[4].children[0].children[1]",
+                                            name: "EditPrefectureDropdown",
+                                            triggers: const <String>[
+                                              "ON_FORM_WIDGET_SELECTED",
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -237,20 +391,40 @@ abstract final class ProfileEditWidgets {
                                     path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[5]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_xynbln7k",
+                                        key: "Column_q74ihsqx",
                                         type: "Column",
                                         path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[5].children[0]",
+                                        name: "CityEditColumn",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_9hh1p503",
+                                            key: "Text_kw75p4sg",
                                             type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[5].children[0].children[0]",
+                                            name: "Text",
                                             text: "地域（市町村）",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "DropDown_vib8ptkl",
-                                            type: "DropDown",
+                                            key: "Text_jfsxcl5x",
+                                            type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[5].children[0].children[1]",
+                                            name: "Text",
+                                            text: "現在の設定:",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Text_3xegsmpz",
+                                            type: "Text",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[5].children[0].children[2]",
+                                            name: "Text",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "TextField_2b4eeo8i",
+                                            type: "TextField",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[5].children[0].children[3]",
+                                            name: "NewCityField",
+                                            text: "新しい市区町村（変更する場合のみ入力）",
+                                            triggers: const <String>[
+                                              "ON_TEXTFIELD_CHANGE",
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -298,9 +472,13 @@ abstract final class ProfileEditWidgets {
                                             text: "飲　酒",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "DropDown_c853dqoj",
+                                            key: "DropDown_txmmrmsx",
                                             type: "DropDown",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[7].children[0].children[1]",
+                                            name: "DrinkingDropdown",
+                                            triggers: const <String>[
+                                              "ON_FORM_WIDGET_SELECTED",
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -312,20 +490,26 @@ abstract final class ProfileEditWidgets {
                                     path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[8]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_050x9ygt",
+                                        key: "Column_tkrm6ipr",
                                         type: "Column",
                                         path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[8].children[0]",
+                                        name: "SmokingEditColumn",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_u4hjdtr3",
+                                            key: "Text_l5iwyb11",
                                             type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[8].children[0].children[0]",
-                                            text: "飲　酒",
+                                            name: "Text",
+                                            text: "喫　煙",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "DropDown_flf40w7e",
+                                            key: "DropDown_cmt7ct4b",
                                             type: "DropDown",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[8].children[0].children[1]",
+                                            name: "SmokingDropdown",
+                                            triggers: const <String>[
+                                              "ON_FORM_WIDGET_SELECTED",
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -337,21 +521,40 @@ abstract final class ProfileEditWidgets {
                                     path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[9]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_q80an5jc",
+                                        key: "Column_g6waur59",
                                         type: "Column",
                                         path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[9].children[0]",
+                                        name: "HobbiesEditColumn",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_qop12cl4",
+                                            key: "Text_7cxvotqj",
                                             type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[9].children[0].children[0]",
+                                            name: "Text",
                                             text: "種　類",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "TextField_teuwzfpy",
-                                            type: "TextField",
+                                            key: "Text_1byvzlmb",
+                                            type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[9].children[0].children[1]",
-                                            text: "旅行、バイクツーリング",
+                                            name: "Text",
+                                            text: "現在の設定:",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Text_itfcdo85",
+                                            type: "Text",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[9].children[0].children[2]",
+                                            name: "Text",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "TextField_mnybak3r",
+                                            type: "TextField",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[9].children[0].children[3]",
+                                            name: "NewHobbiesField",
+                                            text: "新しい趣味（変更する場合のみ入力）",
+                                            triggers: const <String>[
+                                              "ON_TEXTFIELD_CHANGE",
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -363,21 +566,40 @@ abstract final class ProfileEditWidgets {
                                     path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[10]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_t173gkj9",
+                                        key: "Column_jfc8cf2h",
                                         type: "Column",
                                         path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[10].children[0]",
+                                        name: "SkillsEditColumn",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_wlf59uai",
+                                            key: "Text_tgnoas2c",
                                             type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[10].children[0].children[0]",
+                                            name: "Text",
                                             text: "特　技",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "TextField_vjji0mlc",
-                                            type: "TextField",
+                                            key: "Text_j8rbf92e",
+                                            type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[10].children[0].children[1]",
-                                            text: "寝ること、ボクシング",
+                                            name: "Text",
+                                            text: "現在の設定:",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Text_co2qr0ve",
+                                            type: "Text",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[10].children[0].children[2]",
+                                            name: "Text",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "TextField_gbvpvz28",
+                                            type: "TextField",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[10].children[0].children[3]",
+                                            name: "NewSkillsField",
+                                            text: "新しい特技（変更する場合のみ入力）",
+                                            triggers: const <String>[
+                                              "ON_TEXTFIELD_CHANGE",
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -415,21 +637,40 @@ abstract final class ProfileEditWidgets {
                                     path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[12]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_cyufmw9h",
+                                        key: "Column_xfhcbm8k",
                                         type: "Column",
                                         path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[12].children[0]",
+                                        name: "FavoriteFoodEditColumn",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_zxrdzq5x",
+                                            key: "Text_2b28nzxw",
                                             type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[12].children[0].children[0]",
+                                            name: "Text",
                                             text: "好き食",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "TextField_5hcuxl87",
-                                            type: "TextField",
+                                            key: "Text_u83ufiti",
+                                            type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[12].children[0].children[1]",
-                                            text: "焼肉、焼鳥",
+                                            name: "Text",
+                                            text: "現在の設定:",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Text_l393yky0",
+                                            type: "Text",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[12].children[0].children[2]",
+                                            name: "Text",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "TextField_fw005ujf",
+                                            type: "TextField",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[12].children[0].children[3]",
+                                            name: "NewFavoriteFoodField",
+                                            text: "新しい好きな食べ物（変更する場合のみ入力）",
+                                            triggers: const <String>[
+                                              "ON_TEXTFIELD_CHANGE",
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -441,21 +682,40 @@ abstract final class ProfileEditWidgets {
                                     path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[13]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_qz4vz97i",
+                                        key: "Column_9cyu2hci",
                                         type: "Column",
                                         path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[13].children[0]",
+                                        name: "OneLineMessageEditColumn",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_835rc3ai",
+                                            key: "Text_4tigweot",
                                             type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[13].children[0].children[0]",
+                                            name: "Text",
                                             text: "一言メッセージ",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "TextField_bg408ztb",
-                                            type: "TextField",
+                                            key: "Text_pyu0ulzj",
+                                            type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[13].children[0].children[1]",
-                                            text: "誰か焼肉連れてって！いつでも動けるよ❤",
+                                            name: "Text",
+                                            text: "現在の設定:",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Text_bqzuljpz",
+                                            type: "Text",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[13].children[0].children[2]",
+                                            name: "Text",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "TextField_mwtty1pw",
+                                            type: "TextField",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[13].children[0].children[3]",
+                                            name: "NewOneLineMessageField",
+                                            text: "新しい一言メッセージ（変更する場合のみ入力）",
+                                            triggers: const <String>[
+                                              "ON_TEXTFIELD_CHANGE",
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -467,21 +727,40 @@ abstract final class ProfileEditWidgets {
                                     path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[14]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_ja6hqk5u",
+                                        key: "Column_cedwiupc",
                                         type: "Column",
                                         path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[14].children[0]",
+                                        name: "SelfIntroEditColumn",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_76lgrhk6",
+                                            key: "Text_wcl8l7nl",
                                             type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[14].children[0].children[0]",
-                                            text: "自己紹介文",
+                                            name: "Text",
+                                            text: "自己紹介文（50文字以上）",
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "TextField_ayogghjq",
-                                            type: "TextField",
+                                            key: "Text_jmoneqy7",
+                                            type: "Text",
                                             path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[14].children[0].children[1]",
-                                            text: "誰か焼肉連れてって！いつでも動けるよ❤",
+                                            name: "Text",
+                                            text: "現在の設定:",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Text_1bmpt929",
+                                            type: "Text",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[14].children[0].children[2]",
+                                            name: "Text",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "TextField_wi11ypqe",
+                                            type: "TextField",
+                                            path: "ProfileEdit.body[0].children[0].children[0].children[2].children[0].children[0].children[14].children[0].children[3]",
+                                            name: "NewSelfIntroField",
+                                            text: "新しい自己紹介文（変更する場合のみ入力、50文字以上）",
+                                            triggers: const <String>[
+                                              "ON_TEXTFIELD_CHANGE",
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -503,6 +782,9 @@ abstract final class ProfileEditWidgets {
                             type: "Button",
                             path: "ProfileEdit.body[0].children[0].children[0].children[3].children[0]",
                             text: "プロフィールを保存する",
+                            triggers: const <String>[
+                              "ON_TAP",
+                            ],
                           ),
                         ],
                       ),

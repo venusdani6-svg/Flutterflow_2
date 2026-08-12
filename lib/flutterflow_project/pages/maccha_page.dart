@@ -19,6 +19,24 @@ final class MacchaPageParams {
 
 final class MacchaPageState {
   const MacchaPageState();
+  ffai.ProjectStateFieldHandle get matchaFilter =>
+      const ffai.ProjectStateFieldHandle(
+        name: "matchaFilter",
+        key: "yphl9c2g",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get myChatRoomsList =>
+      const ffai.ProjectStateFieldHandle(
+        name: "myChatRoomsList",
+        key: "3eawfpq1",
+        typeName: "List<String>",
+      );
+  ffai.ProjectStateFieldHandle get visibleMatchaList =>
+      const ffai.ProjectStateFieldHandle(
+        name: "visibleMatchaList",
+        key: "33uot43y",
+        typeName: "List<String>",
+      );
 }
 
 abstract final class MacchaPageWidgets {
@@ -135,10 +153,102 @@ abstract final class MacchaPageWidgets {
                         path: "MacchaPage.body[0].children[1].children[0].children[0]",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Text_xtput46n",
-                            type: "Text",
+                            key: "Row_cbpo2m1t",
+                            type: "Row",
                             path: "MacchaPage.body[0].children[1].children[0].children[0].children[0]",
-                            text: "すべてのマッチャ",
+                            name: "MatchaFilterTabs",
+                            children: <ffai.ProjectWidgetHandle>[
+                              ffai.ProjectWidgetHandle(
+                                key: "Container_tdhlzt7u",
+                                type: "Container",
+                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[0]",
+                                name: "MatchaTab_all",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Text_dr8nsm24",
+                                    type: "Text",
+                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[0].children[0]",
+                                    name: "Text",
+                                    text: "すべて",
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Container_yr8n2xi3",
+                                type: "Container",
+                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[1]",
+                                name: "MatchaTab_new",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Text_qrmx21ek",
+                                    type: "Text",
+                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[1].children[0]",
+                                    name: "Text",
+                                    text: "新しい",
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Container_lkdo6ezo",
+                                type: "Container",
+                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[2]",
+                                name: "MatchaTab_not_interacted",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Text_o5lhhukd",
+                                    type: "Text",
+                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[2].children[0]",
+                                    name: "Text",
+                                    text: "未交流",
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Container_tbvm3xzf",
+                                type: "Container",
+                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[3]",
+                                name: "MatchaTab_interacted",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Text_0sb0de6e",
+                                    type: "Text",
+                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[3].children[0]",
+                                    name: "Text",
+                                    text: "交流済み",
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Container_lh11kn9b",
+                                type: "Container",
+                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[4]",
+                                name: "MatchaTab_declined",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Text_8el30apl",
+                                    type: "Text",
+                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[4].children[0]",
+                                    name: "Text",
+                                    text: "断られた",
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                           ffai.ProjectWidgetHandle(
                             key: "Divider_jwtm0qhw",
@@ -151,351 +261,55 @@ abstract final class MacchaPageWidgets {
                             path: "MacchaPage.body[0].children[1].children[0].children[0].children[2]",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "Column_bs3ts5ma",
-                                type: "Column",
+                                key: "ListView_moyozme3",
+                                type: "ListView",
                                 path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0]",
+                                name: "MatchaItemsListView",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Card_ti8crc9y",
+                                    key: "Card_gjfssn7g",
                                     type: "Card",
                                     path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0]",
+                                    name: "MatchaItemCard",
+                                    triggers: const <String>[
+                                      "ON_TAP",
+                                    ],
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Container_ooacxzqr",
+                                        key: "Container_48tv58y1",
                                         type: "Container",
                                         path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0]",
+                                        name: "Container",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Row_mrgni4hf",
+                                            key: "Row_oc7rkzuk",
                                             type: "Row",
                                             path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0]",
+                                            name: "Row",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "CircleImage_fokigybm",
+                                                key: "CircleImage_t8x5yfi6",
                                                 type: "CircleImage",
                                                 path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0]",
+                                                name: "Avatar",
                                               ),
                                               ffai.ProjectWidgetHandle(
-                                                key: "Column_zybejjex",
+                                                key: "Column_t58kd8ts",
                                                 type: "Column",
                                                 path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1]",
+                                                name: "Column",
                                                 children: <ffai.ProjectWidgetHandle>[
                                                   ffai.ProjectWidgetHandle(
-                                                    key: "Row_1x1f9ndz",
-                                                    type: "Row",
+                                                    key: "Text_dorgfld0",
+                                                    type: "Text",
                                                     path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Text_5n734plk",
-                                                        type: "Text",
-                                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[0]",
-                                                        text: "ゆずき",
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Row_8n7oh0y3",
-                                                        type: "Row",
-                                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[1]",
-                                                        children: <ffai.ProjectWidgetHandle>[
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Icon_xfpn1h0s",
-                                                            type: "Icon",
-                                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[1].children[0]",
-                                                          ),
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Text_awhd5ac0",
-                                                            type: "Text",
-                                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0].children[1].children[1]",
-                                                            text: "5 分前",
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
+                                                    name: "Text",
                                                   ),
                                                   ffai.ProjectWidgetHandle(
-                                                    key: "Text_05pli85v",
+                                                    key: "Text_t43tal25",
                                                     type: "Text",
                                                     path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[1]",
-                                                    text: "ここにタイトルが入ります",
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Card_naqqba3h",
-                                    type: "Card",
-                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[1]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Container_2aalv8cg",
-                                        type: "Container",
-                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[1].children[0]",
-                                        children: <ffai.ProjectWidgetHandle>[
-                                          ffai.ProjectWidgetHandle(
-                                            key: "Row_ajnbf50t",
-                                            type: "Row",
-                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[1].children[0].children[0]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "CircleImage_ngyfcv19",
-                                                type: "CircleImage",
-                                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[1].children[0].children[0].children[0]",
-                                              ),
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Column_4m93zykc",
-                                                type: "Column",
-                                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[1].children[0].children[0].children[1]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Row_dbh5fciv",
-                                                    type: "Row",
-                                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[1].children[0].children[0].children[1].children[0]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Text_sk4zjh55",
-                                                        type: "Text",
-                                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[1].children[0].children[0].children[1].children[0].children[0]",
-                                                        text: "麻由子",
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Row_ylfxk473",
-                                                        type: "Row",
-                                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[1].children[0].children[0].children[1].children[0].children[1]",
-                                                        children: <ffai.ProjectWidgetHandle>[
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Icon_s9em98l0",
-                                                            type: "Icon",
-                                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[1].children[0].children[0].children[1].children[0].children[1].children[0]",
-                                                          ),
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Text_ayhjj2m4",
-                                                            type: "Text",
-                                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[1].children[0].children[0].children[1].children[0].children[1].children[1]",
-                                                            text: "5 分前",
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Text_kklhxbec",
-                                                    type: "Text",
-                                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[1].children[0].children[0].children[1].children[1]",
-                                                    text: "ここにタイトルが入ります",
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Card_nrvcf7wm",
-                                    type: "Card",
-                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[2]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Container_ijwsnb0s",
-                                        type: "Container",
-                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[2].children[0]",
-                                        children: <ffai.ProjectWidgetHandle>[
-                                          ffai.ProjectWidgetHandle(
-                                            key: "Row_m6n62hhb",
-                                            type: "Row",
-                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[2].children[0].children[0]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "CircleImage_cbsug12z",
-                                                type: "CircleImage",
-                                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[2].children[0].children[0].children[0]",
-                                              ),
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Column_39yb3eh1",
-                                                type: "Column",
-                                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[2].children[0].children[0].children[1]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Row_spjo0m3u",
-                                                    type: "Row",
-                                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[2].children[0].children[0].children[1].children[0]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Text_8q11vmnr",
-                                                        type: "Text",
-                                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[2].children[0].children[0].children[1].children[0].children[0]",
-                                                        text: "あい",
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Row_rkakwhh7",
-                                                        type: "Row",
-                                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[2].children[0].children[0].children[1].children[0].children[1]",
-                                                        children: <ffai.ProjectWidgetHandle>[
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Icon_jqn582pz",
-                                                            type: "Icon",
-                                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[2].children[0].children[0].children[1].children[0].children[1].children[0]",
-                                                          ),
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Text_oxueyht0",
-                                                            type: "Text",
-                                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[2].children[0].children[0].children[1].children[0].children[1].children[1]",
-                                                            text: "5 分前",
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Text_ufmxkadw",
-                                                    type: "Text",
-                                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[2].children[0].children[0].children[1].children[1]",
-                                                    text: "ここにタイトルが入ります",
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Card_2pup52gj",
-                                    type: "Card",
-                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[3]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Container_uh2py95y",
-                                        type: "Container",
-                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[3].children[0]",
-                                        children: <ffai.ProjectWidgetHandle>[
-                                          ffai.ProjectWidgetHandle(
-                                            key: "Row_nxat4xfd",
-                                            type: "Row",
-                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[3].children[0].children[0]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "CircleImage_r0div67u",
-                                                type: "CircleImage",
-                                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[3].children[0].children[0].children[0]",
-                                              ),
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Column_8e98vhzm",
-                                                type: "Column",
-                                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[3].children[0].children[0].children[1]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Row_m0ibw4jk",
-                                                    type: "Row",
-                                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[3].children[0].children[0].children[1].children[0]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Text_8tpso7fr",
-                                                        type: "Text",
-                                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[3].children[0].children[0].children[1].children[0].children[0]",
-                                                        text: "ゆーか",
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Row_8nr2sujs",
-                                                        type: "Row",
-                                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[3].children[0].children[0].children[1].children[0].children[1]",
-                                                        children: <ffai.ProjectWidgetHandle>[
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Icon_b03z4nll",
-                                                            type: "Icon",
-                                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[3].children[0].children[0].children[1].children[0].children[1].children[0]",
-                                                          ),
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Text_qb43ofb4",
-                                                            type: "Text",
-                                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[3].children[0].children[0].children[1].children[0].children[1].children[1]",
-                                                            text: "5 分前",
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Text_h6jwlaq2",
-                                                    type: "Text",
-                                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[3].children[0].children[0].children[1].children[1]",
-                                                    text: "ここにタイトルが入ります",
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Card_ggak9qdx",
-                                    type: "Card",
-                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[4]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Container_xbvada0t",
-                                        type: "Container",
-                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[4].children[0]",
-                                        children: <ffai.ProjectWidgetHandle>[
-                                          ffai.ProjectWidgetHandle(
-                                            key: "Row_56w7csis",
-                                            type: "Row",
-                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[4].children[0].children[0]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "CircleImage_igiwhmh5",
-                                                type: "CircleImage",
-                                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[4].children[0].children[0].children[0]",
-                                              ),
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Column_xnevr0tx",
-                                                type: "Column",
-                                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[4].children[0].children[0].children[1]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Row_39xfcsq8",
-                                                    type: "Row",
-                                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[4].children[0].children[0].children[1].children[0]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Text_qicxj8dd",
-                                                        type: "Text",
-                                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[4].children[0].children[0].children[1].children[0].children[0]",
-                                                        text: "arika",
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Row_u22se99h",
-                                                        type: "Row",
-                                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[4].children[0].children[0].children[1].children[0].children[1]",
-                                                        children: <ffai.ProjectWidgetHandle>[
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Icon_vlzvcp63",
-                                                            type: "Icon",
-                                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[4].children[0].children[0].children[1].children[0].children[1].children[0]",
-                                                          ),
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Text_993rcbma",
-                                                            type: "Text",
-                                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[4].children[0].children[0].children[1].children[0].children[1].children[1]",
-                                                            text: "5 分前",
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Text_7x7ymc2k",
-                                                    type: "Text",
-                                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[4].children[0].children[0].children[1].children[1]",
-                                                    text: "ここにタイトルが入ります",
+                                                    name: "Text",
                                                   ),
                                                 ],
                                               ),

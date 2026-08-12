@@ -28,6 +28,9 @@ abstract final class EmailVerificationWidgets {
       type: "Scaffold",
       path: "EmailVerification",
       name: "EmailVerification",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
@@ -95,6 +98,9 @@ abstract final class EmailVerificationWidgets {
                     type: "Button",
                     path: "EmailVerification.body[0].children[0].children[3]",
                     text: "次へ",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                   ),
                 ],
               ),

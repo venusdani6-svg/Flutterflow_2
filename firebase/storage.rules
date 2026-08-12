@@ -13,5 +13,17 @@ service firebase.storage {
       allow read: if true;
       allow write: if request.auth != null;
     }
+
+    // KYC documents + selfie (kyc.dart -> pickAndUploadImage custom action)
+    // and any other per-user upload (profile photos, gallery images) — owner
+    // read/write only. `kyc_doc_url`/`kyc_selfie_url` on the user's own
+    // Firestore doc are openly readable by that same rule set already
+    // (firestore.rules), so gating the underlying file to owner-only here is
+    // the meaningful boundary — admin review of KYC docs goes through the
+    // Admin SDK (server-side, bypasses these rules entirely), not a direct
+    // client read.
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }

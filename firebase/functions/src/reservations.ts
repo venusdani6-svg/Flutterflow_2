@@ -35,6 +35,9 @@ export const createReservation = onCall(async (request) => {
     group_size,
     details,
     base_amount,
+    staff_selections,
+    needs_security,
+    needs_transport,
   } = request.data;
 
   if (!cast_ids || cast_ids.length === 0) {
@@ -56,6 +59,65 @@ export const createReservation = onCall(async (request) => {
 
   const config = await getSystemConfig();
 
+  // Staff-fee-first split (§3.9.11): `staff_selections` is an optional
+  // array of {staff_id, role: "security"|"transport"}. Each staff member
+  // must actually hold that role (staff_type matches the requested role,
+  // or is "both") - this is a distinct check from cast_ids validation
+  // above since staff aren't cast members being booked for the
+  // interaction itself, just fee-earning support roles on the same
+  // reservation. recordCastRewardsAndProcessOthers (stripe-payments.ts)
+  // already correctly subtracts staff_fee before computing cast reward
+  // and splits it evenly across staff_ids - this is the missing input
+  // side that never fed it real data (staffFee was hardcoded to 0).
+  const staffIds: string[] = [];
+  let staffFeeTotal = 0;
+  for (const sel of staff_selections || []) {
+    const staffId = sel?.staff_id;
+    const role = sel?.role;
+    if (!staffId || (role !== "security" && role !== "transport")) {
+      throw new HttpsError(
+        "invalid-argument",
+        "staff_selectionsの形式が不正です（staff_id, roleが必要）。"
+      );
+    }
+    const staffDoc = await db.collection("users").doc(staffId).get();
+    const staffData = staffDoc.data();
+    if (!staffDoc.exists || staffData?.approval_status !== "approved") {
+      throw new HttpsError("not-found", `スタッフ ${staffId} が見つかりません。`);
+    }
+    if (staffData?.is_frozen) {
+      throw new HttpsError("failed-precondition", "選択されたスタッフは利用できません。");
+    }
+    if (staffData?.staff_type !== role && staffData?.staff_type !== "both") {
+      throw new HttpsError(
+        "failed-precondition",
+        `スタッフ ${staffId} はこの役割（${role}）に対応していません。`
+      );
+    }
+    staffIds.push(staffId);
+    staffFeeTotal +=
+      role === "security" ? config.security_staff_fee : config.transport_staff_fee;
+  }
+
+  // `needs_security`/`needs_transport`: the "I need this role but don't
+  // have a specific person in mind" path — the realistic one, since there
+  // is no staff-browsing/discovery UI anywhere in this app for a guest to
+  // even obtain a staff_id to pass into staff_selections above.
+  // security_staff_fee/transport_staff_fee are FLAT, role-level config
+  // values (not per-individual), so the fee is fully determined by the
+  // role alone — the specific staff member can be resolved later via the
+  // work_posts apply/select flow (mirrors group_invite's own already-
+  // proven pattern below) without ever needing to touch total_amount or
+  // the Stripe authorization again. Skips the flat fee for a role already
+  // covered by a direct staff_selections entry, to avoid double-charging.
+  const alreadyStaffedRoles = new Set(
+    (staff_selections || []).map((sel: { role?: string }) => sel?.role)
+  );
+  const wantsSecurity = needs_security === true && !alreadyStaffedRoles.has("security");
+  const wantsTransport = needs_transport === true && !alreadyStaffedRoles.has("transport");
+  if (wantsSecurity) staffFeeTotal += config.security_staff_fee;
+  if (wantsTransport) staffFeeTotal += config.transport_staff_fee;
+
   // NOTE: `getSystemConfig()`'s key-casing bug (SYSTEM_DEFAULTS was
   // UPPER_SNAKE_CASE against Firestore's lower_snake_case fields, so the
   // `{ ...SYSTEM_DEFAULTS, ...doc.data() }` spread never actually applied
@@ -69,8 +131,7 @@ export const createReservation = onCall(async (request) => {
     transportFee = config.transport_fee_amount;
   }
 
-  const staffFee = 0;
-  const totalAmount = base_amount + transportFee + staffFee;
+  const totalAmount = base_amount + transportFee + staffFeeTotal;
 
   const resRef = db.collection("reservations").doc();
   const resId = resRef.id;
@@ -79,7 +140,7 @@ export const createReservation = onCall(async (request) => {
     res_id: resId,
     guest_id: uid,
     cast_ids,
-    staff_ids: [],
+    staff_ids: staffIds,
     status: "request_pending",
     date: Timestamp.fromDate(new Date(date)),
     time_slot,
@@ -88,10 +149,12 @@ export const createReservation = onCall(async (request) => {
     meeting_point: meeting_point || "",
     group_invite: group_invite || false,
     group_size: group_size || 0,
+    needs_security: wantsSecurity,
+    needs_transport: wantsTransport,
     details: details || "",
     base_amount,
     transport_fee: transportFee,
-    staff_fee: staffFee,
+    staff_fee: staffFeeTotal,
     total_amount: totalAmount,
     extension_count: 0,
     total_hours: duration_minutes / 60,
@@ -124,6 +187,7 @@ export const createReservation = onCall(async (request) => {
     res_id: resId,
     total_amount: totalAmount,
     transport_fee: transportFee,
+    staff_fee: staffFeeTotal,
   };
 });
 
@@ -195,6 +259,46 @@ export const respondToReservation = onCall(async (request) => {
         date: resData.date,
         location: resData.location,
         fee: 0,
+        status: "open",
+        applicants: [],
+        selected_id: "",
+        created_at: Timestamp.now(),
+      });
+    }
+
+    // Auto-create staff job posts for whichever roles the guest flagged as
+    // needed at booking time (needs_security/needs_transport,
+    // createReservation) — same auto-post pattern as group_invite above,
+    // poster_id is the accepting cast (they're the one working this job
+    // and best placed to pick who joins them). The fee shown here is
+    // informational only — the reservation's own staff_fee was already
+    // computed and authorized at booking time from the flat role-level
+    // config, this post doesn't change or duplicate that.
+    const config = await getSystemConfig();
+    if (resData.needs_security) {
+      await db.collection("work_posts").add({
+        poster_id: uid,
+        res_id,
+        type: "security",
+        description: "警備スタッフ募集",
+        date: resData.date,
+        location: resData.location,
+        fee: config.security_staff_fee,
+        status: "open",
+        applicants: [],
+        selected_id: "",
+        created_at: Timestamp.now(),
+      });
+    }
+    if (resData.needs_transport) {
+      await db.collection("work_posts").add({
+        poster_id: uid,
+        res_id,
+        type: "transport",
+        description: "送迎スタッフ募集",
+        date: resData.date,
+        location: resData.location,
+        fee: config.transport_staff_fee,
         status: "open",
         applicants: [],
         selected_id: "",
@@ -567,4 +671,220 @@ export const autoCompleteReviews = onSchedule("every 1 hours", async () => {
 
     await closeChatRoomsFor(doc.id);
   }
+});
+
+/**
+ * Callable: Send a chat message (マッチャチャット送信)
+ * Posting-lock (§3.5.8a) is enforced here via `chat_rooms.active`, which
+ * `respondToReservation` sets true at room creation (§3.5.7's open trigger)
+ * and `submitReview`/`autoCompleteReviews` both flip false (§3.5.8's two
+ * distinct close triggers - instant-on-both-done and timer-based). No
+ * separate posting-lock field needed: every path that should block new
+ * messages already flips this same flag, and no code path flips it false
+ * without also intending "no further activity in this room."
+ */
+export const sendChatMessage = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const { res_id, text } = request.data;
+  const uid = request.auth.uid;
+
+  if (typeof text !== "string" || !text.trim()) {
+    throw new HttpsError("invalid-argument", "メッセージを入力してください。");
+  }
+
+  const roomSnap = await db.collection("chat_rooms").where("res_id", "==", res_id).limit(1).get();
+  if (roomSnap.empty) {
+    throw new HttpsError("not-found", "チャットルームが見つかりません。");
+  }
+
+  const roomDoc = roomSnap.docs[0];
+  const roomData = roomDoc.data();
+
+  if (!roomData.participants?.includes(uid)) {
+    throw new HttpsError("permission-denied", "このチャットの参加者ではありません。");
+  }
+
+  if (!roomData.active) {
+    throw new HttpsError("failed-precondition", "このチャットはすでに終了しています。");
+  }
+
+  const trimmed = text.trim().substring(0, 1000);
+  const now = Timestamp.now();
+
+  await roomDoc.ref.collection("messages").add({
+    sender_id: uid,
+    text: trimmed,
+    created_at: now,
+  });
+
+  await roomDoc.ref.update({
+    last_message: trimmed,
+    last_message_time: now,
+  });
+
+  return { success: true };
+});
+
+/**
+ * Callable: Get a single chat room's display info for the given reservation
+ * (counterpart nickname/photo + open/closed state) - resolving the OTHER
+ * participant's profile requires the Admin SDK, since `users/{uid}`'s own
+ * security rule is identity-only (§33's own lesson: a client can only ever
+ * read its own user doc, never another user's, regardless of query shape).
+ */
+export const getChatRoomInfo = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const { res_id } = request.data;
+  const uid = request.auth.uid;
+
+  const resDoc = await db.collection("reservations").doc(res_id).get();
+  if (!resDoc.exists) {
+    throw new HttpsError("not-found", "予約が見つかりません。");
+  }
+  const resData = resDoc.data()!;
+  const isGuest = resData.guest_id === uid;
+  const isCast = resData.cast_ids?.includes(uid);
+  if (!isGuest && !isCast) {
+    throw new HttpsError("permission-denied", "権限がありません。");
+  }
+
+  const counterpartId = isGuest ? resData.cast_ids?.[0] || "" : resData.guest_id;
+  let counterpartNickname = "";
+  let counterpartPhoto = "";
+  if (counterpartId) {
+    const counterpartDoc = await db.collection("users").doc(counterpartId).get();
+    if (counterpartDoc.exists) {
+      counterpartNickname = counterpartDoc.data()?.nickname || "";
+      counterpartPhoto = counterpartDoc.data()?.profile_image_url || "";
+    }
+  }
+
+  const roomSnap = await db.collection("chat_rooms").where("res_id", "==", res_id).limit(1).get();
+  const roomExists = !roomSnap.empty;
+  const active = roomExists ? roomSnap.docs[0].data().active === true : false;
+
+  return {
+    success: true,
+    room_exists: roomExists,
+    active,
+    counterpart_nickname: counterpartNickname,
+    counterpart_photo: counterpartPhoto,
+  };
+});
+
+/**
+ * Callable: Get my full マッチャ (match/chat) list across all 5 history
+ * categories (§3.5.9) - すべて/新しい/未交流/交流済み/断られた. Category is
+ * derived from reservation status (not chat_room state alone), since
+ * "断られたマッチャ" (declined) and "新しいマッチャ" (newly requested) both
+ * cover reservations that never had - or never will have - an open chat
+ * room at all. Mapping, confirmed against the real status values this
+ * backend actually writes (`respondToReservation`/`confirmMeetup`/
+ * `reportCompletion`/webhook/`submitReview`), not invented:
+ *   new          - request_pending, authorized, cast_pending (sent, awaiting
+ *                  Stripe auth or cast response)
+ *   not_interacted - confirmed (chat open, meetup not yet started)
+ *   interacted   - in_progress, completion_pending, review_pending, completed
+ *   declined     - cancelled (any `cancelled_by` - cast/guest/admin, or none
+ *                  at all for the payment-failed webhook path) OR expired.
+ *                  REVIEW-PASS FIX (2026-08-11): originally scoped to
+ *                  `cancelled_by == "cast"` only, on the assumption that was
+ *                  the sole cancellation path - a broader sweep of every
+ *                  `reservations.status` write site found 3 more
+ *                  (`cancelPayment`'s guest/cast fee-matrix path,
+ *                  `adminForceCancel`'s "admin", and
+ *                  `handlePaymentIntentFailed`'s no-`cancelled_by`-at-all
+ *                  webhook path) plus a separate `status: "expired"` write
+ *                  (`autoCancelExpiredAuth`), none of which the original
+ *                  condition matched - all fell through to the "new" default,
+ *                  meaning a cancelled-by-guest, admin-force-cancelled,
+ *                  payment-failed, or timed-out-expired reservation
+ *                  incorrectly showed up under "新しい" (new) instead of
+ *                  anywhere resembling "this didn't happen". §3.5.9 only
+ *                  specifies 5 fixed categories with no dedicated
+ *                  cancelled/expired bucket, so from the guest's own
+ *                  perspective every terminal "didn't happen" outcome is
+ *                  folded into "断られた" (declined) - the closest existing
+ *                  category, not a literal "cast declined" reading. Confirmed
+ *                  with the client is the one thing NOT done here (no
+ *                  mechanism to ask this session), so this is disclosed as
+ *                  an interpretation, not silently assumed correct forever.
+ * Counterpart nickname/photo resolution is the same Admin-SDK-required need
+ * as `getChatRoomInfo` above, just batched across every reservation instead
+ * of one.
+ */
+export const getMyMatchaList = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+  const uid = request.auth.uid;
+
+  const guestDocs = await db.collection("reservations").where("guest_id", "==", uid).get();
+  const castDocs = await db.collection("reservations").where("cast_ids", "array-contains", uid).get();
+
+  const merged = new Map<string, FirebaseFirestore.DocumentData>();
+  guestDocs.docs.forEach((d) => merged.set(d.id, d.data()));
+  castDocs.docs.forEach((d) => merged.set(d.id, d.data()));
+
+  const items = await Promise.all(
+    Array.from(merged.entries()).map(async ([resId, data]) => {
+      const isGuest = data.guest_id === uid;
+      const counterpartId = isGuest ? data.cast_ids?.[0] || "" : data.guest_id;
+
+      let counterpartNickname = "";
+      let counterpartPhoto = "";
+      if (counterpartId) {
+        const counterpartDoc = await db.collection("users").doc(counterpartId).get();
+        if (counterpartDoc.exists) {
+          counterpartNickname = counterpartDoc.data()?.nickname || "";
+          counterpartPhoto = counterpartDoc.data()?.profile_image_url || "";
+        }
+      }
+
+      let category = "new";
+      if (["request_pending", "authorized", "cast_pending"].includes(data.status)) {
+        category = "new";
+      } else if (data.status === "confirmed") {
+        category = "not_interacted";
+      } else if (
+        ["in_progress", "completion_pending", "review_pending", "completed"].includes(data.status)
+      ) {
+        category = "interacted";
+      } else if (data.status === "cancelled" || data.status === "expired") {
+        category = "declined";
+      }
+
+      const roomSnap = await db.collection("chat_rooms").where("res_id", "==", resId).limit(1).get();
+      let roomActive = false;
+      let lastMessage = "";
+      let sortTimeMs = data.updated_at?.toMillis?.() || data.created_at?.toMillis?.() || 0;
+      if (!roomSnap.empty) {
+        const roomData = roomSnap.docs[0].data();
+        roomActive = roomData.active === true;
+        lastMessage = roomData.last_message || "";
+        const lastMsgMs = roomData.last_message_time?.toMillis?.() || 0;
+        if (lastMsgMs > 0) sortTimeMs = lastMsgMs;
+      }
+
+      return {
+        res_id: resId,
+        category,
+        counterpart_nickname: counterpartNickname,
+        counterpart_photo: counterpartPhoto,
+        room_active: roomActive,
+        last_message: lastMessage,
+        sort_time_ms: sortTimeMs,
+      };
+    })
+  );
+
+  items.sort((a, b) => b.sort_time_ms - a.sort_time_ms);
+
+  return { success: true, items };
 });

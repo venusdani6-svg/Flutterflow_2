@@ -768,7 +768,48 @@ export const adminUpdateAffiliateRate = onCall(async (request) => {
     `料率変更: ${oldRate * 100}% → ${new_rate * 100}%`
   );
 
+  // Purpose-built change-history record (schema pre-existed in the FF
+  // project, previously unused) - the admin rate-override UI reads this
+  // directly instead of parsing audit_logs' generic `details` blob.
+  await db.collection("affiliate_rate_history").add({
+    affiliator_uid: user_id,
+    old_rate: oldRate,
+    new_rate,
+    changed_by_admin_id: request.auth!.uid,
+    changed_at: Timestamp.now(),
+  });
+
   return { success: true };
+});
+
+// Per-affiliator rate change history for the admin rate-override UI's
+// history panel.
+export const adminGetAffiliateRateHistory = onCall(async (request) => {
+  await verifyAdmin(request);
+
+  const { user_id } = request.data;
+  if (!user_id) {
+    throw new HttpsError("invalid-argument", "user_id is required.");
+  }
+
+  const snap = await db
+    .collection("affiliate_rate_history")
+    .where("affiliator_uid", "==", user_id)
+    .orderBy("changed_at", "desc")
+    .get();
+
+  return {
+    success: true,
+    history: snap.docs.map((doc) => {
+      const d = doc.data();
+      return {
+        old_rate: d.old_rate,
+        new_rate: d.new_rate,
+        changed_by_admin_id: d.changed_by_admin_id,
+        changed_at: d.changed_at ? d.changed_at.toDate().toISOString() : null,
+      };
+    }),
+  };
 });
 
 function affiliateRewardStatusLabel(status: string): string {
@@ -936,6 +977,35 @@ export const adminGetAffiliateOverview = functionsV1
 
 // 1st-gen deployed function - must stay on functionsV1 (see adminGetReservations'
 // comment above for why mixing v1/v2 on an existing deployed function fails).
+//
+// NOTE (2026-08-11, full-project composite-index audit; corrected same day
+// after an inaccuracy was found reviewing this very comment): `user_id`,
+// `res_id`, `type`, and `status` are all independently optional filters
+// below, all combinable with each other and always finished with
+// `orderBy("created_at")` - unlike `adminGetReservations` above (which
+// deliberately restricts callers to supplying only ONE of its two optional
+// equality filters, documented there), NOTHING here prevents a caller from
+// combining several of these 4 at once. Covered today (verified directly
+// against firestore.indexes.json, not from memory): `user_id` alone,
+// `status` alone, `type` alone, `res_id`+`type` together, `type`+`status`
+// together (all + the trailing `created_at` order). NOT covered: `res_id`
+// alone (no matching single-field-plus-order index), and any combination
+// that mixes `user_id` with any of the other three, or `status`/`res_id`
+// together, or three-or-more filters at once - most of the 2^4-1 possible
+// combinations, in other words, even though a few of the single-filter and
+// one two-filter case happen to already be fine. Not fixed by pre-building
+// every remaining combination (a genuine Firestore anti-pattern for dynamic
+// multi-optional-filter queries - see `.cursor/rules/project_rules.md`'s
+// own entry on this), and not currently reachable from this project's own
+// DSL (confirmed via a full `httpsCallable(...)` sweep - nothing calls
+// `adminGetLedger` at all yet). If a future Phase 12 admin-panel ledger-
+// view UI wires this up, either restrict it to the same "one optional
+// filter at a time" contract `adminGetReservations` already uses, or add
+// the specific composite indexes the UI's OWN actual filter combinations
+// need - don't guess ahead of what that UI will actually send, and don't
+// trust this comment's own list without re-checking firestore.indexes.json
+// directly first, since it can drift out of date the same way the
+// original version of this very comment already did once.
 export const adminGetLedger = functionsV1
   .region("asia-northeast1")
   .https.onCall(async (data, context) => {
@@ -1868,6 +1938,7 @@ export const adminGetAuditLogs = onCall(async (request) => {
 
   const {
     action,
+    target_id,
     created_after,
     created_before,
     limit: queryLimit,
@@ -1876,6 +1947,10 @@ export const adminGetAuditLogs = onCall(async (request) => {
   let query: FirebaseFirestore.Query = db.collection("audit_logs");
 
   if (action) query = query.where("action", "==", action);
+  // Lets the admin affiliate-rate UI pull just one affiliator's own rate
+  // change history (action=="update_affiliate_rate" + target_id==uid) instead
+  // of scanning the global action-filtered list by eye.
+  if (target_id) query = query.where("target_id", "==", target_id);
   if (created_after) {
     query = query.where("created_at", ">=", new Date(created_after));
   }

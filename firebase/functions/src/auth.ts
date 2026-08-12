@@ -4,7 +4,7 @@
  */
 import * as functionsV1 from "firebase-functions/v1";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { db, auth, stripe, FieldValue, Timestamp } from "./config";
+import { db, auth, stripe, FieldValue, Timestamp, getSystemConfig } from "./config";
 
 /**
  * Trigger: When a new Firebase Auth user is created
@@ -599,10 +599,144 @@ export const requestWithdrawal = onCall(async (request) => {
   await db.collection("users").doc(uid).update({
     is_active: false,
     is_online: false,
+    left_at: Timestamp.now(),
     updated_at: Timestamp.now(),
   });
 
   await auth.updateUser(uid, { disabled: true });
 
   return { success: true, message: "退会処理が完了しました。" };
+});
+
+/**
+ * Callable: list active service areas (prefectures)
+ * サービス提供エリア（都道府県）一覧 — region-picker用。
+ *
+ * `system_config` is admin-only under firestore.rules (tightened earlier
+ * this project, no client-side read precedent existed), so any
+ * authenticated user needing the active-prefecture list for the
+ * registration region picker must go through a callable rather than a
+ * direct Firestore read — this is that callable. Deliberately NOT
+ * admin-gated (unlike adminGetSystemConfig) since every signed-in user,
+ * guest or cast, needs this during BasicInfoRegistration; only exposes
+ * the prefecture names, never the rest of system_config (fee rates,
+ * thresholds, etc.).
+ */
+export const getServiceAreas = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const config = await getSystemConfig();
+  const areas = (config.service_areas || [])
+    .filter((a) => a.active === true)
+    .map((a) => a.prefecture);
+
+  return { success: true, areas };
+});
+
+/**
+ * Callable: nearby-cast discovery list for Home
+ * Home画面の近隣キャスト一覧 — オンライン→距離→最終ログイン順。
+ *
+ * BUG FIX (2026-08-11, found on a full-project review pass): the DSL-side
+ * `fetchDiscoveryCasts` custom action originally ran this exact query
+ * DIRECTLY from the client via `cloud_firestore`. `firestore.rules`' own
+ * `users` rule is strictly owner-only (`allow read: if request.auth.uid
+ * == document`, confirmed by reading the rules file directly — no admin
+ * or role-based exception at all), so a query filtering on
+ * `account_type`/`approval_status` (which can match many OTHER users'
+ * documents, not just the caller's own) is provably unsatisfiable by that
+ * rule for the general case — Firestore denies the ENTIRE query outright
+ * at rule-evaluation time, before it ever runs against real data. The
+ * client-side action's own try/catch swallowed this into a silent empty
+ * list, so the whole Home ranking query feature has been non-functional
+ * (always showing zero casts) since it was built, with no visible error
+ * anywhere. Real fix, not a workaround: move the query server-side
+ * (Admin SDK bypasses Firestore rules entirely, the same reason
+ * `getServiceAreas` above exists), matching the established pattern for
+ * every OTHER guest-facing read of restricted collections in this
+ * backend. `lat`/`lng` are the CLIENT's own already-resolved coordinates
+ * (device GPS or the prefecture-fallback table) — this function does not
+ * resolve location itself, only the query/filter/sort that Firestore
+ * rules block the client from doing directly.
+ */
+export const getDiscoveryCasts = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const uid = request.auth.uid;
+  const { lat, lng } = request.data || {};
+  if (typeof lat !== "number" || typeof lng !== "number") {
+    throw new HttpsError("invalid-argument", "lat/lngが必要です。");
+  }
+
+  // Phase 7 (2026-08-11): §3.6.17's own wording is specifically "blocked
+  // users disappear from the BLOCKER's search results" - unidirectional,
+  // scoped to the viewer's OWN `blocked_users` list, not the reverse case
+  // (a cast who has blocked THIS guest still appearing is a separate,
+  // undecided question - not silently assumed either way, left open).
+  const viewerDoc = await db.collection("users").doc(uid).get();
+  const blockedByViewer: string[] = viewerDoc.exists
+    ? viewerDoc.data()?.blocked_users || []
+    : [];
+
+  const snapshot = await db
+    .collection("users")
+    .where("account_type", "==", "cast")
+    .where("approval_status", "==", "approved")
+    .limit(100)
+    .get();
+
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const distanceKm = (loc: FirebaseFirestore.GeoPoint | undefined): number => {
+    if (!loc) return Infinity;
+    const r = 6371.0;
+    const dLat = toRad(loc.latitude - lat);
+    const dLng = toRad(loc.longitude - lng);
+    const lat1 = toRad(lat);
+    const lat2 = toRad(loc.latitude);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return r * c;
+  };
+
+  const rows = snapshot.docs
+    .filter(
+      (d) =>
+        d.id !== uid &&
+        d.data().is_frozen !== true &&
+        !blockedByViewer.includes(d.id)
+    )
+    .map((d) => {
+      const data = d.data();
+      const isOnline = data.is_online === true;
+      const dist = distanceKm(data.location);
+      const lastLogin = data.last_login_at;
+      const lastLoginMs =
+        lastLogin && typeof lastLogin.toMillis === "function"
+          ? lastLogin.toMillis()
+          : 0;
+      const nickname = (data.nickname?.toString() || "").replace(/\|\|\|/g, "");
+      const photoUrl = (data.profile_image_url?.toString() || "").replace(
+        /\|\|\|/g,
+        ""
+      );
+      return { id: d.id, isOnline, dist, lastLoginMs, nickname, photoUrl };
+    });
+
+  rows.sort((a, b) => {
+    if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+    if (a.dist !== b.dist) return a.dist - b.dist;
+    return b.lastLoginMs - a.lastLoginMs;
+  });
+
+  const items = rows.map(
+    (r) => `${r.id}|||${r.nickname}|||${r.photoUrl}|||${r.isOnline}`
+  );
+
+  return { success: true, items };
 });
