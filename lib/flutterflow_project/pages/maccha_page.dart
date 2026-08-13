@@ -19,6 +19,12 @@ final class MacchaPageParams {
 
 final class MacchaPageState {
   const MacchaPageState();
+  ffai.ProjectStateFieldHandle get hasMatches =>
+      const ffai.ProjectStateFieldHandle(
+        name: "hasMatches",
+        key: "jxel1ghw",
+        typeName: "Boolean",
+      );
   ffai.ProjectStateFieldHandle get matchaFilter =>
       const ffai.ProjectStateFieldHandle(
         name: "matchaFilter",
@@ -148,20 +154,56 @@ abstract final class MacchaPageWidgets {
                     path: "MacchaPage.body[0].children[1].children[0]",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
+                        key: "Container_a7jkb1j4",
+                        type: "Container",
+                        path: "MacchaPage.body[0].children[1].children[0].children[0]",
+                        name: "MacchaEmptyState",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Column_kvxyovwt",
+                            type: "Column",
+                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[0]",
+                            name: "Column",
+                            children: <ffai.ProjectWidgetHandle>[
+                              ffai.ProjectWidgetHandle(
+                                key: "Image_c5ifzcmi",
+                                type: "Image",
+                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[0]",
+                                name: "Image",
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_d6xyjjge",
+                                type: "Text",
+                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[1]",
+                                name: "Text",
+                                text: "まだマッチャがありません",
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_0j7uw1f5",
+                                type: "Text",
+                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[2]",
+                                name: "Text",
+                                text: "気になるキャストにリクエストを送って、マッチャを始めましょう！",
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      ffai.ProjectWidgetHandle(
                         key: "Column_8g095usw",
                         type: "Column",
-                        path: "MacchaPage.body[0].children[1].children[0].children[0]",
+                        path: "MacchaPage.body[0].children[1].children[0].children[1]",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
                             key: "Row_cbpo2m1t",
                             type: "Row",
-                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[0]",
+                            path: "MacchaPage.body[0].children[1].children[0].children[1].children[0]",
                             name: "MatchaFilterTabs",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
                                 key: "Container_tdhlzt7u",
                                 type: "Container",
-                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[0]",
+                                path: "MacchaPage.body[0].children[1].children[0].children[1].children[0].children[0]",
                                 name: "MatchaTab_all",
                                 triggers: const <String>[
                                   "ON_TAP",
@@ -170,7 +212,7 @@ abstract final class MacchaPageWidgets {
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_dr8nsm24",
                                     type: "Text",
-                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[0].children[0]",
+                                    path: "MacchaPage.body[0].children[1].children[0].children[1].children[0].children[0].children[0]",
                                     name: "Text",
                                     text: "すべて",
                                   ),
@@ -179,7 +221,7 @@ abstract final class MacchaPageWidgets {
                               ffai.ProjectWidgetHandle(
                                 key: "Container_yr8n2xi3",
                                 type: "Container",
-                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[1]",
+                                path: "MacchaPage.body[0].children[1].children[0].children[1].children[0].children[1]",
                                 name: "MatchaTab_new",
                                 triggers: const <String>[
                                   "ON_TAP",
@@ -188,7 +230,7 @@ abstract final class MacchaPageWidgets {
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_qrmx21ek",
                                     type: "Text",
-                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[1].children[0]",
+                                    path: "MacchaPage.body[0].children[1].children[0].children[1].children[0].children[1].children[0]",
                                     name: "Text",
                                     text: "新しい",
                                   ),
@@ -197,7 +239,7 @@ abstract final class MacchaPageWidgets {
                               ffai.ProjectWidgetHandle(
                                 key: "Container_lkdo6ezo",
                                 type: "Container",
-                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[2]",
+                                path: "MacchaPage.body[0].children[1].children[0].children[1].children[0].children[2]",
                                 name: "MatchaTab_not_interacted",
                                 triggers: const <String>[
                                   "ON_TAP",
@@ -206,7 +248,7 @@ abstract final class MacchaPageWidgets {
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_o5lhhukd",
                                     type: "Text",
-                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[2].children[0]",
+                                    path: "MacchaPage.body[0].children[1].children[0].children[1].children[0].children[2].children[0]",
                                     name: "Text",
                                     text: "未交流",
                                   ),
@@ -215,7 +257,7 @@ abstract final class MacchaPageWidgets {
                               ffai.ProjectWidgetHandle(
                                 key: "Container_tbvm3xzf",
                                 type: "Container",
-                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[3]",
+                                path: "MacchaPage.body[0].children[1].children[0].children[1].children[0].children[3]",
                                 name: "MatchaTab_interacted",
                                 triggers: const <String>[
                                   "ON_TAP",
@@ -224,7 +266,7 @@ abstract final class MacchaPageWidgets {
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_0sb0de6e",
                                     type: "Text",
-                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[3].children[0]",
+                                    path: "MacchaPage.body[0].children[1].children[0].children[1].children[0].children[3].children[0]",
                                     name: "Text",
                                     text: "交流済み",
                                   ),
@@ -233,7 +275,7 @@ abstract final class MacchaPageWidgets {
                               ffai.ProjectWidgetHandle(
                                 key: "Container_lh11kn9b",
                                 type: "Container",
-                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[4]",
+                                path: "MacchaPage.body[0].children[1].children[0].children[1].children[0].children[4]",
                                 name: "MatchaTab_declined",
                                 triggers: const <String>[
                                   "ON_TAP",
@@ -242,7 +284,7 @@ abstract final class MacchaPageWidgets {
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_8el30apl",
                                     type: "Text",
-                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[4].children[0]",
+                                    path: "MacchaPage.body[0].children[1].children[0].children[1].children[0].children[4].children[0]",
                                     name: "Text",
                                     text: "断られた",
                                   ),
@@ -253,62 +295,76 @@ abstract final class MacchaPageWidgets {
                           ffai.ProjectWidgetHandle(
                             key: "Divider_jwtm0qhw",
                             type: "Divider",
-                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[1]",
+                            path: "MacchaPage.body[0].children[1].children[0].children[1].children[1]",
                           ),
                           ffai.ProjectWidgetHandle(
                             key: "Container_vghagqde",
                             type: "Container",
-                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2]",
+                            path: "MacchaPage.body[0].children[1].children[0].children[1].children[2]",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "ListView_moyozme3",
+                                key: "ListView_9tfls25u",
                                 type: "ListView",
-                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0]",
+                                path: "MacchaPage.body[0].children[1].children[0].children[1].children[2].children[0]",
                                 name: "MatchaItemsListView",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Card_gjfssn7g",
+                                    key: "Card_vlgbb87h",
                                     type: "Card",
-                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0]",
+                                    path: "MacchaPage.body[0].children[1].children[0].children[1].children[2].children[0].children[0]",
                                     name: "MatchaItemCard",
                                     triggers: const <String>[
                                       "ON_TAP",
                                     ],
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Container_48tv58y1",
+                                        key: "Container_2xz2y09k",
                                         type: "Container",
-                                        path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0]",
+                                        path: "MacchaPage.body[0].children[1].children[0].children[1].children[2].children[0].children[0].children[0]",
                                         name: "Container",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Row_oc7rkzuk",
+                                            key: "Row_44n5ebbl",
                                             type: "Row",
-                                            path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0]",
+                                            path: "MacchaPage.body[0].children[1].children[0].children[1].children[2].children[0].children[0].children[0].children[0]",
                                             name: "Row",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "CircleImage_t8x5yfi6",
-                                                type: "CircleImage",
-                                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[0]",
-                                                name: "Avatar",
+                                                key: "Stack_jd40gear",
+                                                type: "Stack",
+                                                path: "MacchaPage.body[0].children[1].children[0].children[1].children[2].children[0].children[0].children[0].children[0].children[0]",
+                                                name: "MatchaItemAvatar",
+                                                children: <ffai.ProjectWidgetHandle>[
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "CircleImage_9brczk8g",
+                                                    type: "CircleImage",
+                                                    path: "MacchaPage.body[0].children[1].children[0].children[1].children[2].children[0].children[0].children[0].children[0].children[0].children[0]",
+                                                    name: "MatchaItemAvatarReal",
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Image_o7li2qi4",
+                                                    type: "Image",
+                                                    path: "MacchaPage.body[0].children[1].children[0].children[1].children[2].children[0].children[0].children[0].children[0].children[0].children[1]",
+                                                    name: "MatchaItemAvatarFallback",
+                                                  ),
+                                                ],
                                               ),
                                               ffai.ProjectWidgetHandle(
-                                                key: "Column_t58kd8ts",
+                                                key: "Column_zm1isvtp",
                                                 type: "Column",
-                                                path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1]",
+                                                path: "MacchaPage.body[0].children[1].children[0].children[1].children[2].children[0].children[0].children[0].children[0].children[1]",
                                                 name: "Column",
                                                 children: <ffai.ProjectWidgetHandle>[
                                                   ffai.ProjectWidgetHandle(
-                                                    key: "Text_dorgfld0",
+                                                    key: "Text_t5mvjy5t",
                                                     type: "Text",
-                                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[0]",
+                                                    path: "MacchaPage.body[0].children[1].children[0].children[1].children[2].children[0].children[0].children[0].children[0].children[1].children[0]",
                                                     name: "Text",
                                                   ),
                                                   ffai.ProjectWidgetHandle(
-                                                    key: "Text_t43tal25",
+                                                    key: "Text_5ct715e6",
                                                     type: "Text",
-                                                    path: "MacchaPage.body[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0].children[0].children[1].children[1]",
+                                                    path: "MacchaPage.body[0].children[1].children[0].children[1].children[2].children[0].children[0].children[0].children[0].children[1].children[1]",
                                                     name: "Text",
                                                   ),
                                                 ],

@@ -133,9 +133,22 @@ service cloud.firestore {
       return isSignedIn() && exists(userDocPath());
     }
 
+    // FIX (confirmed live bug, found during audit): this checked
+    // `data.role_admin`, a field that is never written anywhere in this
+    // project (confirmed against schemas.dart's field definition and
+    // auth.ts's actual writer, both of which use `role`) - `role_admin` is
+    // a field name from a different, sister project's own schema that
+    // leaked into this ruleset via the shared reference tree. Every
+    // isAdmin()-gated rule in this file (system_config, stripe_logs,
+    // audit_logs, the admin-OR-owner fallback on ledger/reservations/
+    // chat_rooms/etc.) silently evaluated isAdmin() as permanently false
+    // for every user, including real admins - currently unobserved only
+    // because no admin-panel UI exists yet to exercise a direct-client
+    // read gated by this function (every admin Cloud Function uses the
+    // Admin SDK, which bypasses rules entirely).
     function isAdmin() {
       return userDocExists()
-        && get(userDocPath()).data.role_admin == 'admin';
+        && get(userDocPath()).data.role == 'admin';
     }
 
     function hasOnlyKeys(allowedKeys) {
@@ -145,10 +158,47 @@ service cloud.firestore {
     // ── users ────────────────────────────────────────────────────────────
 
     match /users/{document} {
-      allow create: if request.auth.uid == document;
       allow read: if request.auth.uid == document;
-      allow write: if request.auth.uid == document;
-      allow delete: if request.auth.uid == document;
+      // FIX (PROJECT_KNOWLEDGE.md §70, CRITICAL — comprehensive project-wide
+      // review): `allow write: if request.auth.uid == document` had NO
+      // field-level restriction — any signed-in user could write ANY field
+      // on their own doc directly via the client SDK, including
+      // server-authoritative fields multiple Cloud Functions trust as if
+      // only they could have written them:
+      //   - `role`/`role_admin`/`roleAdmin` — the ENTIRE admin gate
+      //     (verifyAdmin/verifyAdminV1, admin.ts:15-54, read these straight
+      //     off this doc with no Firebase custom-claims check anywhere) —
+      //     a full admin-takeover primitive with one client-side write.
+      //   - `individual_rate` — feeds a real stripe.transfers.create()
+      //     amount in recordCastRewardsAndProcessOthers/
+      //     captureAuthorizedExtensions (stripe-payments.ts); its only
+      //     other writer (onUserCreated) never touches it again after
+      //     account creation, so this field's real-world writer WAS this
+      //     rule — direct theft of platform Stripe balance.
+      //   - `affiliate_rate` — bypasses adminUpdateAffiliateRate's
+      //     0.05-0.30 range validation and audit-log trail entirely,
+      //     inflating a real monthly Stripe Transfer.
+      //   - `approval_status`/`kyc_status`/`is_verified` — the entire
+      //     KYC/approval trust boundary (reservations.ts, work-posts.ts,
+      //     getDiscoveryCasts, affiliate.ts's mutual-approval rule all
+      //     trust this field) — self-approve as a "verified cast" with
+      //     zero actual review.
+      //   - `is_frozen` (self-unfreeze a banned account) /
+      //     `logical_debt` (erase owed debt to unlock withdrawal/payout).
+      //   - `stripe_account_id`/`stripe_customer_id`, `referred_by_uid`
+      //     (defeats the documented "no retroactive referral entry" rule).
+      // Confirmed via a full grep of every direct client Firestore access
+      // to `users` in dsl/edit.dart: all 6 call sites are `.get()` reads,
+      // never a write — every legitimate mutation already goes through a
+      // Cloud Function (updateProfile/completeOnboarding/submitKYC/
+      // blockUser/unblockUser/adminApproveKYC/etc.), all of which use the
+      // Admin SDK and therefore bypass this rule entirely regardless of
+      // what it says. `onUserCreated` (the auth.user().onCreate trigger
+      // that creates this doc) is also Admin-SDK. So denying ALL direct
+      // client writes here has zero impact on any real feature — simpler
+      // and strictly safer than enumerating a "safe" field allowlist and
+      // risking missing one.
+      allow write: if false;
     }
 
     // Phase 6 (2026-08-11): `users/{uid}/notifications` subcollection - had
@@ -242,6 +292,19 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Phase 11 slice 3 (2026-08-12): `inquiries` (general contact-the-
+    // operator form, distinct from `reports` above which is specifically
+    // for reporting another user) - same shape as `reports`: create is
+    // limited to the authenticated submitter filing on their own behalf,
+    // read is admin-only.
+    match /inquiries/{document} {
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow read: if isAdmin();
+      allow write: if false;
+      allow delete: if false;
+    }
+
     // Phase 7 (2026-08-11): had NO rule at all (default deny-all, same
     // "no rule = deny-all" gap class as `chat_rooms/{id}/messages` and
     // `users/{uid}/notifications` found earlier this session) — confirmed
@@ -259,6 +322,61 @@ service cloud.firestore {
       allow create: if false;
       allow write: if false;
       allow delete: if false;
+    }
+
+    // Added during audit (2026-08-12): `work_posts` is a real, actively
+    // read/written collection (work-posts.ts, admin.ts) that had NO rule of
+    // its own at all - the same "no rule = deny-all" gap class already
+    // found and fixed 3 times before this session (chat_rooms/messages,
+    // users/notifications, reviews). Every current caller goes through
+    // Cloud Functions (Admin SDK, bypasses this rule), so this was not
+    // actively broken - added proactively so a future direct-client read
+    // (poster/applicant viewing their own posts) works correctly instead
+    // of silently returning nothing. Create/write stay Cloud-Functions-only
+    // (status transitions, applicant list mutation) since those need
+    // server-side validation this ruleset can't replicate.
+    match /work_posts/{document} {
+      allow read: if isAdmin()
+        || (isSignedIn() && (resource.data.poster_id == request.auth.uid
+            || resource.data.applicants.hasAny([request.auth.uid])));
+      allow create, write: if false;
+      allow delete: if false;
+    }
+
+    // Added during audit (2026-08-12): `debt_history` (reservations.ts,
+    // stripe-payments.ts) had no rule of its own - same gap class as
+    // `work_posts` above. Owner-or-admin read, matching the `ledger`
+    // pattern this collection is conceptually a sub-ledger of.
+    match /debt_history/{document} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.user_id == request.auth.uid);
+      allow create, write: if false;
+      allow delete: if false;
+    }
+
+    // Added during audit (2026-08-12): `pair_history` (stripe-webhooks.ts,
+    // the 30-minute-rule dedupe ledger) had no rule of its own - same gap
+    // class as above. Purely internal bookkeeping (no dedicated UI concept
+    // for either party to view their own pairing history), so admin-only
+    // read matches `stripe_logs`'s pattern rather than an owner-read rule.
+    match /pair_history/{document} {
+      allow read: if isAdmin();
+      allow create, write: if false;
+      allow delete: if false;
+    }
+
+    // Added during comprehensive review (2026-08-12): `reservations/{resId}
+    // /extensions` (subcollection, written by createExtensionPayment/
+    // captureAuthorizedExtensions, read by adminGetReservationExtras) had
+    // NO rule of its own — same "no rule = deny-all" gap class as its 3
+    // siblings above (debt_history/pair_history/work_posts, fixed the same
+    // day but this one was missed in that pass). Currently harmless in
+    // practice (confirmed zero client-side access anywhere in dsl/edit.dart
+    // — every touch point is Admin SDK) but closing the gap for
+    // consistency and to remove the latent trap for a future client-side
+    // read.
+    match /reservations/{resId}/extensions/{extId} {
+      allow read, write: if isAdmin();
     }
 
     match /affiliates/{docId} {

@@ -25,6 +25,12 @@ final class PaymentConfirmParams {
 
 final class PaymentConfirmState {
   const PaymentConfirmState();
+  ffai.ProjectStateFieldHandle get paymentConfirmData =>
+      const ffai.ProjectStateFieldHandle(
+        name: "paymentConfirmData",
+        key: "rzyi9093",
+        typeName: "String",
+      );
 }
 
 abstract final class PaymentConfirmWidgets {
@@ -34,6 +40,9 @@ abstract final class PaymentConfirmWidgets {
       type: "Scaffold",
       path: "PaymentConfirm",
       name: "PaymentConfirm",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
@@ -142,10 +151,10 @@ abstract final class PaymentConfirmWidgets {
                                         text: "日付・時間帯",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_meoqolci",
+                                        key: "Text_r0fsbsn8",
                                         type: "Text",
                                         path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[2].children[0].children[1]",
-                                        text: "Hello World",
+                                        name: "PaymentConfirmDateValue",
                                       ),
                                     ],
                                   ),
@@ -168,10 +177,10 @@ abstract final class PaymentConfirmWidgets {
                                         text: "場　所",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_3707uyag",
+                                        key: "Text_wm7yr56t",
                                         type: "Text",
                                         path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[3].children[0].children[1]",
-                                        text: "Hello World",
+                                        name: "PaymentConfirmLocationValue",
                                       ),
                                     ],
                                   ),
@@ -199,10 +208,10 @@ abstract final class PaymentConfirmWidgets {
                                     path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[5].children[1]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_bh31jlw1",
+                                        key: "Text_402x32pd",
                                         type: "Text",
                                         path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[5].children[1].children[0]",
-                                        text: "Hello World",
+                                        name: "PaymentConfirmBaseAmountValue",
                                       ),
                                       ffai.ProjectWidgetHandle(
                                         key: "Text_ba6oqd3o",
@@ -231,10 +240,10 @@ abstract final class PaymentConfirmWidgets {
                                     path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[6].children[1]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_v6wit9ks",
+                                        key: "Text_ludnqvez",
                                         type: "Text",
                                         path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[6].children[1].children[0]",
-                                        text: "Hello World",
+                                        name: "PaymentConfirmTransportFeeValue",
                                       ),
                                       ffai.ProjectWidgetHandle(
                                         key: "Text_jpr0ijzt",
@@ -287,10 +296,10 @@ abstract final class PaymentConfirmWidgets {
                                     path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[9].children[1]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_7m2mnl3y",
+                                        key: "Text_ytmu38hj",
                                         type: "Text",
                                         path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[9].children[1].children[0]",
-                                        text: "Hello World",
+                                        name: "PaymentConfirmTotalAmountValue",
                                       ),
                                       ffai.ProjectWidgetHandle(
                                         key: "Text_xzvg7qn1",

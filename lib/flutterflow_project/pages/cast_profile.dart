@@ -37,6 +37,30 @@ final class CastProfileState {
         key: "yjmccpbj",
         typeName: "String",
       );
+  ffai.ProjectStateFieldHandle get scheduleDayIndex =>
+      const ffai.ProjectStateFieldHandle(
+        name: "scheduleDayIndex",
+        key: "85nwbilo",
+        typeName: "Integer",
+      );
+  ffai.ProjectStateFieldHandle get scheduleDaySlots =>
+      const ffai.ProjectStateFieldHandle(
+        name: "scheduleDaySlots",
+        key: "iyta096i",
+        typeName: "List<String>",
+      );
+  ffai.ProjectStateFieldHandle get scheduleSelectedDate =>
+      const ffai.ProjectStateFieldHandle(
+        name: "scheduleSelectedDate",
+        key: "ypznd9cz",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get scheduleWeekIndex =>
+      const ffai.ProjectStateFieldHandle(
+        name: "scheduleWeekIndex",
+        key: "n7zk0wj1",
+        typeName: "Integer",
+      );
 }
 
 abstract final class CastProfileWidgets {
@@ -926,9 +950,176 @@ abstract final class CastProfileWidgets {
                                             path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0]",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Calendar_pgw6bzqc",
-                                                type: "Calendar",
+                                                key: "Column_ikjwl87l",
+                                                type: "Column",
                                                 path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0]",
+                                                name: "WorkCalendarViewSection",
+                                                children: <ffai.ProjectWidgetHandle>[
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Row_fsicyp64",
+                                                    type: "Row",
+                                                    path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[0]",
+                                                    name: "Row",
+                                                    children: <ffai.ProjectWidgetHandle>[
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Button_g1d8fek1",
+                                                        type: "Button",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[0].children[0]",
+                                                        name: "Button",
+                                                        text: "週1",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                      ),
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Button_7w1vu3w7",
+                                                        type: "Button",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[0].children[1]",
+                                                        name: "Button",
+                                                        text: "週2",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                      ),
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Button_1f0waogh",
+                                                        type: "Button",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[0].children[2]",
+                                                        name: "Button",
+                                                        text: "週3",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                      ),
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Button_se38pdeh",
+                                                        type: "Button",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[0].children[3]",
+                                                        name: "Button",
+                                                        text: "週4",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Row_pesgg7uw",
+                                                    type: "Row",
+                                                    path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[1]",
+                                                    name: "Row",
+                                                    children: <ffai.ProjectWidgetHandle>[
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Button_ex9rbyi0",
+                                                        type: "Button",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[1].children[0]",
+                                                        name: "Button",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                      ),
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Button_bm16cjdq",
+                                                        type: "Button",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[1].children[1]",
+                                                        name: "Button",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                      ),
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Button_3nz8wsj7",
+                                                        type: "Button",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[1].children[2]",
+                                                        name: "Button",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                      ),
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Button_6rfxx9gu",
+                                                        type: "Button",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[1].children[3]",
+                                                        name: "Button",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                      ),
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Button_38v6hlkb",
+                                                        type: "Button",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[1].children[4]",
+                                                        name: "Button",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                      ),
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Button_yq0dbbpk",
+                                                        type: "Button",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[1].children[5]",
+                                                        name: "Button",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                      ),
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Button_92hejmdf",
+                                                        type: "Button",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[1].children[6]",
+                                                        name: "Button",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Text_wx2jha28",
+                                                    type: "Text",
+                                                    path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[2]",
+                                                    name: "Text",
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "GridView_c8tompj2",
+                                                    type: "GridView",
+                                                    path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[3]",
+                                                    name: "ScheduleGridReadOnly",
+                                                    children: <ffai.ProjectWidgetHandle>[
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Container_2idgn64q",
+                                                        type: "Container",
+                                                        path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[3].children[0]",
+                                                        name: "Container",
+                                                        triggers: const <String>[
+                                                          "ON_TAP",
+                                                        ],
+                                                        children: <ffai.ProjectWidgetHandle>[
+                                                          ffai.ProjectWidgetHandle(
+                                                            key: "Column_stpu3reh",
+                                                            type: "Column",
+                                                            path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[3].children[0].children[0]",
+                                                            name: "Column",
+                                                            children: <ffai.ProjectWidgetHandle>[
+                                                              ffai.ProjectWidgetHandle(
+                                                                key: "Text_idzi7l7l",
+                                                                type: "Text",
+                                                                path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[3].children[0].children[0].children[0]",
+                                                                name: "Text",
+                                                              ),
+                                                              ffai.ProjectWidgetHandle(
+                                                                key: "Text_2r8h2cl7",
+                                                                type: "Text",
+                                                                path: "CastProfile.body[0].children[0].children[0].children[6].children[0].children[0].children[5].children[0].children[0].children[0].children[3].children[0].children[0].children[1]",
+                                                                name: "Text",
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),

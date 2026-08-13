@@ -6,7 +6,8 @@ import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https
 // v1 SDK, used only by adminGetDashboardStats — see the comment on that
 // function for why it stays on v1 instead of v2 like everything else here.
 import * as functionsV1 from "firebase-functions/v1";
-import { db, auth, stripe, Timestamp } from "./config";
+import { db, auth, stripe, Timestamp, FieldValue, isAllowedKycDocUrl } from "./config";
+import { reservedSlotsQuery } from "./schedule";
 
 /**
  * Helper: Verify admin role
@@ -116,6 +117,19 @@ export const adminGetUsers = functionsV1
     return { success: true, user, users: [user], count: 1 };
   }
 
+  // NOTE (PROJECT_KNOWLEDGE.md §70 — comprehensive project-wide review):
+  // this freely combines up to 5 optional equality filters with either a
+  // nickname-prefix range search or a created_at range, each combination
+  // needing its own composite index — Firestore throws
+  // FAILED_PRECONDITION at runtime for any combination that isn't
+  // indexed. firestore.indexes.json covers the combinations already known
+  // to be exercised plus the most likely nickname-search combos
+  // (approval_status/kyc_status/prefecture/account_type+approval_status,
+  // each + nickname) — NOT every possible combination of all 5 filters
+  // (32+ combinations, impractical to pre-index exhaustively for an admin
+  // UI whose actual filter usage isn't built/known yet). If the admin
+  // panel starts using a combination not listed there, add the matching
+  // composite index rather than assuming this function is broken.
   let query: FirebaseFirestore.Query = db.collection("users");
 
   if (account_type) query = query.where("account_type", "==", account_type);
@@ -180,7 +194,28 @@ export const adminGetUsers = functionsV1
  * `submitConnectOnboarding`) will keep showing the document as missing so
  * it's visible, not silently lost.
  */
+// FIX (confirmed live SSRF vulnerability, found during audit): `docUrl`
+// (users.kyc_doc_url) used to be set by `submitKYC` (auth.ts) with NO URL
+// validation, and (at the time this was first fixed) firestore.rules let a
+// user write ANY field on their own `users/{uid}` doc directly from the
+// client SDK, bypassing submitKYC entirely — so a malicious cast could set
+// kyc_doc_url to an arbitrary URL (e.g. GCP's internal metadata endpoint,
+// 169.254.169.254) via a direct Firestore write, then simply wait for an
+// admin to do their normal job and approve the KYC submission, at which
+// point the server did `fetch(docUrl)` with no restriction at all. Fixed
+// then by allowlisting the URL to Firebase Storage's own download-URL
+// hosts before ever fetching it (this project's KYC uploads only ever go
+// through Firebase Storage, so nothing legitimate is excluded).
+// `isAllowedKycDocUrl`/`ALLOWED_KYC_DOC_HOSTS` moved to config.ts
+// (PROJECT_KNOWLEDGE.md §71) so `submitKYC` itself can validate at write
+// time too, not just this one downstream consumer — defense in depth,
+// independent of the firestore.rules fix (§70) that already closed the
+// direct-write path this comment originally described.
+
 async function forwardKycDocumentToStripe(stripeAccountId: string, docUrl: string): Promise<void> {
+  if (!isAllowedKycDocUrl(docUrl)) {
+    throw new Error(`Refusing to fetch KYC document from disallowed URL host: ${docUrl}`);
+  }
   const response = await fetch(docUrl);
   if (!response.ok) {
     throw new Error(`Failed to download KYC document (${response.status})`);
@@ -216,6 +251,17 @@ export const adminApproveKYC = onCall(async (request) => {
   if (!user_id) {
     throw new HttpsError("invalid-argument", "ユーザーIDが必要です。");
   }
+  // FIX (PROJECT_KNOWLEDGE.md §70, HIGH — comprehensive project-wide
+  // review): `approved` was written straight to `is_verified` with no
+  // typeof check — the exact bug class already fixed elsewhere in this
+  // file for adminToggleFreeze's `freeze` and adminUpdateAffiliateRate's
+  // `new_rate`, missed here. generated_code's UsersRecord does a raw
+  // `as bool?` cast when deserializing `is_verified` — a non-boolean value
+  // here would throw a TypeError on every future read of that user's own
+  // document anywhere in the app, not just KYC screens.
+  if (typeof approved !== "boolean") {
+    throw new HttpsError("invalid-argument", "approvedはtrue/falseで指定してください。");
+  }
 
   const newStatus = approved ? "approved" : "rejected";
   const newKycStatus = approved ? "approved" : "rejected";
@@ -238,12 +284,20 @@ export const adminApproveKYC = onCall(async (request) => {
     }
   }
 
+  // FIX (confirmed live bug, found during audit): the audit log's own
+  // `reason` used to default to bare "" even on rejection, while the
+  // guest-facing notification right above it already had a real fallback
+  // message ("書類に不備があります。") - the audit trail was silently less
+  // informative than what the user themselves was told. Both now share the
+  // same resolved reason.
+  const resolvedReason = approved ? reason || "" : reason || "書類に不備があります。";
+
   await db.collection("users").doc(user_id).collection("notifications").add({
     type: "admin",
     title: approved ? "本人確認が承認されました" : "本人確認が却下されました",
     body: approved
       ? "全ての機能をご利用いただけます。"
-      : `却下理由: ${reason || "書類に不備があります。"}`,
+      : `却下理由: ${resolvedReason}`,
     data: { approved },
     read: false,
     created_at: Timestamp.now(),
@@ -254,8 +308,8 @@ export const adminApproveKYC = onCall(async (request) => {
     approved ? "approve_kyc" : "reject_kyc",
     "user",
     user_id,
-    { reason },
-    reason || ""
+    { reason: resolvedReason },
+    resolvedReason
   );
 
   return { success: true, message: approved ? "承認しました。" : "却下しました。" };
@@ -266,15 +320,40 @@ export const adminToggleFreeze = onCall(async (request) => {
 
   const { user_id, freeze, reason } = request.data;
 
+  // FIX (confirmed live bug, comprehensive review): `freeze` was written
+  // to `is_frozen` with no type check, unlike this session's own established
+  // discipline for boolean-typed inputs (respondToReservation's `accept`,
+  // submitReview's `rating`). A non-boolean truthy value would be stored
+  // verbatim and silently fail strict `!== true`/`=== true` checks
+  // elsewhere (e.g. getDiscoveryCasts). Currently only admin-reachable, but
+  // worth closing before any admin UI wires it up.
+  if (typeof freeze !== "boolean") {
+    throw new HttpsError("invalid-argument", "freezeはtrue/falseで指定してください。");
+  }
+
+  // `frozen_at` added per the client-confirmed decision (audit follow-up,
+  // 2026-08-12) that freezing a REFERRED cast counts the same as that cast
+  // leaving for that month's affiliate-forfeiture rule (§3.7.12) - only
+  // written when freezing (not cleared on unfreeze, since the forfeiture
+  // check this feeds is a one-way "was frozen during month X" test, same
+  // month-scoping precision `left_at` already gives the voluntary-
+  // withdrawal path). See affiliate.ts's `processAffiliatorPayment`.
   await db.collection("users").doc(user_id).update({
     is_frozen: freeze,
+    ...(freeze ? { frozen_at: Timestamp.now() } : {}),
     updated_at: Timestamp.now(),
   });
+
+  // FIX (confirmed live bug, found during audit): same "audit log less
+  // informative than the user-facing notification" gap as adminApproveKYC
+  // above - the notification's own fallback ("利用規約違反") wasn't reused
+  // for the audit trail, which defaulted to bare "".
+  const resolvedReason = freeze ? reason || "利用規約違反" : reason || "";
 
   await db.collection("users").doc(user_id).collection("notifications").add({
     type: "admin",
     title: freeze ? "アカウントが凍結されました" : "アカウントの凍結が解除されました",
-    body: freeze ? `理由: ${reason || "利用規約違反"}` : "全ての機能が再び利用可能です。",
+    body: freeze ? `理由: ${resolvedReason}` : "全ての機能が再び利用可能です。",
     data: { freeze },
     read: false,
     created_at: Timestamp.now(),
@@ -285,8 +364,8 @@ export const adminToggleFreeze = onCall(async (request) => {
     freeze ? "freeze_account" : "unfreeze_account",
     "user",
     user_id,
-    { reason },
-    reason || ""
+    { reason: resolvedReason },
+    resolvedReason
   );
 
   return { success: true };
@@ -296,6 +375,9 @@ export const adminForceDeleteUser = onCall(async (request) => {
   await verifyAdmin(request);
 
   const { user_id, reason } = request.data;
+  if (!user_id) {
+    throw new HttpsError("invalid-argument", "user_idが必要です。");
+  }
 
   await db.collection("users").doc(user_id).update({
     is_active: false,
@@ -375,14 +457,19 @@ export const adminUpdateUserProfile = onCall(async (request) => {
 // this with the v2 `onCall` used elsewhere in this file would make the next
 // deploy attempt a 2nd-gen deployment and fail/conflict.
 //
-// Sorts/filters by `scheduled_at` (the actual reservation date/time), not
-// `created_at` (record-creation time) — the live Firestore indexes for this
-// collection (`status+scheduled_at`, `cast_id+scheduled_at`,
-// `guest_id+scheduled_at`, checked via `firebase firestore:indexes`) are
-// all built around scheduled_at, and this function had zero existing
-// callers before this change, so there's no prior behavior to preserve.
-// Using scheduled_at reuses the existing `status+scheduled_at` composite
-// index directly instead of needing a new one deployed.
+// FIX (confirmed live bug, found during audit): this used to filter/sort on
+// `scheduled_at` — a field that `createReservation` (reservations.ts) never
+// writes; the real reservation date/time field, confirmed against the
+// actual write site, is `date`. Firestore range/orderBy clauses only match
+// documents that actually have the ordered field, so every call to this
+// function returned an EMPTY list regardless of filters — this had never
+// been exercised end-to-end (no admin UI exists yet), so the bug shipped
+// silently. The `status+scheduled_at`/`cast_id+scheduled_at`/
+// `guest_id+scheduled_at` indexes this comment used to cite as
+// justification were themselves built for the same wrong field name (and
+// `cast_id`, singular, was never a real field either — the real one is the
+// `cast_ids` array) — replaced with `status+date`/`guest_id+date` in
+// firestore.indexes.json to match what this function actually queries now.
 export const adminGetReservations = functionsV1
   .region("asia-northeast1")
   .https.onCall(async (data, context) => {
@@ -400,13 +487,13 @@ export const adminGetReservations = functionsV1
     if (status) query = query.where("status", "==", status);
     if (guest_id) query = query.where("guest_id", "==", guest_id);
     if (scheduled_after) {
-      query = query.where("scheduled_at", ">=", new Date(scheduled_after));
+      query = query.where("date", ">=", new Date(scheduled_after));
     }
     if (scheduled_before) {
-      query = query.where("scheduled_at", "<=", new Date(scheduled_before));
+      query = query.where("date", "<=", new Date(scheduled_before));
     }
 
-    query = query.orderBy("scheduled_at", "desc").limit(queryLimit || 50);
+    query = query.orderBy("date", "desc").limit(queryLimit || 50);
 
     if (offset) {
       const lastDoc = await db.collection("reservations").doc(offset).get();
@@ -476,25 +563,94 @@ export const adminForceCancel = onCall(async (request) => {
 
   const resData = resDoc.data()!;
 
+  // FIX (confirmed live bug, found during audit): previously no status
+  // guard at all - could be called on an already-`completed`/`cancelled`
+  // reservation, which is exactly the case most likely to hit the Stripe
+  // failure this fix's other half addresses below.
+  if (["completed", "cancelled", "expired"].includes(resData.status)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "この予約はすでに終了しているため、強制キャンセルできません。"
+    );
+  }
+
   if (resData.payment_intent_id) {
+    // FIX (confirmed live bug, found during audit): the Stripe call used
+    // to be wrapped in a try/catch that only logged the error and let
+    // execution fall through to mark the reservation `cancelled`
+    // regardless of whether Stripe actually released/captured anything -
+    // an admin could end up with a reservation record that says
+    // "cancelled" while the guest's card was never actually touched (or
+    // was already captured/transferred and this call's attempt to touch
+    // it again failed). Now rethrown as an HttpsError so the admin sees a
+    // real failure instead of a false "success", and the reservation is
+    // NOT marked cancelled unless the Stripe operation actually succeeded.
     try {
       if (refund_amount && refund_amount > 0) {
-        await stripe.paymentIntents.capture(resData.payment_intent_id, {
+        const capturedPi = await stripe.paymentIntents.capture(resData.payment_intent_id, {
           amount_to_capture: refund_amount,
+        });
+        // FIX (confirmed live bug, found during audit): this partial-
+        // capture path is real money movement (captures `refund_amount`
+        // from the guest) but, unlike every other capture path in this
+        // codebase, created no `ledger` entry for it at all - that amount
+        // was captured but never split/accounted for anywhere. Recorded
+        // here as a `refund`-type entry (net_transfer 0 - this captures
+        // FROM the guest, it doesn't transfer anything TO anyone; a
+        // human admin decided the amount, not the cancellation-fee
+        // matrix) so `adminGetLedger`'s ledger view at least surfaces it.
+        await db.collection("ledger").add({
+          ledger_id: "",
+          res_id,
+          user_id: resData.guest_id,
+          type: "refund",
+          gross_amount: refund_amount,
+          cast_reward: 0,
+          staff_fee: 0,
+          stripe_fee: 0,
+          platform_profit: refund_amount,
+          tax_amount: 0,
+          net_transfer: 0,
+          amount: refund_amount,
+          stripe_event_id: "",
+          stripe_object_id: capturedPi.id,
+          status: "confirmed",
+          processed: true,
+          created_at: Timestamp.now(),
         });
       } else {
         await stripe.paymentIntents.cancel(resData.payment_intent_id);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Stripe cancel failed:", err);
+      throw new HttpsError(
+        "internal",
+        `Stripe側の処理に失敗したため、強制キャンセルを中止しました: ${err.message}`
+      );
     }
   }
 
-  await db.collection("reservations").doc(res_id).update({
-    status: "cancelled",
-    cancel_reason: reason || "管理者による強制キャンセル",
-    cancelled_by: "admin",
-    updated_at: Timestamp.now(),
+  // FIX (confirmed live bug, found during audit): the audit log's own
+  // `reason` used to default to bare "" while `cancel_reason` (the field
+  // actually written to the reservation) already had a real fallback
+  // message - the audit trail was silently less informative than the
+  // reservation record itself. Both now share the same resolved reason.
+  const resolvedReason = reason || "管理者による強制キャンセル";
+
+  // Slot-lock release (PROJECT_KNOWLEDGE.md §68), folded into the same
+  // transaction as the status write, added after the Stripe try/catch
+  // above (which must still be allowed to throw and abort before any
+  // Firestore write, unchanged) — an orphaned "reserved" schedule_slots
+  // doc has no self-healing path, unlike the Stripe hold already released.
+  await db.runTransaction(async (tx) => {
+    const slotsSnap = await tx.get(reservedSlotsQuery(res_id));
+    tx.update(db.collection("reservations").doc(res_id), {
+      status: "cancelled",
+      cancel_reason: resolvedReason,
+      cancelled_by: "admin",
+      updated_at: Timestamp.now(),
+    });
+    slotsSnap.forEach((slot) => tx.delete(slot.ref));
   });
 
   const chatRooms = await db.collection("chat_rooms").where("res_id", "==", res_id).get();
@@ -507,8 +663,8 @@ export const adminForceCancel = onCall(async (request) => {
     "force_cancel",
     "reservation",
     res_id,
-    { reason, refund_amount },
-    reason || ""
+    { reason: resolvedReason, refund_amount },
+    resolvedReason
   );
 
   return { success: true };
@@ -550,10 +706,18 @@ export const adminManualRefund = onCall(async (request) => {
   if (!resData.payment_intent_id) {
     throw new HttpsError("failed-precondition", "決済情報が見つかりません。");
   }
+  // FIX (PROJECT_KNOWLEDGE.md §70 — comprehensive project-wide review): a
+  // non-numeric truthy `amount` (e.g. a string) used to silently fail the
+  // coercive `amount > 0` check and fall through to a FULL refund instead
+  // of the admin's intended partial amount — a real "admin asked for ¥1000
+  // back, guest got everything" risk, not just a validation nicety.
+  if (amount !== undefined && (typeof amount !== "number" || amount <= 0)) {
+    throw new HttpsError("invalid-argument", "amountは正の数値で指定してください。");
+  }
 
   const refund = await stripe.refunds.create({
     payment_intent: resData.payment_intent_id,
-    ...(amount && amount > 0 ? { amount } : {}),
+    ...(amount ? { amount } : {}),
   });
 
   const ledgerRef = db.collection("ledger").doc();
@@ -562,7 +726,13 @@ export const adminManualRefund = onCall(async (request) => {
     res_id,
     user_id: resData.guest_id || "",
     type: "refund",
-    gross_amount: resData.total_amount || 0,
+    // FIX (PROJECT_KNOWLEDGE.md §70): used to always log the reservation's
+    // FULL original total here, even for a partial refund — misleading
+    // next to `amount: refund.amount` (the actual amount that moved) in
+    // the same ledger row. Use the real refunded amount for both fields,
+    // matching the sibling adminForceCancel partial-capture write's own
+    // correct convention (`gross_amount: refund_amount`).
+    gross_amount: refund.amount,
     cast_reward: 0,
     staff_fee: 0,
     stripe_fee: 0,
@@ -699,7 +869,10 @@ export const adminGetReservationExtras = onCall(async (request) => {
 export const adminUpdateReservationLocation = onCall(async (request) => {
   await verifyAdmin(request);
 
-  const { res_id, meeting_point_address, location_address } = request.data;
+  const { res_id, meeting_point_address, location_address, reason } = request.data;
+  if (!res_id) {
+    throw new HttpsError("invalid-argument", "res_idが必要です。");
+  }
 
   const resDoc = await db.collection("reservations").doc(res_id).get();
   if (!resDoc.exists) {
@@ -721,8 +894,8 @@ export const adminUpdateReservationLocation = onCall(async (request) => {
     "update_reservation_location",
     "reservation",
     res_id,
-    { meeting_point_address, location_address },
-    ""
+    { meeting_point_address, location_address, reason },
+    reason || ""
   );
 
   return { success: true };
@@ -736,6 +909,17 @@ export const adminUpdateAffiliateRate = onCall(async (request) => {
   await verifyAdmin(request);
 
   const { user_id, new_rate } = request.data;
+
+  // FIX (confirmed live bug, comprehensive review): the range/step checks
+  // below use `<`/`>`/`%`, which all auto-coerce a numeric STRING (e.g.
+  // "0.10") — it would pass every check here and get written to Firestore
+  // as a string, a real type-integrity gap in a monetary config field.
+  // Downstream `*` multiplication in `processAffiliateRewards` happens to
+  // also auto-coerce, so this was latent rather than actively broken, but
+  // worth closing at the boundary rather than relying on that.
+  if (typeof new_rate !== "number") {
+    throw new HttpsError("invalid-argument", "new_rateは数値で指定してください。");
+  }
 
   if (new_rate < 0.05 || new_rate > 0.30) {
     throw new HttpsError(
@@ -1159,7 +1343,27 @@ export const adminUpsertBanner = functionsV1
     advertiser,
     display_days,
     start_date,
+    reason,
   } = data;
+
+  // FIX (PROJECT_KNOWLEDGE.md §70, MEDIUM-HIGH — comprehensive project-wide
+  // review): `active` was written straight through with no typeof check —
+  // same bug class as adminApproveKYC's `approved` above.
+  // generated_code's BannersRecord does a raw `as bool?` cast when
+  // deserializing `active` — a non-boolean value crashes that read on the
+  // home page, for every guest, not just admins. Also added presence
+  // checks on `title`/`image_url`, which were previously used with no
+  // fallback at all — creating a banner without them threw Firestore's raw
+  // "Cannot use undefined as a Firestore value" instead of a clean message.
+  if (active !== undefined && typeof active !== "boolean") {
+    throw new HttpsError("invalid-argument", "activeはtrue/falseで指定してください。");
+  }
+  // Required on every call, not just create — bannerData below (used for
+  // both the create and update path) always includes title/image_url, and
+  // Firestore's `.update()` rejects an `undefined` value outright.
+  if (!title || !image_url) {
+    throw new HttpsError("invalid-argument", "titleとimage_urlが必要です。");
+  }
 
   const bannerData = {
     title,
@@ -1198,8 +1402,8 @@ export const adminUpsertBanner = functionsV1
     banner_id ? "update_banner" : "create_banner",
     "banner",
     resolvedBannerId,
-    { title, page: page || "home", active: active !== undefined ? active : true },
-    ""
+    { title, page: page || "home", active: active !== undefined ? active : true, reason },
+    reason || ""
   );
 
   return { success: true };
@@ -1210,7 +1414,7 @@ export const adminUpsertBanner = functionsV1
 export const adminDeleteBanner = onCall(async (request) => {
   await verifyAdmin(request);
 
-  const { banner_id } = request.data;
+  const { banner_id, reason } = request.data;
 
   if (!banner_id) {
     throw new HttpsError("invalid-argument", "banner_idが必要です。");
@@ -1223,8 +1427,8 @@ export const adminDeleteBanner = onCall(async (request) => {
     "delete_banner",
     "banner",
     banner_id,
-    {},
-    ""
+    { reason },
+    reason || ""
   );
 
   return { success: true };
@@ -1385,6 +1589,24 @@ export const adminUpdateSystemConfig = onCall(async (request) => {
 
   const { settings } = request.data;
 
+  // FIX (confirmed live bug, found during audit): `affiliate_payment_day`
+  // drove processMonthlyAffiliatePayments' `jstDay !== paymentDay` gate
+  // (affiliate.ts) with zero validation here - a value of 29/30/31 would
+  // never match in any month that day doesn't exist in (e.g. 31 matches
+  // nowhere in Feb/Apr/Jun/Sep/Nov), silently delaying that month's
+  // payment run until the day recurs. Clamped to 1-28 so it's guaranteed to
+  // fire in every calendar month, matching the standard fix for a
+  // day-of-month config field.
+  if (settings && settings.affiliate_payment_day !== undefined) {
+    const day = settings.affiliate_payment_day;
+    if (!Number.isInteger(day) || day < 1 || day > 28) {
+      throw new HttpsError(
+        "invalid-argument",
+        "affiliate_payment_dayは1〜28の整数で指定してください。"
+      );
+    }
+  }
+
   await db.collection("system_config").doc("settings").set(settings, { merge: true });
 
   await createAuditLog(
@@ -1422,6 +1644,9 @@ export const adminResolveReport = onCall(async (request) => {
   await verifyAdmin(request);
 
   const { report_id, admin_note, action } = request.data;
+  if (!report_id) {
+    throw new HttpsError("invalid-argument", "report_idが必要です。");
+  }
 
   await db.collection("reports").doc(report_id).update({
     status: "resolved",
@@ -1475,23 +1700,47 @@ export const adminGetReportChatLog = onCall(async (request) => {
   if (!reportDoc.exists) {
     return { success: false, error: "通報が見つかりません。" };
   }
-  const resId = reportDoc.data()?.res_id;
+  const reportData = reportDoc.data()!;
+  const resId = reportData.res_id;
   if (!resId) {
     return { success: true, messages: [], message_count: 0, no_chat_reason: "この通報には関連する予約がありません。" };
   }
 
-  const chatRoomsSnap = await db.collection("chat_rooms").where("res_id", "==", resId).limit(1).get();
+  // FIX (PROJECT_KNOWLEDGE.md §70): this used to fetch a single room via
+  // `.where("res_id","==",resId).limit(1)` — ambiguous once a group-invite
+  // reservation has a second chat_rooms doc for the same res_id (the
+  // cast-to-cast coordination room work-posts.ts creates), and unlike the
+  // guest/cast-facing lookups (sendChatMessage etc.), an admin isn't a
+  // participant of either room, so filtering by `participants array-
+  // contains uid` isn't available here. Instead: fetch EVERY room for this
+  // res_id, and prefer the one whose participants include BOTH the
+  // reporter and the reported user (the actually-relevant room for this
+  // report) — falling back to merging messages from every matching room,
+  // labeled by room, so a report tied to an ambiguous case never silently
+  // loses evidence instead of just picking the wrong room.
+  const chatRoomsSnap = await db.collection("chat_rooms").where("res_id", "==", resId).get();
   if (chatRoomsSnap.empty) {
     return { success: true, messages: [], message_count: 0, no_chat_reason: "チャットルームが見つかりません。" };
   }
 
-  const messagesSnap = await chatRoomsSnap.docs[0].ref
-    .collection("messages")
-    .orderBy("created_at", "asc")
-    .get();
+  const reporterId = reportData.reporter_id;
+  const reportedId = reportData.reported_id;
+  const relevantRoom = chatRoomsSnap.docs.find((d) => {
+    const participants: string[] = d.data().participants || [];
+    return participants.includes(reporterId) && participants.includes(reportedId);
+  });
+  const roomsToRead = relevantRoom ? [relevantRoom] : chatRoomsSnap.docs;
+
+  const messagesByRoom = await Promise.all(
+    roomsToRead.map(async (roomDoc) => {
+      const snap = await roomDoc.ref.collection("messages").orderBy("created_at", "asc").get();
+      return snap.docs.map((d) => ({ roomId: roomDoc.id, doc: d }));
+    })
+  );
+  const flatMessages = messagesByRoom.flat();
 
   const senderIds = Array.from(
-    new Set(messagesSnap.docs.map((d) => d.data().sender_id).filter((v): v is string => !!v))
+    new Set(flatMessages.map((m) => m.doc.data().sender_id).filter((v): v is string => !!v))
   );
   const senderNicknames: Record<string, string> = {};
   await Promise.all(
@@ -1501,10 +1750,11 @@ export const adminGetReportChatLog = onCall(async (request) => {
     })
   );
 
-  const messages = messagesSnap.docs.map((d) => {
+  const messages = flatMessages.map(({ roomId, doc: d }) => {
     const data = d.data();
     return {
       id: d.id,
+      room_id: roomId,
       sender_id: data.sender_id || "",
       sender_nickname: senderNicknames[data.sender_id] || data.sender_id || "",
       text: data.text || "",
@@ -1538,6 +1788,9 @@ export const adminApprovePayout = functionsV1
     await verifyAdminV1(context);
 
     const { requestId, action } = data;
+    if (!requestId) {
+      throw new functionsV1.https.HttpsError("invalid-argument", "requestIdが必要です。");
+    }
 
     const requestDoc = await db.collection("payout_requests").doc(requestId).get();
     if (!requestDoc.exists) {
@@ -1562,12 +1815,62 @@ export const adminApprovePayout = functionsV1
       return { success: true };
     }
 
-    // Default/explicit "approve": original immediate-payout flow, now also
+    // FIX (confirmed live bug, found during audit): this used to fall
+    // through to the real-money "approve" branch below for ANY value of
+    // `action` other than the two explicitly checked above - undefined,
+    // null, a typo like "aprove", or garbage all silently triggered a real
+    // `stripe.payouts.create()` call. Currently unreachable (no caller
+    // exists anywhere in this app's DSL - the admin panel UI, Phase 12,
+    // isn't built yet), but this callable is still deployed and directly
+    // callable by any admin account regardless, so a client-side bug/typo
+    // in a future admin UI must not be able to silently trigger a real
+    // payout. Require the exact value instead of treating everything else
+    // as an implicit approve.
+    if (action !== "approve") {
+      throw new functionsV1.https.HttpsError(
+        "invalid-argument",
+        `不正なactionです: ${action}`
+      );
+    }
+
+    // FIX (PROJECT_KNOWLEDGE.md §70, HIGH — comprehensive project-wide
+    // review): this "approve" branch used to go straight from the initial
+    // `requestDoc.get()` at the top of the function into a real
+    // `stripe.payouts.create()` call with NO re-check of `requestData.status`
+    // immediately before it — two calls with `action:"approve"` on the SAME
+    // `requestId` (double-click, a client retry, or two admins racing) could
+    // both pass through, each retrieving the live Stripe balance and each
+    // creating a separate real payout, potentially paying out MORE than the
+    // cast's actual available balance across the two calls. Same bug class
+    // already fixed elsewhere in this file for adminForceCancel ("previously
+    // no status guard at all") — that fix was never applied here. Fixed with
+    // a transactional claim (pending -> processing) that only one concurrent
+    // caller can win, mirroring transferPendingCastRewards' identical fix
+    // (stripe-payments.ts) for the same race shape.
+    const claimed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(db.collection("payout_requests").doc(requestId));
+      if (!snap.exists || snap.data()?.status !== "pending") {
+        return false;
+      }
+      tx.update(snap.ref, { status: "processing", updated_at: Timestamp.now() });
+      return true;
+    });
+    if (!claimed) {
+      throw new functionsV1.https.HttpsError(
+        "failed-precondition",
+        "この出金申請はすでに処理されています。"
+      );
+    }
+
+    // Explicit "approve": original immediate-payout flow, now also
     // updating the source request's status.
     const userDoc = await db.collection("users").doc(userId).get();
     const userData = userDoc.data();
 
     if (!userData?.stripe_account_id) {
+      // Claimed above but can't proceed — revert the claim so the request
+      // isn't stuck "processing" forever with no payout ever attempted.
+      await db.collection("payout_requests").doc(requestId).update({ status: "pending" });
       throw new functionsV1.https.HttpsError("failed-precondition", "Stripeアカウントが未設定です。");
     }
 
@@ -1614,6 +1917,12 @@ export const adminApprovePayout = functionsV1
 
       return { success: true, payout_id: payout.id, amount: available.amount };
     } catch (err: any) {
+      // Revert the "processing" claim from above — `stripe.payouts.create`
+      // either succeeds fully or throws (no partial state), so if we're
+      // here the payout genuinely never happened and this request must be
+      // retryable, not stuck forever in a status nothing can ever claim
+      // again.
+      await db.collection("payout_requests").doc(requestId).update({ status: "pending" });
       throw new functionsV1.https.HttpsError("internal", `出金処理に失敗しました: ${err.message}`);
     }
   });
@@ -2081,6 +2390,7 @@ export const adminUpsertCocotenShop = onCall(async (request) => {
     town_block,
     building,
     active,
+    reason,
   } = request.data;
 
   let shopId: string = shop_id || "";
@@ -2092,6 +2402,14 @@ export const adminUpsertCocotenShop = onCall(async (request) => {
   const resolvedName = name || (shopId ? existingData.name : "") || "";
   if (!resolvedName) {
     throw new HttpsError("invalid-argument", "店舗名が必要です。");
+  }
+  // FIX (PROJECT_KNOWLEDGE.md §70, MEDIUM-HIGH — comprehensive project-wide
+  // review): same unvalidated-boolean bug class as adminApproveKYC/
+  // adminUpsertBanner above. generated_code's CocotenShopsRecord does a
+  // raw `as bool?` cast on `active` — a non-boolean value crashes that
+  // read wherever a shop card renders.
+  if (active !== undefined && typeof active !== "boolean") {
+    throw new HttpsError("invalid-argument", "activeはtrue/falseで指定してください。");
   }
 
   const shopData = {
@@ -2120,8 +2438,8 @@ export const adminUpsertCocotenShop = onCall(async (request) => {
     shop_id ? "update_cocomise" : "create_cocomise",
     "cocomise",
     shopId,
-    { name },
-    ""
+    { name, reason },
+    reason || ""
   );
 
   return { success: true, shop_id: shopId };
@@ -2130,7 +2448,7 @@ export const adminUpsertCocotenShop = onCall(async (request) => {
 export const adminDeleteCocotenShop = onCall(async (request) => {
   await verifyAdmin(request);
 
-  const { shop_id } = request.data;
+  const { shop_id, reason } = request.data;
   if (!shop_id) {
     throw new HttpsError("invalid-argument", "shop_idが必要です。");
   }
@@ -2142,8 +2460,8 @@ export const adminDeleteCocotenShop = onCall(async (request) => {
     "delete_cocomise",
     "cocomise",
     shop_id,
-    {},
-    ""
+    { reason },
+    reason || ""
   );
 
   return { success: true };
@@ -2227,7 +2545,7 @@ export const adminGetWorkPosts = onCall(async (request) => {
 export const adminCloseWorkPost = onCall(async (request) => {
   await verifyAdmin(request);
 
-  const { post_id } = request.data;
+  const { post_id, reason } = request.data;
   if (!post_id) {
     throw new HttpsError("invalid-argument", "post_idが必要です。");
   }
@@ -2241,8 +2559,8 @@ export const adminCloseWorkPost = onCall(async (request) => {
     "close_work_post",
     "work_post",
     post_id,
-    {},
-    ""
+    { reason },
+    reason || ""
   );
 
   return { success: true };
@@ -2264,7 +2582,7 @@ export const adminCloseWorkPost = onCall(async (request) => {
 export const adminCreateWorkPost = onCall(async (request) => {
   await verifyAdmin(request);
 
-  const { type, description, date, location, fee } = request.data;
+  const { type, description, date, location, fee, reason } = request.data;
   if (type !== "security" && type !== "transport") {
     throw new HttpsError(
       "invalid-argument",
@@ -2298,8 +2616,8 @@ export const adminCreateWorkPost = onCall(async (request) => {
     "create_work_post",
     "work_post",
     docRef.id,
-    { type, description },
-    ""
+    { type, description, reason },
+    reason || ""
   );
 
   return { success: true, post_id: docRef.id };
@@ -2319,7 +2637,7 @@ export const adminCreateWorkPost = onCall(async (request) => {
 export const adminHireWorkPostApplicant = onCall(async (request) => {
   await verifyAdmin(request);
 
-  const { post_id, applicant_id } = request.data;
+  const { post_id, applicant_id, reason } = request.data;
   if (!post_id || !applicant_id) {
     throw new HttpsError(
       "invalid-argument",
@@ -2327,28 +2645,62 @@ export const adminHireWorkPostApplicant = onCall(async (request) => {
     );
   }
 
+  // FIX (PROJECT_KNOWLEDGE.md §70, HIGH — comprehensive project-wide
+  // review): same non-transactional race + plain-array lost-update bug as
+  // work-posts.ts's selectWorkApplicant, fixed with the identical pattern
+  // — a transaction so only one caller can win the status transition, plus
+  // `arrayUnion` for the staff_ids append instead of a read-modify-write.
   const postRef = db.collection("work_posts").doc(post_id);
-  const postSnap = await postRef.get();
-  if (!postSnap.exists) {
-    throw new HttpsError("not-found", "投稿が見つかりません。");
-  }
-  const applicants: string[] = postSnap.data()?.applicants || [];
-  if (!applicants.includes(applicant_id)) {
-    throw new HttpsError(
-      "failed-precondition",
-      "指定された応募者はこの投稿に応募していません。"
-    );
-  }
+  await db.runTransaction(async (tx) => {
+    const postSnap = await tx.get(postRef);
+    if (!postSnap.exists) {
+      throw new HttpsError("not-found", "投稿が見つかりません。");
+    }
+    const data = postSnap.data()!;
+    const applicants: string[] = data.applicants || [];
+    if (!applicants.includes(applicant_id)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "指定された応募者はこの投稿に応募していません。"
+      );
+    }
+    if (data.status !== "open") {
+      throw new HttpsError("failed-precondition", "この投稿はすでに処理済みです。");
+    }
 
-  await postRef.update({ status: "filled", selected_id: applicant_id });
+    // Reads before writes — the reservation existence check must happen
+    // here, not interleaved with the tx.update() calls below.
+    let resRef: FirebaseFirestore.DocumentReference | null = null;
+    if ((data.type === "security" || data.type === "transport") && data.res_id) {
+      const candidateRef = db.collection("reservations").doc(data.res_id);
+      const resSnap = await tx.get(candidateRef);
+      if (resSnap.exists) {
+        resRef = candidateRef;
+      }
+    }
+
+    tx.update(postRef, { status: "filled", selected_id: applicant_id });
+    // FIX (confirmed live bug, found during audit): the client-facing
+    // `selectWorkApplicant` (work-posts.ts) appends the hired applicant
+    // into the linked reservation's `staff_ids` for security/transport
+    // posts, so `recordCastRewardsAndProcessOthers` actually pays them
+    // their share of the already-authorized `staff_fee` — this
+    // admin-facing equivalent did not, so a staff member hired via the
+    // admin panel instead of the client-facing flow was never wired to
+    // receive their fee. Mirrors selectWorkApplicant's logic exactly.
+    if (resRef) {
+      tx.update(resRef, { staff_ids: FieldValue.arrayUnion(applicant_id) });
+    }
+
+  });
 
   await createAuditLog(
     request.auth!.uid,
     "hire_work_post_applicant",
     "work_post",
     post_id,
-    { applicant_id },
-    ""
+    { applicant_id, reason },
+    reason || ""
   );
 
   return { success: true };

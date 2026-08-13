@@ -21,6 +21,18 @@ final class ReservationFormParams {
         key: "ek6h7rwu",
         typeName: "String",
       );
+  ffai.ProjectParamHandle get prefillDate =>
+      const ffai.ProjectParamHandle(
+        name: "prefillDate",
+        key: "wydl79qw",
+        typeName: "String",
+      );
+  ffai.ProjectParamHandle get prefillStartTime =>
+      const ffai.ProjectParamHandle(
+        name: "prefillStartTime",
+        key: "x3v245ae",
+        typeName: "String",
+      );
 }
 
 final class ReservationFormState {
@@ -112,6 +124,9 @@ abstract final class ReservationFormWidgets {
       type: "Scaffold",
       path: "ReservationForm",
       name: "ReservationForm",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(

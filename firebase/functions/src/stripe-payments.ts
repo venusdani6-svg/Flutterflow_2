@@ -4,6 +4,7 @@
  */
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db, stripe, FieldValue, Timestamp, getSystemConfig } from "./config";
+import { reservedSlotsQuery } from "./schedule";
 
 /**
  * Callable: Create PaymentIntent with manual capture (与信確保)
@@ -14,16 +15,10 @@ export const createPaymentIntent = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "認証が必要です。");
   }
 
-  const {
-    res_id,
-    amount,
-    transport_fee,
-    staff_fee,
-    cast_ids,
-  } = request.data;
+  const { res_id } = request.data;
 
-  if (!res_id || !amount || amount <= 0) {
-    throw new HttpsError("invalid-argument", "予約IDと金額が必要です。");
+  if (!res_id) {
+    throw new HttpsError("invalid-argument", "予約IDが必要です。");
   }
 
   // Ownership check - this callable had none at all: it never fetched the
@@ -39,8 +34,51 @@ export const createPaymentIntent = onCall(async (request) => {
   if (!resDoc.exists) {
     throw new HttpsError("not-found", "予約が見つかりません。");
   }
-  if (resDoc.data()?.guest_id !== request.auth.uid) {
+  const resDataForGuard = resDoc.data()!;
+  if (resDataForGuard.guest_id !== request.auth.uid) {
     throw new HttpsError("permission-denied", "権限がありません。");
+  }
+
+  // FIX (confirmed live bug, found on the same review pass that caught the
+  // identical issue in createExtensionPayment's own `amount` param):
+  // `amount`/`staff_fee`/`cast_ids` used to come straight from
+  // `request.data`, trusted with zero validation - `amount` only checked
+  // ">0". Cloud Functions are callable directly by any authenticated
+  // client with the right function name/region, regardless of what this
+  // app's own UI/custom-action layer normally sends - a guest could call
+  // this directly with `amount: 1` and pay almost nothing for a real
+  // reservation. Unlike the extension case, there's no formula to
+  // recompute a correct base amount from (guest self-reports it at
+  // `createReservation` time, a disclosed, already-accepted simplification
+  // - see PROJECT_KNOWLEDGE.md §12) - but that value is already durably
+  // stored, server-side-written, on the reservation document the instant
+  // it's created, and `resDataForGuard` is already fetched here for the
+  // ownership check above. Reading `amount`/`staff_fee`/`cast_ids` from
+  // THAT instead of trusting the client closes the gap with zero new
+  // reads and no schema change - the client-supplied values are no longer
+  // used for anything.
+  const amount = resDataForGuard.base_amount;
+  const staff_fee = resDataForGuard.staff_fee;
+  const cast_ids = resDataForGuard.cast_ids;
+
+  if (!amount || amount <= 0) {
+    throw new HttpsError("invalid-argument", "この予約には有効な金額が設定されていません。");
+  }
+
+  // FIX (confirmed live bug, found during audit): no status/idempotency
+  // guard existed - calling this twice for the same reservation created
+  // two separate Stripe PaymentIntents (the first silently orphaned,
+  // never captured or canceled), and calling it again after the
+  // reservation had already progressed past `request_pending` would
+  // re-authorize and re-timestamp `status: "authorized"` on a reservation
+  // that may already be `in_progress`/`completion_pending`/etc. This
+  // callable is meant to run exactly once, right after the guest submits
+  // the reservation request.
+  if (resDataForGuard.status !== "request_pending") {
+    throw new HttpsError(
+      "failed-precondition",
+      "この予約はすでに決済処理が開始されています。"
+    );
   }
 
   const userDoc = await db.collection("users").doc(request.auth.uid).get();
@@ -64,18 +102,28 @@ export const createPaymentIntent = onCall(async (request) => {
   // (e.g. ¥5,000) no matter how many casts are on the reservation - group
   // size only affects how the cast-side half of that flat total is later
   // SPLIT (fixed in `recordCastRewardsAndProcessOthers` below), never the
-  // guest charge itself. `transport_fee` from the client is now only a
+  // guest charge itself. `transport_fee` used to come from the client as a
   // boolean-shaped SIGNAL ("does this booking carry a taxi surcharge at
-  // all?", >0 = yes) - preserves the existing caller contract (no request-
-  // shape change needed) while the actual AMOUNT is always server-computed
-  // and never taken from the client.
+  // all?", >0 = yes) - the actual AMOUNT was already server-computed and
+  // never taken from the client, but the SIGNAL itself still was, which
+  // is the same trust gap as `amount`/`staff_fee` above: a client could
+  // send `transport_fee: 1` to force a surcharge that shouldn't apply, or
+  // (more relevantly for undercharging) simply never gets exercised as an
+  // attack because a client wouldn't want to ADD a fee to their own
+  // charge - but it's still an unnecessary trust surface for something
+  // that's already server-computed and stored. FIX (found on the same
+  // review pass as the amount/staff_fee fix above): `createReservation`
+  // (reservations.ts) already computes this exact eligibility correctly at
+  // creation time from the reservation's own `time_slot`/
+  // `night_time_slots` and stores it as `reservations.transport_fee` - use
+  // THAT as the signal instead of trusting the client at all.
   // `getSystemConfig()`'s SYSTEM_DEFAULTS key-casing bug (see config.ts) is
   // now fixed, so this reads through the helper directly rather than the
   // raw-document workaround this block used to need.
   const config = await getSystemConfig();
   const transportFeeAmount = config.transport_fee_amount;
 
-  let finalTransportFee = (transport_fee || 0) > 0 ? transportFeeAmount : 0;
+  let finalTransportFee = (resDataForGuard.transport_fee || 0) > 0 ? transportFeeAmount : 0;
 
   // Phase 2 of implementing the 5 unresolved §17.9 conflicts (C3): "30分
   // ルール clock" resolved as-is with the client - the App/Stripe spec's
@@ -124,13 +172,31 @@ export const createPaymentIntent = onCall(async (request) => {
       },
     });
 
+    // FIX (confirmed live bug, found during audit): `status: "authorized"`
+    // used to be written HERE, the instant `stripe.paymentIntents.create()`
+    // returns - before the guest has even opened the Payment Sheet
+    // (`confirmStripePayment`, called separately from the client right
+    // after this) to enter card details, let alone before Stripe's own
+    // `amount_capturable_updated` webhook (`handleAmountCapturableUpdated`,
+    // stripe-webhooks.ts) confirms a real hold actually exists. Per
+    // schema.md, "authorized" is documented to mean 与信確保済み
+    // (requires_capture) - not yet true at PaymentIntent-creation time. If
+    // the guest abandoned the Payment Sheet or their card failed, the
+    // reservation was left sitting at `status: "authorized"` with no real
+    // money on hold - and `respondToReservation`'s own status guard
+    // (`["authorized","cast_pending"].includes(...)`) would let the cast
+    // accept a "confirmed" booking with zero payment security behind it.
+    // This mirrors the EXACT design principle already established and
+    // deliberately chosen for the Capture step (§6 defect #7: webhook-
+    // confirmed, not optimistic-on-button-tap) - `status` now stays
+    // whatever it already was (`request_pending`) until
+    // `handleAmountCapturableUpdated` genuinely confirms the hold.
     await db.collection("reservations").doc(res_id).update({
       payment_intent_id: paymentIntent.id,
       transfer_group: transferGroup,
       transport_fee: finalTransportFee,
       total_amount: totalAmount,
-      thirty_min_rule_applied: finalTransportFee === 0 && (transport_fee || 0) > 0,
-      status: "authorized",
+      thirty_min_rule_applied: finalTransportFee === 0 && (resDataForGuard.transport_fee || 0) > 0,
       updated_at: Timestamp.now(),
     });
 
@@ -140,7 +206,7 @@ export const createPaymentIntent = onCall(async (request) => {
       payment_intent_id: paymentIntent.id,
       total_amount: totalAmount,
       transport_fee: finalTransportFee,
-      thirty_min_rule_applied: finalTransportFee === 0 && (transport_fee || 0) > 0,
+      thirty_min_rule_applied: finalTransportFee === 0 && (resDataForGuard.transport_fee || 0) > 0,
     };
   } catch (err: any) {
     console.error("PaymentIntent creation failed:", err);
@@ -157,6 +223,28 @@ export const confirmPaymentIntent = onCall(async (request) => {
   }
 
   const { payment_intent_id, payment_method_id } = request.data;
+  if (!payment_intent_id || !payment_method_id) {
+    throw new HttpsError("invalid-argument", "PaymentIntent IDと支払い方法IDが必要です。");
+  }
+
+  // FIX (confirmed live bug, found on the same review-pass sweep for the
+  // client-trust vulnerability class this session already fixed in
+  // createPaymentIntent/createExtensionPayment): no ownership check
+  // existed at all - any authenticated user could call this with an
+  // arbitrary payment_intent_id and attempt to confirm it. This callable
+  // is confirmed UNUSED by this app's real flow (grepped dsl/edit.dart and
+  // generated_code/ - zero references anywhere; `confirm_stripe_payment.dart`
+  // uses `Stripe.instance.presentPaymentSheet()`, which confirms internally
+  // via the client SDK using the client_secret, never calling this
+  // function) - but it's still deployed and directly callable regardless
+  // of whether this app's own UI reaches it, so it gets the same ownership
+  // check as every other payment callable in this file. `createPaymentIntent`
+  // already stamps `guest_uid` into every PaymentIntent's metadata -
+  // verify it matches the caller before confirming.
+  const paymentIntentCheck = await stripe.paymentIntents.retrieve(payment_intent_id);
+  if (paymentIntentCheck.metadata?.guest_uid !== request.auth.uid) {
+    throw new HttpsError("permission-denied", "権限がありません。");
+  }
 
   try {
     const paymentIntent = await stripe.paymentIntents.confirm(payment_intent_id, {
@@ -203,6 +291,21 @@ export const capturePayment = onCall(async (request) => {
 
   if (!resData.payment_intent_id) {
     throw new HttpsError("failed-precondition", "決済情報がありません。");
+  }
+
+  // FIX (confirmed live bug, found during audit): no status guard existed -
+  // a guest or cast could call this directly right after `respondToReservation`
+  // confirms (status `confirmed`, before any meetup), triggering a real
+  // Stripe capture of the guest's card before service is rendered, contrary
+  // to the documented "Capture only after the cast's completion report"
+  // flow (§3.5 state 6). `reportCompletion` is the normal/intended trigger
+  // for this - this callable is a manual/admin-recourse path, not a
+  // guest/cast-initiated shortcut around the state machine.
+  if (resData.status !== "completion_pending") {
+    throw new HttpsError(
+      "failed-precondition",
+      "この予約は現在、売上確定できる状態ではありません。"
+    );
   }
 
   try {
@@ -300,6 +403,33 @@ export async function recordCastRewardsAndProcessOthers(
   const castTransportShareEach =
     castIds.length > 0 ? Math.floor(castTransportPool / castIds.length) : 0;
 
+  // FIX (confirmed live bug, found during audit): `platform_profit`/
+  // `tax_amount` used to be computed INSIDE the per-cast loop as
+  // `totalAmount - thisCast'sOwnReward - staffFee - stripeFee` - correct
+  // for a single-cast reservation, but on a multi-cast reservation each
+  // cast's row pretended to be the ONLY cast (never subtracting any OTHER
+  // cast's reward), so every row overstated platform_profit by the sum of
+  // every other cast's reward. `adminGetLedger`'s summary dedupes by
+  // `res_id` assuming every cast's row reports the identical, correct
+  // reservation-wide profit figure - true only when every cast shares the
+  // same `individual_rate`, silently wrong otherwise. Fixed with a
+  // two-pass approach: compute every cast's reward first, sum them, THEN
+  // compute one shared, correct platform_profit/tax_amount that properly
+  // accounts for every cast's cut, applied identically to every row (so
+  // the existing res_id-dedup read side stays correct by construction).
+  // NOTE: this fixes the REPORTED bookkeeping only. The underlying reward
+  // FORMULA itself (`rewardBase * castRate`, applied independently and in
+  // full to EACH cast rather than split across them, unlike the transport
+  // fee pool a few lines above which correctly IS split) is unchanged -
+  // for a multi-cast reservation where combined cast rates approach or
+  // exceed 100%, the platform's true remaining margin can be thin, zero,
+  // or negative. Whether multi-cast rewards should divide the shared pool
+  // (matching the transport-fee pattern) instead of each cast independently
+  // claiming their own percentage of the whole is a real product/business
+  // question, not something to silently guess at here - disclosed as a
+  // follow-up requiring confirmation, not fixed in this pass.
+  const rewardBase = totalAmount - staffFee - transportFee;
+  const castRewards = new Map<string, number>();
   for (const castId of castIds) {
     const castDoc = await db.collection("users").doc(castId).get();
     const castData = castDoc.data();
@@ -307,16 +437,30 @@ export async function recordCastRewardsAndProcessOthers(
       console.error(`Cast ${castId} has no Stripe account`);
       continue;
     }
-
     const castRate = castData.individual_rate || config.default_cast_rate;
+    castRewards.set(castId, Math.floor(rewardBase * castRate));
+  }
+  const totalCastRewardPaid = Array.from(castRewards.values()).reduce((a, b) => a + b, 0);
+  // FIX (PROJECT_KNOWLEDGE.md §71 — comprehensive project-wide review):
+  // `castTransportShareEach` is computed by dividing the pool across EVERY
+  // cast_id on the reservation, but only ever actually PAID to the casts
+  // that made it into `castRewards` (a cast with no stripe_account_id is
+  // `continue`d out of that map, above) — so when a cast is skipped,
+  // `platform_profit` still subtracted that skipped cast's full transport
+  // share even though nobody was ever actually paid it, understating the
+  // platform's real (kept) profit by exactly that amount. Subtract what
+  // was ACTUALLY distributed (share × number of casts really paid),
+  // not the theoretical full pool.
+  const actualTransportDistributed = castTransportShareEach * castRewards.size;
+  const sharedPlatformProfit =
+    totalAmount - totalCastRewardPaid - actualTransportDistributed - staffFee - stripeFee;
+  const sharedTaxAmount = Math.floor(sharedPlatformProfit * taxRate);
 
+  for (const [castId, castReward] of castRewards) {
     try {
       await db.runTransaction(async (tx) => {
         const freshCastDoc = await tx.get(db.collection("users").doc(castId));
         const currentDebt = freshCastDoc.data()?.logical_debt || 0;
-
-        const rewardBase = totalAmount - staffFee - transportFee;
-        const castReward = Math.floor(rewardBase * castRate);
 
         const castTransportShare = castTransportShareEach;
         const totalCastAmount = castReward + castTransportShare;
@@ -324,9 +468,6 @@ export async function recordCastRewardsAndProcessOthers(
         const debtDeduction = Math.min(currentDebt, totalCastAmount);
         const netTransfer = totalCastAmount - debtDeduction;
         const newDebt = currentDebt - debtDeduction;
-
-        const platformProfit =
-          totalAmount - castReward - castTransportShare - staffFee - stripeFee;
 
         const ledgerRef = db.collection("ledger").doc();
         // No real Transfer will ever be needed for this entry (fully
@@ -343,8 +484,8 @@ export async function recordCastRewardsAndProcessOthers(
           cast_reward: castReward,
           staff_fee: staffFee,
           stripe_fee: stripeFee,
-          platform_profit: platformProfit,
-          tax_amount: Math.floor(platformProfit * taxRate),
+          platform_profit: sharedPlatformProfit,
+          tax_amount: sharedTaxAmount,
           net_transfer: netTransfer,
           amount: totalCastAmount,
           stripe_event_id: "",
@@ -426,6 +567,126 @@ export async function recordCastRewardsAndProcessOthers(
 }
 
 /**
+ * FIX (confirmed live bug, found during audit): `createExtensionPayment`
+ * (this file, above) creates a `capture_method: "manual"` PaymentIntent per
+ * extension and stores it under `reservations/{res_id}/extensions/{ext_id}`
+ * with `status: "authorized"` - but no code path anywhere in this codebase
+ * ever called `stripe.paymentIntents.capture()` on it. Every extension's
+ * authorization hold simply expired unused (Stripe's ~7-day default),
+ * meaning a guest who paid for extra time was never actually charged and
+ * the cast/platform never received that revenue. §3.5.6 requires each
+ * extension to run its own independent Authorize→Capture→Transfer - this
+ * closes the missing Capture (and reward-ledger) step, called from the same
+ * two places the main reservation payment is captured/finalized
+ * (`reportCompletion` and `autoCompleteReviews`'s retry sweep), so an
+ * extension's money resolves at the same natural moment as the base
+ * reservation's.
+ *
+ * Reward split: reuses the SAME `individual_rate`-per-cast formula as
+ * `recordCastRewardsAndProcessOthers` above (no staff fee/transport fee
+ * component - extensions are pure additional cast time), written as
+ * `type: "reward"` ledger entries against the SAME `res_id` so the
+ * existing `transferPendingCastRewards(resId)` call (already invoked right
+ * after this from both call sites) transfers them together with the base
+ * reservation's own pending rewards - no separate transfer path needed.
+ */
+export async function captureAuthorizedExtensions(
+  resId: string,
+  resData: FirebaseFirestore.DocumentData
+): Promise<void> {
+  const extensionsSnap = await db
+    .collection("reservations")
+    .doc(resId)
+    .collection("extensions")
+    .where("status", "==", "authorized")
+    .get();
+
+  if (extensionsSnap.empty) return;
+
+  const config = await getSystemConfig();
+  const castIds: string[] = resData.cast_ids || [];
+
+  for (const extDoc of extensionsSnap.docs) {
+    const ext = extDoc.data();
+    if (!ext.payment_intent_id) {
+      console.error(`Extension ${extDoc.id} on ${resId} has no payment_intent_id.`);
+      continue;
+    }
+
+    try {
+      await stripe.paymentIntents.capture(ext.payment_intent_id);
+    } catch (err) {
+      console.error(`Extension capture failed for ${extDoc.id} on ${resId}:`, err);
+      continue;
+    }
+
+    await extDoc.ref.update({ status: "captured", updated_at: Timestamp.now() });
+
+    const extAmount: number = ext.amount || 0;
+    for (const castId of castIds) {
+      const castDoc = await db.collection("users").doc(castId).get();
+      const castData = castDoc.data();
+      if (!castData?.stripe_account_id) continue;
+
+      const castRate = castData.individual_rate || config.default_cast_rate;
+      const castReward = Math.floor(extAmount * castRate);
+      if (castReward <= 0) continue;
+
+      try {
+        await db.runTransaction(async (tx) => {
+          const freshCastDoc = await tx.get(db.collection("users").doc(castId));
+          const currentDebt = freshCastDoc.data()?.logical_debt || 0;
+          const debtDeduction = Math.min(currentDebt, castReward);
+          const netTransfer = castReward - debtDeduction;
+          const newDebt = currentDebt - debtDeduction;
+
+          const ledgerRef = db.collection("ledger").doc();
+          const needsTransfer = netTransfer > 0;
+
+          tx.set(ledgerRef, {
+            ledger_id: ledgerRef.id,
+            res_id: resId,
+            user_id: castId,
+            type: "reward",
+            gross_amount: extAmount,
+            cast_reward: castReward,
+            staff_fee: 0,
+            stripe_fee: 0,
+            platform_profit: extAmount - castReward,
+            tax_amount: Math.floor((extAmount - castReward) * config.tax_rate),
+            net_transfer: netTransfer,
+            amount: castReward,
+            stripe_event_id: "",
+            stripe_object_id: ext.payment_intent_id,
+            status: needsTransfer ? "pending" : "confirmed",
+            processed: !needsTransfer,
+            created_at: Timestamp.now(),
+          });
+
+          tx.update(db.collection("users").doc(castId), {
+            logical_debt: newDebt,
+            updated_at: Timestamp.now(),
+          });
+
+          if (debtDeduction > 0) {
+            const debtRef = db.collection("debt_history").doc();
+            tx.set(debtRef, {
+              user_id: castId,
+              amount: -debtDeduction,
+              reason: "延長報酬からの自動相殺",
+              res_id: resId,
+              created_at: Timestamp.now(),
+            });
+          }
+        });
+      } catch (err) {
+        console.error(`Extension reward ledger recording failed for ${castId}:`, err);
+      }
+    }
+  }
+}
+
+/**
  * Phase 2 of cast reward processing (§17.9 C4 / §18.111): executes the
  * real `stripe.transfers.create` for any ledger entries
  * `recordCastRewardsAndProcessOthers` above left `status: "pending"` for
@@ -433,12 +694,27 @@ export async function recordCastRewardsAndProcessOthers(
  * auto-timeout fallback (`autoCompleteReviews`), never at Capture time
  * anymore. Exported so `reservations.ts` can call it from both places.
  *
- * Idempotent by construction: only ever queries entries still `status ==
- * "pending"`; an entry this function has already processed (`confirmed`
- * or `retrying`) is naturally excluded from that query on any later
- * call, so calling this twice for the same reservation (e.g. a
- * hypothetical race between an explicit review and the timeout sweep) is
- * safe - the second call simply finds nothing left to do.
+ * FIX (PROJECT_KNOWLEDGE.md §70, CRITICAL — comprehensive project-wide
+ * review): this function's own doc comment used to claim it was "idempotent
+ * by construction" because it only ever queries entries still `status ==
+ * "pending"` — but that reasoning only holds if a second call starts AFTER
+ * the first call's writes commit. Two calls whose *reads* race (both query
+ * `status=="pending"` before either has written anything back) both see the
+ * SAME pending entries and both proceed to call `stripe.transfers.create`
+ * for the same cast/amount — a real double-payment, not a theoretical one.
+ * Three call sites can genuinely race for the SAME `resId`: `submitReview`
+ * (a multi-cast reservation reviewed twice in quick succession),
+ * `autoCompleteReviews`'s hourly sweep landing mid-review, and
+ * `recordCancellationCastRewards`. No `idempotencyKey` is passed to
+ * `stripe.transfers.create` anywhere in this codebase, so Stripe itself
+ * cannot deduplicate this either.
+ *
+ * Fixed by adding a transactional CLAIM step per entry — `pending` ->
+ * `transferring` — before ever calling Stripe. Only the caller that wins
+ * that transaction's optimistic-concurrency race proceeds; every other
+ * concurrent caller sees the entry already claimed and skips it. This is
+ * the same class of fix already applied to `respondToReservation`
+ * (read-check-write in one transaction) for the identical race shape.
  *
  * Deliberately does NOT throw on a transfer failure - preserves the
  * original code's own resilience pattern (log, mark `retrying`, move on)
@@ -465,6 +741,21 @@ export async function transferPendingCastRewards(resId: string): Promise<void> {
     const castId = entry.user_id;
     const netTransfer = entry.net_transfer || 0;
 
+    // Transactional claim — the ONLY caller that wins this race gets past
+    // this point for this specific entry. Reads the entry fresh (not the
+    // outer query's snapshot, which can be stale by the time this runs).
+    const claimed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(entryDoc.ref);
+      if (!snap.exists || snap.data()?.status !== "pending") {
+        return false;
+      }
+      tx.update(entryDoc.ref, { status: "transferring" });
+      return true;
+    });
+    if (!claimed) {
+      continue;
+    }
+
     if (netTransfer <= 0) {
       // Shouldn't happen - Phase 1 marks a zero/negative-transfer entry
       // "confirmed" directly and never leaves it "pending" - but guard
@@ -478,6 +769,11 @@ export async function transferPendingCastRewards(resId: string): Promise<void> {
     const castData = castDoc.data();
     if (!castData?.stripe_account_id) {
       console.error(`Cast ${castId} has no Stripe account (deferred transfer, res ${resId})`);
+      // Already claimed as "transferring" above — revert to "pending" so a
+      // later call (once the cast has a Stripe account) can still pick
+      // this up, instead of leaving it stuck in a non-terminal, never-
+      // re-queried state.
+      await entryDoc.ref.update({ status: "pending" });
       continue;
     }
 
@@ -531,45 +827,61 @@ async function processAffiliateRewards(
   const transportFee = resData.transport_fee || 0;
 
   for (const castId of resData.cast_ids || []) {
-    const castDoc = await db.collection("users").doc(castId).get();
-    const castData = castDoc.data();
+    // FIX (confirmed live bug, found during comprehensive review): unlike
+    // its sibling loops in this same file (the cast-reward loop above and
+    // the staff-fee loop below), this loop had no per-iteration try/catch
+    // — a transient Firestore error on any one cast's affiliate lookup
+    // aborted every LATER cast in this same reservation's loop, uncaught,
+    // propagating out through `recordCastRewardsAndProcessOthers` to the
+    // webhook handler. Because `processed_events` is deliberately created
+    // BEFORE dispatch (this project's own idempotency design), Stripe's
+    // retry of the same event is treated as a duplicate and skipped — so
+    // the missed affiliate rewards for the remaining casts were never
+    // retried, silently lost rather than delayed.
+    try {
+      const castDoc = await db.collection("users").doc(castId).get();
+      const castData = castDoc.data();
 
-    if (!castData?.referred_by_uid) continue;
+      if (!castData?.referred_by_uid) continue;
 
-    const referrerDoc = await db.collection("users").doc(castData.referred_by_uid).get();
-    const referrerData = referrerDoc.data();
+      const referrerDoc = await db.collection("users").doc(castData.referred_by_uid).get();
+      const referrerData = referrerDoc.data();
 
-    if (!referrerData || !referrerData.is_active || referrerData.is_frozen) continue;
+      if (!referrerData || !referrerData.is_active || referrerData.is_frozen) continue;
 
-    // Mutual-approval hard rule (IMPLEMENTATION_PLAN.md §3.7.12): reward only
-    // accrues for periods where BOTH the referrer and the referred cast are
-    // simultaneously approval_status == "approved". A frozen/not-yet-approved
-    // referrer, or a not-yet-approved referred cast, must not accrue reward
-    // for this reservation.
-    if (referrerData.approval_status !== "approved") continue;
-    if (castData.approval_status !== "approved") continue;
+      // Mutual-approval hard rule (IMPLEMENTATION_PLAN.md §3.7.12): reward
+      // only accrues for periods where BOTH the referrer and the referred
+      // cast are simultaneously approval_status == "approved". A
+      // frozen/not-yet-approved referrer, or a not-yet-approved referred
+      // cast, must not accrue reward for this reservation.
+      if (referrerData.approval_status !== "approved") continue;
+      if (castData.approval_status !== "approved") continue;
 
-    const baseForAffiliate = resData.total_amount - transportFee;
-    const affiliateRate = referrerData.affiliate_rate || config.default_affiliate_rate;
-    const rewardAmount = Math.floor(baseForAffiliate * affiliateRate);
+      const baseForAffiliate = resData.total_amount - transportFee;
+      const affiliateRate = referrerData.affiliate_rate || config.default_affiliate_rate;
+      const rewardAmount = Math.floor(baseForAffiliate * affiliateRate);
 
-    if (rewardAmount <= 0) continue;
+      if (rewardAmount <= 0) continue;
 
-    const now = new Date();
-    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const now = new Date();
+      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-    await db.collection("affiliate_rewards").add({
-      affiliator_uid: castData.referred_by_uid,
-      referred_uid: castId,
-      res_id: resId,
-      base_amount: baseForAffiliate,
-      rate: affiliateRate,
-      reward_amount: rewardAmount,
-      month,
-      status: "pending",
-      paid_at: null,
-      created_at: Timestamp.now(),
-    });
+      await db.collection("affiliate_rewards").add({
+        affiliator_uid: castData.referred_by_uid,
+        referred_uid: castId,
+        res_id: resId,
+        base_amount: baseForAffiliate,
+        rate: affiliateRate,
+        reward_amount: rewardAmount,
+        month,
+        status: "pending",
+        paid_at: null,
+        created_at: Timestamp.now(),
+      });
+    } catch (err) {
+      console.error(`Affiliate reward processing failed for cast ${castId} on reservation ${resId}:`, err);
+      continue;
+    }
   }
 }
 
@@ -707,8 +1019,40 @@ export const cancelPayment = onCall(async (request) => {
 
   const cancelledBy = isAdmin ? "admin" : isGuestCancel ? "guest" : "cast";
 
+  // FIX (confirmed live bug, found during audit): no status guard existed -
+  // calling this on an already-`completed`/`cancelled`/`expired`
+  // reservation attempted to capture/cancel an already-finalized
+  // PaymentIntent. Stripe itself rejects that (caught below, rethrown as
+  // an HttpsError, so it wasn't silently wrong) - but it should be
+  // rejected up front with a clear reason rather than attempted and fail.
+  if (["completed", "cancelled", "expired"].includes(resData.status)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "この予約はすでに終了しているため、キャンセルできません。"
+    );
+  }
+
   try {
-    if (cancelledBy === "guest") {
+    // FIX (confirmed live bug, found during comprehensive review): unlike
+    // `capturePayment` (which guards this exact case), nothing here checked
+    // whether a PaymentIntent was ever actually created before touching
+    // Stripe. `reservations.ts` creates every reservation with
+    // `payment_intent_id: ""` up front — a guest who cancels from
+    // `ReservationDetail` before ever reaching `payment_confirm.dart`
+    // (before any authorization exists) always has `chargedAmount > 0`
+    // (guest cancellation charges 50-100% of `total_amount`, always >0), so
+    // this unconditionally called `stripe.paymentIntents.capture("", ...)`
+    // — Stripe rejects the empty ID, the catch below rethrows a generic
+    // "internal" error, and the guest is stuck unable to cancel a
+    // reservation they never even paid for. No Stripe interaction is
+    // needed in that case — skip straight to the local cancellation
+    // bookkeeping below.
+    const hasPaymentIntent = !!resData.payment_intent_id;
+
+    // Nothing was ever authorized (payment_intent_id is empty) — cancel is
+    // purely local, skip Stripe entirely rather than call it with an empty
+    // ID (below).
+    if (hasPaymentIntent && cancelledBy === "guest") {
       const arrivedStatuses = ["in_progress", "completion_pending", "review_pending", "completed"];
       const scheduledStart: Date = resData.date?.toDate ? resData.date.toDate() : new Date(resData.date);
       const hoursUntilStart = (scheduledStart.getTime() - Date.now()) / (1000 * 60 * 60);
@@ -719,19 +1063,42 @@ export const cancelPayment = onCall(async (request) => {
       const chargedAmount = Math.round(resData.total_amount * guestChargePercent);
 
       if (chargedAmount > 0) {
+        // FIX (confirmed live bug, found during comprehensive review):
+        // capturing this PaymentIntent with no `metadata.type` made
+        // `handlePaymentIntentSucceeded` (stripe-webhooks.ts) treat this
+        // cancellation-fee capture as if it were the MAIN reservation's
+        // normal full-service completion — the exact same
+        // "type"-less-metadata ambiguity already solved for extension/tip
+        // PaymentIntents, just not applied here. Left unfixed, every
+        // guest-charged cancellation would: (1) overwrite the
+        // `status: "cancelled"` this function is about to write (below)
+        // back to `"review_pending"`, letting a review be submitted for a
+        // cancelled reservation; (2) call `recordCastRewardsAndProcessOthers`
+        // using `total_amount` (the FULL original booking amount), paying
+        // the cast a SECOND time on top of `recordCancellationCastRewards`
+        // below — which already correctly pays the cast from `chargedAmount`
+        // at the reduced cancellation-tier rate. Tagging `metadata.type`
+        // makes the webhook's existing `!paymentIntent.metadata?.type`
+        // guard skip that whole block for this capture, exactly like it
+        // already does for extensions/tips. Stripe metadata updates merge
+        // by key, so this does not disturb `res_id`/`guest_uid`/etc.
         await stripe.paymentIntents.capture(resData.payment_intent_id, {
           amount_to_capture: chargedAmount,
+          metadata: { type: "cancellation" },
         });
         await recordCancellationCastRewards(res_id, resData, chargedAmount, castRewardPercent);
       } else {
         await stripe.paymentIntents.cancel(resData.payment_intent_id);
       }
-    } else {
+    } else if (hasPaymentIntent) {
       // cast- or admin-caused: full release/refund, no guest charge.
       await stripe.paymentIntents.cancel(resData.payment_intent_id);
     }
 
-    if (cancelledBy === "cast") {
+    if (cancelledBy === "cast" && hasPaymentIntent) {
+      // Same `hasPaymentIntent` guard as above — a reservation with no
+      // PaymentIntent was never actually charged by Stripe, so there's no
+      // real Stripe fee to pass on to the cast as debt.
       const stripeFeeEstimate = Math.ceil(resData.total_amount * 0.036);
 
       for (const castId of resData.cast_ids || []) {
@@ -756,24 +1123,28 @@ export const cancelPayment = onCall(async (request) => {
       }
     }
 
-    await db.collection("reservations").doc(res_id).update({
-      status: "cancelled",
-      cancel_reason: cancel_reason || "",
-      cancelled_by: cancelledBy,
-      updated_at: Timestamp.now(),
+    // FIX (PROJECT_KNOWLEDGE.md §68): this used to query the ENTIRE
+    // schedule_slots collection for status=="reserved" with no res_id/date
+    // scoping at all, then filter client-side by cast_ids.includes(...) —
+    // meaning cancelling ONE reservation would incorrectly release EVERY
+    // reserved slot belonging to that cast, including ones from a
+    // completely different, still-valid reservation. Dormant as long as
+    // nothing ever set status:"reserved"; live and dangerous now that
+    // Authorize-time locking (stripe-webhooks.ts) does. Replaced with a
+    // single transaction, scoped precisely by res_id via
+    // reservedSlotsQuery, combined with the reservation status write so a
+    // release is never observed as separate from the cancellation that
+    // caused it (an orphaned "reserved" slot has no self-healing path).
+    await db.runTransaction(async (tx) => {
+      const slotsSnap = await tx.get(reservedSlotsQuery(res_id));
+      tx.update(db.collection("reservations").doc(res_id), {
+        status: "cancelled",
+        cancel_reason: cancel_reason || "",
+        cancelled_by: cancelledBy,
+        updated_at: Timestamp.now(),
+      });
+      slotsSnap.forEach((slot) => tx.delete(slot.ref));
     });
-
-    const slots = await db
-      .collection("schedule_slots")
-      .where("status", "==", "reserved")
-      .get();
-    const batch = db.batch();
-    slots.forEach((slot) => {
-      if (resData.cast_ids?.includes(slot.data().cast_id)) {
-        batch.update(slot.ref, { status: "available" });
-      }
-    });
-    await batch.commit();
 
     const chatRooms = await db
       .collection("chat_rooms")
@@ -798,10 +1169,19 @@ export const createExtensionPayment = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "認証が必要です。");
   }
 
-  const { res_id, amount, duration_minutes } = request.data;
+  const { res_id, duration_minutes } = request.data;
 
-  if (!res_id || !amount || amount <= 0) {
-    throw new HttpsError("invalid-argument", "予約IDと金額が必要です。");
+  if (!res_id || !duration_minutes || duration_minutes <= 0) {
+    throw new HttpsError("invalid-argument", "予約IDと延長時間が必要です。");
+  }
+  // FIX (PROJECT_KNOWLEDGE.md §70): the pricing formula below rounds to the
+  // nearest 30-min BLOCK for the charge, while the raw, unrounded
+  // duration_minutes is what actually gets added to the reservation — a
+  // misaligned value (e.g. 44) lets a direct-callable caller add real
+  // extra minutes while only being charged for the rounded-down block.
+  // Same validation already added to createReservation (§68).
+  if (duration_minutes % 30 !== 0) {
+    throw new HttpsError("invalid-argument", "延長時間は30分単位で指定してください。");
   }
 
   // `getSystemConfig()`'s SYSTEM_DEFAULTS key-casing bug (see config.ts) is
@@ -818,6 +1198,25 @@ export const createExtensionPayment = onCall(async (request) => {
 
   const resData = resDoc.data()!;
 
+  // FIX (confirmed live bug, found on this same fix's own review pass -
+  // the exact same vulnerability class `createPaymentIntent`'s own
+  // `transport_fee` fix above already closed): `amount` used to come
+  // straight from `request.data` with only an ">0" check - never validated
+  // against `duration_minutes` at all. A client (malicious, or just a UI
+  // bug feeding a stale/mismatched default - both real risks) could
+  // request 5 hours of extension for literally ¥1. Server-computed here
+  // instead, from `duration_minutes` and the RESERVATION's own real
+  // `time_slot` (never trusted from the client either) - mirrors
+  // `calculateExtensionPrice`'s exact client-side formula (same rate
+  // constants) so what the guest sees in the app matches what they're
+  // actually charged.
+  const nightSlots: string[] = config.night_time_slots || ["3部", "4部"];
+  const isNightSlot = nightSlots.includes(resData.time_slot);
+  const ratePerThirtyMin = isNightSlot ? 3000 : 2500;
+  const computedBase = Math.round(duration_minutes / 30) * ratePerThirtyMin;
+  const computedTax = Math.round(computedBase * 0.1);
+  const amount = computedBase + computedTax;
+
   // Ownership check - this callable had none at all: it fetched the
   // reservation (above, for the extension-limit checks) but never verified
   // the caller actually owns it before mutating extension_count/
@@ -828,20 +1227,65 @@ export const createExtensionPayment = onCall(async (request) => {
     throw new HttpsError("permission-denied", "権限がありません。");
   }
 
-  if ((resData.extension_count || 0) >= extensionLimit) {
+  // FIX (confirmed live bug, found during audit): no status guard existed -
+  // a guest could purchase (and, until captureAuthorizedExtensions above,
+  // never even be charged for) an extension on a reservation that's
+  // `cancelled`/`completed`/not yet `in_progress`. Extensions only make
+  // sense while the interaction is actively happening.
+  if (resData.status !== "in_progress") {
     throw new HttpsError(
       "failed-precondition",
-      `延長は最大${extensionLimit}回までです。`
+      "この予約は延長できる状態ではありません。"
     );
   }
 
-  const newTotalMinutes = (resData.duration_minutes || 0) + duration_minutes;
-  if (newTotalMinutes > maxTotalHours * 60) {
-    throw new HttpsError(
-      "failed-precondition",
-      `総時間は最大${maxTotalHours}時間までです。`
-    );
-  }
+  // FIX (PROJECT_KNOWLEDGE.md §70, HIGH — comprehensive project-wide
+  // review): the extension_count/duration_minutes cap checks above read
+  // `resData` from a plain, non-transactional `.get()` at the top of this
+  // function, and the final write below was a PLAIN OVERWRITE
+  // (`duration_minutes: newTotalMinutes`, computed from that same stale
+  // read) rather than an atomic increment. Two concurrent extend calls
+  // (double-tap, or a client retry) could both pass the cap check against
+  // the same stale extension_count — bypassing extension_limit_count — and
+  // whichever write landed LAST would silently overwrite the other's
+  // duration_minutes contribution, even though BOTH extension PaymentIntents
+  // were genuinely created and both get captured for real money later by
+  // captureAuthorizedExtensions (which reads the extensions subcollection
+  // independently of this field). Net effect: the guest could be charged
+  // for more extension time than duration_minutes ever reflects.
+  //
+  // Fixed by claiming capacity — re-checking status/cap against a FRESH
+  // read and atomically writing the increment — inside a transaction,
+  // BEFORE ever touching Stripe (a Firestore transaction body can retry on
+  // contention, so a non-idempotent external call like
+  // stripe.paymentIntents.create must never live inside one). If Stripe
+  // then fails, the claim is explicitly reverted below so a failed
+  // extension attempt never leaves extension_count/duration_minutes
+  // inflated with nothing behind it.
+  const { newTotalMinutes, extensionNumber } = await db.runTransaction(async (tx) => {
+    const freshSnap = await tx.get(db.collection("reservations").doc(res_id));
+    if (!freshSnap.exists) {
+      throw new HttpsError("not-found", "予約が見つかりません。");
+    }
+    const freshData = freshSnap.data()!;
+    if (freshData.status !== "in_progress") {
+      throw new HttpsError("failed-precondition", "この予約は延長できる状態ではありません。");
+    }
+    const currentExtensionCount = freshData.extension_count || 0;
+    if (currentExtensionCount >= extensionLimit) {
+      throw new HttpsError("failed-precondition", `延長は最大${extensionLimit}回までです。`);
+    }
+    const freshNewTotalMinutes = (freshData.duration_minutes || 0) + duration_minutes;
+    if (freshNewTotalMinutes > maxTotalHours * 60) {
+      throw new HttpsError("failed-precondition", `総時間は最大${maxTotalHours}時間までです。`);
+    }
+    tx.update(freshSnap.ref, {
+      extension_count: currentExtensionCount + 1,
+      duration_minutes: freshNewTotalMinutes,
+      updated_at: Timestamp.now(),
+    });
+    return { newTotalMinutes: freshNewTotalMinutes, extensionNumber: currentExtensionCount + 1 };
+  });
 
   const userDoc = await db.collection("users").doc(request.auth.uid).get();
   const userData = userDoc.data();
@@ -856,7 +1300,7 @@ export const createExtensionPayment = onCall(async (request) => {
       metadata: {
         res_id,
         type: "extension",
-        extension_number: ((resData.extension_count || 0) + 1).toString(),
+        extension_number: extensionNumber.toString(),
         guest_uid: request.auth.uid,
       },
     });
@@ -876,12 +1320,6 @@ export const createExtensionPayment = onCall(async (request) => {
       created_at: Timestamp.now(),
     });
 
-    await db.collection("reservations").doc(res_id).update({
-      extension_count: FieldValue.increment(1),
-      duration_minutes: newTotalMinutes,
-      updated_at: Timestamp.now(),
-    });
-
     return {
       success: true,
       client_secret: paymentIntent.client_secret,
@@ -890,8 +1328,98 @@ export const createExtensionPayment = onCall(async (request) => {
     };
   } catch (err: any) {
     console.error("Extension payment creation failed:", err);
+    // Revert the capacity claim made above — no PaymentIntent (and/or no
+    // extension doc) actually exists for this attempt, so leaving
+    // extension_count/duration_minutes incremented would overstate both
+    // with nothing real behind them.
+    await db.collection("reservations").doc(res_id).update({
+      extension_count: FieldValue.increment(-1),
+      duration_minutes: FieldValue.increment(-duration_minutes),
+      updated_at: Timestamp.now(),
+    });
     throw new HttpsError("internal", `延長決済の作成に失敗しました: ${err.message}`);
   }
+});
+
+/**
+ * FIX (confirmed live bug, found during a review pass on the extension_payment.dart
+ * rebuild): `createExtensionPayment` above writes `extension_count`/
+ * `duration_minutes` onto the reservation and creates the `extensions`
+ * subdoc as `status: "authorized"` IMMEDIATELY on PaymentIntent creation -
+ * before the guest has actually completed anything in the Stripe Payment
+ * Sheet (`confirmStripePayment`, called separately from the client right
+ * after this). If the guest cancels that sheet or their card is declined,
+ * nothing ever rolled this back: the reservation permanently shows extra
+ * duration and one consumed extension slot (of the max-3 cap) for a
+ * payment that never happened - a guest whose card fails 3 times would
+ * permanently exhaust their extension cap without ever successfully
+ * extending once. Called from the client's own payment-failure branch
+ * (mirrors `confirmStripePayment`/`isPaymentSuccess`'s existing pattern -
+ * the client already knows locally whether payment succeeded, this just
+ * gives it a way to report "it didn't" back to the two pieces of state
+ * that were optimistically written).
+ *
+ * Transactional and defensive: re-reads the extension doc's own
+ * `duration_minutes` (not a guessed/recomputed value) and only decrements
+ * if its status is STILL `"authorized"` - if a race means it was already
+ * captured (`captureAuthorizedExtensions`) by the time this runs, this is a
+ * no-op rather than incorrectly reversing a real, successful payment.
+ * Cancels the abandoned Stripe PaymentIntent best-effort (not fatal if it
+ * fails - the intent will simply expire on Stripe's side eventually
+ * either way).
+ */
+export const cancelExtensionPayment = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const { res_id, extension_id } = request.data;
+  if (!res_id || !extension_id) {
+    throw new HttpsError("invalid-argument", "予約IDと延長IDが必要です。");
+  }
+
+  const resRef = db.collection("reservations").doc(res_id);
+  const extRef = resRef.collection("extensions").doc(extension_id);
+
+  const resDoc = await resRef.get();
+  if (!resDoc.exists) {
+    throw new HttpsError("not-found", "予約が見つかりません。");
+  }
+  if (resDoc.data()?.guest_id !== request.auth.uid) {
+    throw new HttpsError("permission-denied", "権限がありません。");
+  }
+
+  let paymentIntentToCancelId: string | null = null;
+
+  await db.runTransaction(async (tx) => {
+    const extDoc = await tx.get(extRef);
+    if (!extDoc.exists) return;
+    const extData = extDoc.data()!;
+    if (extData.status !== "authorized") return;
+
+    const freshResDoc = await tx.get(resRef);
+    const currentDuration = freshResDoc.data()?.duration_minutes || 0;
+    const currentCount = freshResDoc.data()?.extension_count || 0;
+
+    tx.update(resRef, {
+      duration_minutes: Math.max(0, currentDuration - (extData.duration_minutes || 0)),
+      extension_count: Math.max(0, currentCount - 1),
+      updated_at: Timestamp.now(),
+    });
+    tx.update(extRef, { status: "cancelled", updated_at: Timestamp.now() });
+
+    paymentIntentToCancelId = extData.payment_intent_id || null;
+  });
+
+  if (paymentIntentToCancelId) {
+    try {
+      await stripe.paymentIntents.cancel(paymentIntentToCancelId);
+    } catch (err) {
+      console.error(`Failed to cancel abandoned extension PaymentIntent ${paymentIntentToCancelId}:`, err);
+    }
+  }
+
+  return { success: true };
 });
 
 /**
@@ -907,6 +1435,44 @@ export const processTip = onCall(async (request) => {
   if (!cast_id || !amount || amount <= 0) {
     throw new HttpsError("invalid-argument", "キャストIDと金額が必要です。");
   }
+  // FIX (PROJECT_KNOWLEDGE.md §70, CRITICAL — comprehensive project-wide
+  // review): this used to call `stripe.paymentIntents.create({..., confirm:
+  // true, automatic_payment_methods: {enabled: true}, ...})` with NO
+  // `payment_method` ever supplied, and no `default_payment_method` is set
+  // on any customer anywhere in this codebase (createSetupIntent, the only
+  // "save a card" path, is itself confirmed unreachable from any UI). Per
+  // Stripe's own API contract, confirming with no resolvable payment
+  // method fails outright — this feature has never been able to charge
+  // anyone; every real tip attempt failed at the Stripe API and was
+  // swallowed by the client's own catch-and-return-false wrapper, with the
+  // guest seeing only a generic failure Snackbar.
+  //
+  // Fixed by requiring `res_id` (already what the one real UI entry point,
+  // ReservationDetail, always sends) and reusing the PAYMENT METHOD from
+  // that reservation's own already-completed PaymentIntent — the guest
+  // already went through a real Payment Sheet confirmation once for this
+  // reservation, so charging the tip to that same card requires no new
+  // client-side UI. `off_session: true` acknowledges to Stripe that the
+  // customer isn't actively present in a payment flow right now (a
+  // legitimate, documented pattern for "charge the same card used for the
+  // original booking").
+  if (!res_id) {
+    throw new HttpsError("invalid-argument", "予約IDが必要です。");
+  }
+  const resDoc = await db.collection("reservations").doc(res_id).get();
+  if (!resDoc.exists) {
+    throw new HttpsError("not-found", "予約が見つかりません。");
+  }
+  const resData = resDoc.data()!;
+  if (resData.guest_id !== request.auth.uid) {
+    throw new HttpsError("permission-denied", "権限がありません。");
+  }
+  if (!resData.payment_intent_id) {
+    throw new HttpsError(
+      "failed-precondition",
+      "この予約の決済情報が見つからないため、チップを送れません。"
+    );
+  }
 
   const userDoc = await db.collection("users").doc(request.auth.uid).get();
   const castDoc = await db.collection("users").doc(cast_id).get();
@@ -916,12 +1482,25 @@ export const processTip = onCall(async (request) => {
   }
 
   try {
+    const sourcePaymentIntent = await stripe.paymentIntents.retrieve(resData.payment_intent_id);
+    const paymentMethodId =
+      typeof sourcePaymentIntent.payment_method === "string"
+        ? sourcePaymentIntent.payment_method
+        : sourcePaymentIntent.payment_method?.id;
+    if (!paymentMethodId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "この予約の決済方法を取得できないため、チップを送れません。"
+      );
+    }
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency: "jpy",
       customer: userDoc.data()?.stripe_customer_id,
+      payment_method: paymentMethodId,
+      off_session: true,
       confirm: true,
-      automatic_payment_methods: { enabled: true, allow_redirects: "never" },
       metadata: {
         res_id: res_id || "",
         type: "tip",
@@ -966,6 +1545,12 @@ export const processTip = onCall(async (request) => {
     return { success: true, message: "チップが送られました。" };
   } catch (err: any) {
     console.error("Tip payment failed:", err);
+    // Preserve a deliberately-thrown HttpsError's own code (e.g. the
+    // failed-precondition above) instead of collapsing every failure —
+    // including our own precondition checks — into a generic "internal".
+    if (err instanceof HttpsError) {
+      throw err;
+    }
     throw new HttpsError("internal", `チップの送信に失敗しました: ${err.message}`);
   }
 });

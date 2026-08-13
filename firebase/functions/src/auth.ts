@@ -4,7 +4,7 @@
  */
 import * as functionsV1 from "firebase-functions/v1";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { db, auth, stripe, FieldValue, Timestamp, getSystemConfig } from "./config";
+import { db, auth, stripe, FieldValue, Timestamp, getSystemConfig, isAllowedKycDocUrl } from "./config";
 
 /**
  * Trigger: When a new Firebase Auth user is created
@@ -93,9 +93,42 @@ export const completeOnboarding = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "アカウント種別が無効です。");
   }
 
+  // FIX (PROJECT_KNOWLEDGE.md §70, HIGH — comprehensive project-wide
+  // review): this had no guard against being called more than once, and
+  // never touched approval_status regardless of what it was before. An
+  // already-onboarded-and-approved guest could call this again with
+  // account_type:"cast" and instantly satisfy every
+  // account_type==="cast" && approval_status==="approved" server check
+  // (reservations.ts, work-posts.ts, getDiscoveryCasts) — becoming a
+  // bookable, discoverable "cast" with zero cast-specific KYC review ever
+  // submitted or approved. No spec text anywhere describes account-type
+  // switching as a supported feature (checked IMPLEMENTATION_PLAN.md),
+  // so onboarding is treated as one-time: once account_type is set,
+  // calling this again is rejected outright rather than guessing at a
+  // "re-review" flow this app doesn't otherwise have.
+  const existingDoc = await db.collection("users").doc(uid).get();
+  if (existingDoc.data()?.account_type) {
+    throw new HttpsError(
+      "failed-precondition",
+      "オンボーディングはすでに完了しています。"
+    );
+  }
+
   const birthDate = new Date(birth_date);
   const now = new Date();
-  const age = now.getFullYear() - birthDate.getFullYear();
+  // FIX (confirmed live bug, found during audit): age was computed as a
+  // bare year subtraction with no month/day adjustment - overcounts age by
+  // 1 for anyone whose birthday hasn't occurred yet this calendar year
+  // relative to signup date (e.g. born 2000-12-25, signing up 2026-01-15 ->
+  // this used to compute 26, the correct age is still 25). Not an edge
+  // case - wrong for roughly half of all signups depending on birth-date
+  // distribution, and directly feeds `age_group`, a real search/filter
+  // field.
+  let age = now.getFullYear() - birthDate.getFullYear();
+  const hasHadBirthdayThisYear =
+    now.getMonth() > birthDate.getMonth() ||
+    (now.getMonth() === birthDate.getMonth() && now.getDate() >= birthDate.getDate());
+  if (!hasHadBirthdayThisYear) age--;
   let ageGroup = "";
   if (age < 20) ageGroup = "20歳未満";
   else if (age < 25) ageGroup = "20代前半";
@@ -396,11 +429,49 @@ export const submitKYC = onCall(async (request) => {
   if (!doc_url || !selfie_url) {
     throw new HttpsError("invalid-argument", "書類と顔写真が必要です。");
   }
+  // FIX (PROJECT_KNOWLEDGE.md §71 — comprehensive project-wide review):
+  // this trusted doc_url/selfie_url with no validation at all — the exact
+  // gap `adminApproveKYC`'s own downstream `fetch(docUrl)` was already
+  // hardened against (a confirmed SSRF vulnerability). Validating here too,
+  // at the point these URLs are actually WRITTEN, is defense in depth
+  // beyond just the one function that happens to fetch them today — the
+  // real flow already only ever uploads through Firebase Storage
+  // (pickAndUploadImage, dsl/edit.dart), so nothing legitimate is
+  // rejected.
+  if (!isAllowedKycDocUrl(doc_url) || !isAllowedKycDocUrl(selfie_url)) {
+    throw new HttpsError("invalid-argument", "書類のURLが不正です。");
+  }
 
+  // FIX (PROJECT_KNOWLEDGE.md §70, HIGH — comprehensive project-wide
+  // review): this accepted a submission from ANY authenticated caller
+  // regardless of account_type — including a brand-new signup that hasn't
+  // even chosen guest/cast yet (account_type still ""). An admin approving
+  // what looks like an ordinary pending KYC submission (adminApproveKYC)
+  // has no signal in the data that the applicant hasn't completed
+  // onboarding at all. Require account_type to already be set (via
+  // completeOnboarding) first — matches the natural signup order
+  // (onboard → KYC → review), not a new product rule.
+  const userDoc = await db.collection("users").doc(uid).get();
+  if (!userDoc.data()?.account_type) {
+    throw new HttpsError(
+      "failed-precondition",
+      "先にアカウント情報の登録を完了してください。"
+    );
+  }
+
+  // FIX (PROJECT_KNOWLEDGE.md §71): this only ever set kyc_status, never
+  // approval_status — a previously-approved user resubmitting KYC (rare
+  // today, but exactly what task #132/#134's resubmission flow enables)
+  // would stay approval_status:"approved" throughout, still passing every
+  // approval_status==="approved" server check while nominally "back under
+  // review." onUserCreated already defaults approval_status to "pending"
+  // at signup, so this is a harmless no-op on a genuinely first-time
+  // submission and the correct corrective action on a resubmission.
   await db.collection("users").doc(uid).update({
     kyc_doc_url: doc_url,
     kyc_selfie_url: selfie_url,
     kyc_status: "submitted",
+    approval_status: "pending",
     updated_at: Timestamp.now(),
   });
 
@@ -456,6 +527,46 @@ export const updateProfile = onCall(async (request) => {
 });
 
 /**
+ * Callable: persist the caller's Firebase-Auth-VERIFIED phone number.
+ * 確認済み電話番号をFirestoreに反映する。
+ *
+ * FIX (PROJECT_KNOWLEDGE.md §71 — comprehensive project-wide review):
+ * phone verification (sendPhoneVerificationCode/verifyPhoneCodeAndLink,
+ * dsl/edit.dart) is real Firebase Phone Auth, but the verified number was
+ * never persisted to `users.phone` anywhere — functionally decorative from
+ * the server's perspective, no queryable trace of it existed.
+ *
+ * Deliberately does NOT accept the phone number as a plain client
+ * parameter (unlike `updateProfile`'s self-serve fields) — that would let
+ * a caller claim an arbitrary, unverified number under the same field this
+ * function's whole purpose is to record as VERIFIED. Instead reads
+ * `request.auth.token.phone_number`, the custom claim Firebase Auth itself
+ * adds to the ID token once `linkWithCredential` succeeds and the token is
+ * refreshed — the same trust model `completeOnboarding` already uses for
+ * `request.auth.token.email`. If the claim isn't present (client didn't
+ * force a token refresh after linking, or the caller has no linked phone
+ * at all), this is a clean no-op rather than an error — a stale/absent
+ * claim isn't the caller's fault and shouldn't surface as a failure.
+ */
+export const syncVerifiedPhone = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const verifiedPhone = request.auth.token.phone_number;
+  if (!verifiedPhone || typeof verifiedPhone !== "string") {
+    return { success: true, synced: false };
+  }
+
+  await db.collection("users").doc(request.auth.uid).update({
+    phone: verifiedPhone,
+    updated_at: Timestamp.now(),
+  });
+
+  return { success: true, synced: true };
+});
+
+/**
  * Callable: Update last login timestamp
  * 最終ログイン日時更新
  */
@@ -496,6 +607,67 @@ export const blockUser = onCall(async (request) => {
 });
 
 /**
+ * Callable: Unblock a user
+ * ブロック解除
+ */
+export const unblockUser = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const { target_uid } = request.data;
+  if (!target_uid) {
+    throw new HttpsError("invalid-argument", "対象のユーザーIDが必要です。");
+  }
+
+  await db.collection("users").doc(request.auth.uid).update({
+    blocked_users: FieldValue.arrayRemove(target_uid),
+    updated_at: Timestamp.now(),
+  });
+
+  return { success: true, message: "ブロックを解除しました。" };
+});
+
+/**
+ * Callable: Get the caller's own blocked-users list with resolved details
+ * ブロックリスト（ニックネーム・写真解決済み）
+ *
+ * `blocked_users` lives on the caller's own doc (self-readable directly by
+ * the client per firestore.rules), but resolving each blocked uid's own
+ * nickname/photo requires reading OTHER users' docs, which the same
+ * owner-only rule blocks — hence a callable, using the Admin SDK to bypass
+ * it. Returns the same `{items: [...]}` pipe-joined-string shape as
+ * `getDiscoveryCasts`, for the same reason: this project's DSL client side
+ * already has a generic `splitFieldFn` extractor built around that exact
+ * convention.
+ */
+export const getBlockedUsersDetails = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const ownDoc = await db.collection("users").doc(request.auth.uid).get();
+  const blockedIds: string[] = ownDoc.data()?.blocked_users || [];
+
+  const docs = await Promise.all(
+    blockedIds.map((id) => db.collection("users").doc(id).get())
+  );
+
+  const items = docs
+    // A blocked account may since have been deleted — skip it rather than
+    // crash the whole list.
+    .filter((d) => d.exists)
+    .map((d) => {
+      const data = d.data()!;
+      const nickname = (data.nickname || "").toString().replaceAll("|||", "");
+      const photoUrl = (data.profile_image_url || "").toString().replaceAll("|||", "");
+      return `${d.id}|||${nickname}|||${photoUrl}`;
+    });
+
+  return { success: true, items };
+});
+
+/**
  * Callable: Report a user
  * ユーザー通報
  */
@@ -505,13 +677,50 @@ export const reportUser = onCall(async (request) => {
   }
 
   const { reported_id, reason, res_id, chat_log_ref } = request.data;
+  const reporterId = request.auth.uid;
 
   if (!reported_id || !reason) {
     throw new HttpsError("invalid-argument", "通報対象と理由が必要です。");
   }
 
+  // FIX (PROJECT_KNOWLEDGE.md §70, MEDIUM — comprehensive project-wide
+  // review): `res_id` used to be taken verbatim from client input with no
+  // check that the reporter (or the reported user) was actually a
+  // participant of that reservation. `adminGetReportChatLog` trusts this
+  // `res_id` to pull up a chat log as "evidence" — a caller could attach
+  // a res_id from a reservation they were never part of, surfacing an
+  // unrelated (and potentially damaging) chat log as evidence against the
+  // reported user during admin review.
+  if (res_id) {
+    const resDoc = await db.collection("reservations").doc(res_id).get();
+    const resData = resDoc.data();
+    const isReporterParticipant =
+      !!resData && (resData.guest_id === reporterId || resData.cast_ids?.includes(reporterId));
+    if (!isReporterParticipant) {
+      throw new HttpsError("permission-denied", "この予約に関する通報は行えません。");
+    }
+  }
+
+  // FIX (PROJECT_KNOWLEDGE.md §70): no dedupe/rate-limit existed at all —
+  // unlike submitReview's deterministic-doc-id dedupe, this used a plain
+  // `.add()` with no scoping, so a user could spam-file unlimited reports
+  // against the same target, flooding adminGetReports' pending queue.
+  const existingPending = await db
+    .collection("reports")
+    .where("reporter_id", "==", reporterId)
+    .where("reported_id", "==", reported_id)
+    .where("status", "==", "pending")
+    .limit(1)
+    .get();
+  if (!existingPending.empty) {
+    throw new HttpsError(
+      "failed-precondition",
+      "このユーザーへの通報はすでに受付済みです。管理者の対応をお待ちください。"
+    );
+  }
+
   await db.collection("reports").add({
-    reporter_id: request.auth.uid,
+    reporter_id: reporterId,
     reported_id,
     res_id: res_id || "",
     reason,
@@ -522,6 +731,33 @@ export const reportUser = onCall(async (request) => {
   });
 
   return { success: true, message: "通報を受け付けました。" };
+});
+
+/**
+ * Callable: Submit a general inquiry to the operator
+ * お問い合わせ（運営への一般問い合わせ、reportUserとは別 - 特定ユーザーの通報ではない）
+ */
+export const submitInquiry = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const { subject, message } = request.data;
+
+  if (!subject || !message) {
+    throw new HttpsError("invalid-argument", "件名と内容が必要です。");
+  }
+
+  await db.collection("inquiries").add({
+    uid: request.auth.uid,
+    subject,
+    message,
+    status: "pending",
+    admin_note: "",
+    created_at: Timestamp.now(),
+  });
+
+  return { success: true, message: "お問い合わせを受け付けました。" };
 });
 
 /**
@@ -604,6 +840,14 @@ export const requestWithdrawal = onCall(async (request) => {
   });
 
   await auth.updateUser(uid, { disabled: true });
+  // FIX (PROJECT_KNOWLEDGE.md §70 — comprehensive project-wide review):
+  // `disabled: true` only blocks NEW sign-ins — an already-issued ID token
+  // is still accepted by every onCall function (none check revocation)
+  // until it naturally expires, up to ~1 hour. A user who just withdrew
+  // could keep calling authenticated endpoints for up to an hour
+  // afterward. `revokeRefreshTokens` invalidates existing tokens
+  // immediately (the client's next request with that token is rejected).
+  await auth.revokeRefreshTokens(uid);
 
   return { success: true, message: "退会処理が完了しました。" };
 });
@@ -704,11 +948,28 @@ export const getDiscoveryCasts = onCall(async (request) => {
     return r * c;
   };
 
+  // FIX (confirmed live bug, found during audit): `is_active` was never
+  // checked - a cast who withdrew from the platform (`requestWithdrawal`,
+  // this file) sets `is_active: false` but never touches `approval_status`
+  // (still "approved"), so a departed cast remained fully visible and
+  // bookable in Home discovery indefinitely. Excluded the same way
+  // `is_frozen`/blocked-users already are, in-memory for consistency with
+  // the existing pattern here.
+  // FIX (PROJECT_KNOWLEDGE.md §70 — comprehensive project-wide review):
+  // `is_stripe_restricted` was built specifically for this exclusion
+  // (IMPLEMENTATION_PLAN.md §6 defect #4 / §3.9.4: "an unverified/Restricted
+  // cast must be excluded from search results in real time") — written by
+  // submitConnectOnboarding and kept live by stripe-webhooks.ts's
+  // handleAccountUpdated — but was never actually wired into this filter.
+  // A cast whose Stripe account later becomes restricted (failed
+  // requirements, compliance hold) stayed fully visible and bookable.
   const rows = snapshot.docs
     .filter(
       (d) =>
         d.id !== uid &&
         d.data().is_frozen !== true &&
+        d.data().is_active !== false &&
+        d.data().is_stripe_restricted !== true &&
         !blockedByViewer.includes(d.id)
     )
     .map((d) => {

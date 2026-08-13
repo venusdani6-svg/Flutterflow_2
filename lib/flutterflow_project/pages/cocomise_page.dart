@@ -19,6 +19,24 @@ final class CocomisePageParams {
 
 final class CocomisePageState {
   const CocomisePageState();
+  ffai.ProjectStateFieldHandle get activeOnly =>
+      const ffai.ProjectStateFieldHandle(
+        name: "activeOnly",
+        key: "vzd5cenz",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get selectedGenre =>
+      const ffai.ProjectStateFieldHandle(
+        name: "selectedGenre",
+        key: "judxim3o",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get shops =>
+      const ffai.ProjectStateFieldHandle(
+        name: "shops",
+        key: "26kw6tfu",
+        typeName: "List<Document<cocoten_shops>>",
+      );
 }
 
 abstract final class CocomisePageWidgets {
@@ -393,9 +411,44 @@ abstract final class CocomisePageWidgets {
                             path: "CocomisePage.body[0].children[0].children[0].children[0].children[1]",
                           ),
                           ffai.ProjectWidgetHandle(
-                            key: "SwitchListTile_zcyxh0t9",
-                            type: "SwitchListTile",
+                            key: "Row_8yyew9l5",
+                            type: "Row",
                             path: "CocomisePage.body[0].children[0].children[0].children[0].children[2]",
+                            name: "CocomiseOpenOnlyRow",
+                            children: <ffai.ProjectWidgetHandle>[
+                              ffai.ProjectWidgetHandle(
+                                key: "Column_a7qh1c04",
+                                type: "Column",
+                                path: "CocomisePage.body[0].children[0].children[0].children[0].children[2].children[0]",
+                                name: "Column",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Text_bdh6maz2",
+                                    type: "Text",
+                                    path: "CocomisePage.body[0].children[0].children[0].children[0].children[2].children[0].children[0]",
+                                    name: "Text",
+                                    text: "オープン",
+                                  ),
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Text_o7envbep",
+                                    type: "Text",
+                                    path: "CocomisePage.body[0].children[0].children[0].children[0].children[2].children[0].children[1]",
+                                    name: "Text",
+                                    text: "開店中のお店表示",
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Checkbox_uxda3bmb",
+                                type: "Checkbox",
+                                path: "CocomisePage.body[0].children[0].children[0].children[0].children[2].children[1]",
+                                name: "CocomiseOpenOnlyCheckbox",
+                                triggers: const <String>[
+                                  "ON_TOGGLE_ON",
+                                  "ON_TOGGLE_OFF",
+                                ],
+                              ),
+                            ],
                           ),
                           ffai.ProjectWidgetHandle(
                             key: "Divider_0vbhp74d",
@@ -411,6 +464,9 @@ abstract final class CocomisePageWidgets {
                                 key: "Container_0wh21mpc",
                                 type: "Container",
                                 path: "CocomisePage.body[0].children[0].children[0].children[0].children[4].children[0]",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_s8djrtcv",
@@ -424,6 +480,9 @@ abstract final class CocomisePageWidgets {
                                 key: "Container_woiyd378",
                                 type: "Container",
                                 path: "CocomisePage.body[0].children[0].children[0].children[0].children[4].children[1]",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_owam0vxv",
@@ -437,6 +496,9 @@ abstract final class CocomisePageWidgets {
                                 key: "Container_i8nod4uz",
                                 type: "Container",
                                 path: "CocomisePage.body[0].children[0].children[0].children[0].children[4].children[2]",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_mxfma42p",
@@ -450,6 +512,9 @@ abstract final class CocomisePageWidgets {
                                 key: "Container_z0t09uyq",
                                 type: "Container",
                                 path: "CocomisePage.body[0].children[0].children[0].children[0].children[4].children[3]",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_s56uttsr",
@@ -463,6 +528,9 @@ abstract final class CocomisePageWidgets {
                                 key: "Container_40qrlyom",
                                 type: "Container",
                                 path: "CocomisePage.body[0].children[0].children[0].children[0].children[4].children[4]",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_a7yt3dgw",
@@ -476,6 +544,9 @@ abstract final class CocomisePageWidgets {
                                 key: "Container_09intull",
                                 type: "Container",
                                 path: "CocomisePage.body[0].children[0].children[0].children[0].children[4].children[5]",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_6mtzaw9e",
@@ -489,6 +560,9 @@ abstract final class CocomisePageWidgets {
                                 key: "Container_2wq3wtxf",
                                 type: "Container",
                                 path: "CocomisePage.body[0].children[0].children[0].children[0].children[4].children[6]",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_65tbdor3",
@@ -511,193 +585,51 @@ abstract final class CocomisePageWidgets {
                             path: "CocomisePage.body[0].children[0].children[0].children[0].children[6]",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "GridView_3dnvgyi6",
+                                key: "GridView_6b6o7xe4",
                                 type: "GridView",
                                 path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0]",
+                                name: "CocotenShopGrid",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Container_gjm7b6a0",
+                                    key: "Container_fe38reic",
                                     type: "Container",
                                     path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0]",
-                                    children: <ffai.ProjectWidgetHandle>[
-                                      ffai.ProjectWidgetHandle(
-                                        key: "Stack_2l83v3v3",
-                                        type: "Stack",
-                                        path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0]",
-                                        children: <ffai.ProjectWidgetHandle>[
-                                          ffai.ProjectWidgetHandle(
-                                            key: "Image_t4egp1od",
-                                            type: "Image",
-                                            path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[0]",
-                                          ),
-                                          ffai.ProjectWidgetHandle(
-                                            key: "Column_u0yvki0q",
-                                            type: "Column",
-                                            path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1]",
-                                            children: <ffai.ProjectWidgetHandle>[
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Row_1xk4hdmo",
-                                                type: "Row",
-                                                path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1].children[0]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_88xvnazv",
-                                                    type: "Icon",
-                                                    path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1].children[0].children[0]",
-                                                  ),
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Row_7dxcggre",
-                                                    type: "Row",
-                                                    path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1].children[0].children[1]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Icon_rti0exu6",
-                                                        type: "Icon",
-                                                        path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1].children[0].children[1].children[0]",
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Text_ik4dtvxn",
-                                                        type: "Text",
-                                                        path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1].children[0].children[1].children[1]",
-                                                        text: "123",
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                              ffai.ProjectWidgetHandle(
-                                                key: "Container_oek3zs1c",
-                                                type: "Container",
-                                                path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1].children[1]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Column_36mj9bhu",
-                                                    type: "Column",
-                                                    path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1].children[1].children[0]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Row_ocww48pt",
-                                                        type: "Row",
-                                                        path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1].children[1].children[0].children[0]",
-                                                        children: <ffai.ProjectWidgetHandle>[
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Text_pvlkjbq2",
-                                                            type: "Text",
-                                                            path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1].children[1].children[0].children[0].children[0]",
-                                                            text: "焼鳥 一鳥",
-                                                          ),
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Icon_62azyfn4",
-                                                            type: "Icon",
-                                                            path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1].children[1].children[0].children[0].children[1]",
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Text_45j9848r",
-                                                        type: "Text",
-                                                        path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1].children[1].children[0].children[1]",
-                                                        text: "あああああああああああああああああああああああああああああああああああああああああああああ",
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
+                                    name: "CocotenShopCard",
+                                    triggers: const <String>[
+                                      "ON_TAP",
                                     ],
-                                  ),
-                                  ffai.ProjectWidgetHandle(
-                                    key: "Container_igip45cj",
-                                    type: "Container",
-                                    path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Stack_csyhmegg",
-                                        type: "Stack",
-                                        path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0]",
+                                        key: "Column_wjjknwbz",
+                                        type: "Column",
+                                        path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0]",
+                                        name: "Column",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Image_ujc8z79s",
-                                            type: "Image",
-                                            path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[0]",
-                                          ),
-                                          ffai.ProjectWidgetHandle(
-                                            key: "Column_x2iaydmt",
-                                            type: "Column",
-                                            path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1]",
+                                            key: "Row_tvg92d2h",
+                                            type: "Row",
+                                            path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[0]",
+                                            name: "Row",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Row_t86o9ggq",
-                                                type: "Row",
-                                                path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1].children[0]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Icon_2lysp1w0",
-                                                    type: "Icon",
-                                                    path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1].children[0].children[0]",
-                                                  ),
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Row_daafnfpz",
-                                                    type: "Row",
-                                                    path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1].children[0].children[1]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Icon_zhttlwhy",
-                                                        type: "Icon",
-                                                        path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1].children[0].children[1].children[0]",
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Text_s8fbooqs",
-                                                        type: "Text",
-                                                        path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1].children[0].children[1].children[1]",
-                                                        text: "123",
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
+                                                key: "Text_oqk2l8tg",
+                                                type: "Text",
+                                                path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[0].children[0]",
+                                                name: "Text",
                                               ),
                                               ffai.ProjectWidgetHandle(
-                                                key: "Container_0rdv60rx",
+                                                key: "Container_tbmx4mki",
                                                 type: "Container",
-                                                path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1].children[1]",
-                                                children: <ffai.ProjectWidgetHandle>[
-                                                  ffai.ProjectWidgetHandle(
-                                                    key: "Column_3vok6lyz",
-                                                    type: "Column",
-                                                    path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1].children[1].children[0]",
-                                                    children: <ffai.ProjectWidgetHandle>[
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Row_fytf8syl",
-                                                        type: "Row",
-                                                        path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1].children[1].children[0].children[0]",
-                                                        children: <ffai.ProjectWidgetHandle>[
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Text_0rfou1qt",
-                                                            type: "Text",
-                                                            path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1].children[1].children[0].children[0].children[0]",
-                                                            text: "焼鳥 慶州園",
-                                                          ),
-                                                          ffai.ProjectWidgetHandle(
-                                                            key: "Icon_9143o2r9",
-                                                            type: "Icon",
-                                                            path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1].children[1].children[0].children[0].children[1]",
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      ffai.ProjectWidgetHandle(
-                                                        key: "Text_cc1jl4k7",
-                                                        type: "Text",
-                                                        path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[1].children[0].children[1].children[1].children[0].children[1]",
-                                                        text: "あああああああああああああああああああああああああああああああああああああああああああああ",
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
+                                                path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[0].children[1]",
+                                                name: "CocotenShopActiveDot",
                                               ),
                                             ],
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Text_uz69pb9l",
+                                            type: "Text",
+                                            path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1]",
+                                            name: "Text",
                                           ),
                                         ],
                                       ),

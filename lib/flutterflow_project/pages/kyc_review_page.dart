@@ -78,69 +78,97 @@ abstract final class KycReviewPageWidgets {
                 text: "管理者権限がありません。",
               ),
               ffai.ProjectWidgetHandle(
-                key: "ListView_ohcx81fg",
+                key: "ListView_0fv0sxi8",
                 type: "ListView",
                 path: "KycReviewPage.body[0].children[1]",
                 name: "ListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Card_njfbsv61",
+                    key: "Card_s4zbfsif",
                     type: "Card",
                     path: "KycReviewPage.body[0].children[1].children[0]",
                     name: "KycReviewItemCard",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Container_pvc7hgn3",
+                        key: "Container_jubv0o9m",
                         type: "Container",
                         path: "KycReviewPage.body[0].children[1].children[0].children[0]",
                         name: "Container",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Column_mlfa819k",
+                            key: "Column_e3oy9dmn",
                             type: "Column",
                             path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0]",
                             name: "Column",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "Text_vkn5jdjo",
+                                key: "Text_66kow008",
                                 type: "Text",
                                 path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[0]",
                                 name: "Text",
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Text_z5mcruq0",
+                                key: "Text_xy0c5n4b",
                                 type: "Text",
                                 path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[1]",
                                 name: "Text",
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Row_05fsaq0l",
+                                key: "Row_lx28i5ro",
                                 type: "Row",
                                 path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[2]",
                                 name: "Row",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Image_dd4nmc9v",
-                                    type: "Image",
+                                    key: "Stack_s480nij6",
+                                    type: "Stack",
                                     path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[2].children[0]",
                                     name: "KycReviewDocImage",
+                                    children: <ffai.ProjectWidgetHandle>[
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Image_scar0l37",
+                                        type: "Image",
+                                        path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[2].children[0].children[0]",
+                                        name: "KycReviewDocImageReal",
+                                      ),
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Image_llpcyp33",
+                                        type: "Image",
+                                        path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[2].children[0].children[1]",
+                                        name: "KycReviewDocImageFallback",
+                                      ),
+                                    ],
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Image_t5x0rbso",
-                                    type: "Image",
+                                    key: "Stack_yi0st8dj",
+                                    type: "Stack",
                                     path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[2].children[1]",
                                     name: "KycReviewSelfieImage",
+                                    children: <ffai.ProjectWidgetHandle>[
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Image_gpe95wlu",
+                                        type: "Image",
+                                        path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[2].children[1].children[0]",
+                                        name: "KycReviewSelfieImageReal",
+                                      ),
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Image_7az0oy6z",
+                                        type: "Image",
+                                        path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[2].children[1].children[1]",
+                                        name: "KycReviewSelfieImageFallback",
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Row_699yb1fs",
+                                key: "Row_q57niiz3",
                                 type: "Row",
                                 path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[3]",
                                 name: "Row",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Button_xxyotqbe",
+                                    key: "Button_87f7w5dm",
                                     type: "Button",
                                     path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[3].children[0]",
                                     name: "KycApproveButton",
@@ -150,7 +178,7 @@ abstract final class KycReviewPageWidgets {
                                     ],
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Button_qjwr7knr",
+                                    key: "Button_1pxmtleg",
                                     type: "Button",
                                     path: "KycReviewPage.body[0].children[1].children[0].children[0].children[0].children[3].children[1]",
                                     name: "KycRejectButton",

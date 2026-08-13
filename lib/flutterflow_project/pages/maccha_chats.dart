@@ -134,10 +134,24 @@ abstract final class MacchaChatsWidgets {
                             name: "ChatHeaderRow",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "CircleImage_xctz3poq",
-                                type: "CircleImage",
+                                key: "Stack_z6woy5q0",
+                                type: "Stack",
                                 path: "MacchaChats.body[0].children[0].children[0].children[0].children[0].children[0]",
-                                name: "Avatar",
+                                name: "ChatCounterpartAvatar",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "CircleImage_62fiub4t",
+                                    type: "CircleImage",
+                                    path: "MacchaChats.body[0].children[0].children[0].children[0].children[0].children[0].children[0]",
+                                    name: "ChatCounterpartAvatarReal",
+                                  ),
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Image_6nj1sx6g",
+                                    type: "Image",
+                                    path: "MacchaChats.body[0].children[0].children[0].children[0].children[0].children[0].children[1]",
+                                    name: "ChatCounterpartAvatarFallback",
+                                  ),
+                                ],
                               ),
                               ffai.ProjectWidgetHandle(
                                 key: "Text_5y0dzqpf",

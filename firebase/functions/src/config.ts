@@ -94,3 +94,22 @@ export async function getSystemConfig(): Promise<SystemConfig> {
   }
   return SYSTEM_DEFAULTS;
 }
+
+// Shared with admin.ts (forwardKycDocumentToStripe) and auth.ts (submitKYC).
+// Originally defined only in admin.ts to close a confirmed SSRF
+// vulnerability (an arbitrary docUrl reaching a server-side `fetch()`) —
+// moved here (2026-08-13, PROJECT_KNOWLEDGE.md §71) so the PRODUCER of
+// `kyc_doc_url`/`kyc_selfie_url` (submitKYC) can validate at write time
+// too, not just the one downstream consumer that happened to fetch it.
+// This project's KYC uploads only ever go through Firebase Storage, so
+// nothing legitimate is excluded by this allowlist.
+export const ALLOWED_KYC_DOC_HOSTS = ["firebasestorage.googleapis.com", "storage.googleapis.com"];
+
+export function isAllowedKycDocUrl(docUrl: string): boolean {
+  try {
+    const parsed = new URL(docUrl);
+    return parsed.protocol === "https:" && ALLOWED_KYC_DOC_HOSTS.includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}

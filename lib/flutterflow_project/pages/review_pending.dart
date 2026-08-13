@@ -19,6 +19,12 @@ final class ReviewPendingParams {
 
 final class ReviewPendingState {
   const ReviewPendingState();
+  ffai.ProjectStateFieldHandle get kycStatus =>
+      const ffai.ProjectStateFieldHandle(
+        name: "kycStatus",
+        key: "ycoa6sr5",
+        typeName: "String",
+      );
 }
 
 abstract final class ReviewPendingWidgets {
@@ -85,18 +91,26 @@ abstract final class ReviewPendingWidgets {
                     key: "Text_2q2k2nfm",
                     type: "Text",
                     path: "ReviewPending.body[0].children[0].children[1]",
-                    text: "ただいま審査中です...",
                   ),
                   ffai.ProjectWidgetHandle(
                     key: "Text_tja6u2is",
                     type: "Text",
                     path: "ReviewPending.body[0].children[0].children[2]",
-                    text: "書類の審査には1〜2営業日かかります\n承認されましたらお知らせします",
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Button_veotpfut",
+                    type: "Button",
+                    path: "ReviewPending.body[0].children[0].children[3]",
+                    name: "KycResubmitButton",
+                    text: "書類を再提出する",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                   ),
                   ffai.ProjectWidgetHandle(
                     key: "Button_cg4zw1tl",
                     type: "Button",
-                    path: "ReviewPending.body[0].children[0].children[3]",
+                    path: "ReviewPending.body[0].children[0].children[4]",
                     text: "ログアウト",
                     triggers: const <String>[
                       "ON_TAP",

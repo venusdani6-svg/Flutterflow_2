@@ -8,6 +8,7 @@ import 'pages/admin_report_review_page.dart' show adminReportReviewPageHandle;
 import 'pages/affiliate.dart' show affiliateHandle;
 import 'pages/auth_complete.dart' show authCompleteHandle;
 import 'pages/basic_info_registration.dart' show basicInfoRegistrationHandle;
+import 'pages/block_list.dart' show blockListHandle;
 import 'pages/cast_profile.dart' show castProfileHandle;
 import 'pages/cocomise_page.dart' show cocomisePageHandle;
 import 'pages/connect_onboarding.dart' show connectOnboardingHandle;
@@ -15,6 +16,7 @@ import 'pages/email_verification.dart' show emailVerificationHandle;
 import 'pages/extension_payment.dart' show extensionPaymentHandle;
 import 'pages/home_page.dart' show homePageHandle;
 import 'pages/home_page_basic.dart' show homePageBasicHandle;
+import 'pages/inquiry_form.dart' show inquiryFormHandle;
 import 'pages/kyc.dart' show kycHandle;
 import 'pages/kyc_review_page.dart' show kycReviewPageHandle;
 import 'pages/login_page.dart' show loginPageHandle;
@@ -26,6 +28,7 @@ import 'pages/notifications_page.dart' show notificationsPageHandle;
 import 'pages/outside_page_basic.dart' show outsidePageBasicHandle;
 import 'pages/payment_confirm.dart' show paymentConfirmHandle;
 import 'pages/phone_varification.dart' show phoneVarificationHandle;
+import 'pages/privacy_policy.dart' show privacyPolicyHandle;
 import 'pages/profile_edit.dart' show profileEditHandle;
 import 'pages/reservation_confirmed.dart' show reservationConfirmedHandle;
 import 'pages/reservation_detail.dart' show reservationDetailHandle;
@@ -35,6 +38,9 @@ import 'pages/review_pending.dart' show reviewPendingHandle;
 import 'pages/settings_page.dart' show settingsPageHandle;
 import 'pages/signup_page.dart' show signupPageHandle;
 import 'pages/sms_code.dart' show smsCodeHandle;
+import 'pages/support_legal_hub.dart' show supportLegalHubHandle;
+import 'pages/system_info.dart' show systemInfoHandle;
+import 'pages/terms_of_service.dart' show termsOfServiceHandle;
 import 'pages/tutorial_page.dart' show tutorialPageHandle;
 import 'pages/wallet_page.dart' show walletPageHandle;
 import 'pages/work_page.dart' show workPageHandle;
@@ -46,6 +52,7 @@ abstract final class Pages {
   static final affiliate = affiliateHandle;
   static final authComplete = authCompleteHandle;
   static final basicInfoRegistration = basicInfoRegistrationHandle;
+  static final blockList = blockListHandle;
   static final castProfile = castProfileHandle;
   static final cocomisePage = cocomisePageHandle;
   static final connectOnboarding = connectOnboardingHandle;
@@ -53,6 +60,7 @@ abstract final class Pages {
   static final extensionPayment = extensionPaymentHandle;
   static final homePage = homePageHandle;
   static final homePageBasic = homePageBasicHandle;
+  static final inquiryForm = inquiryFormHandle;
   static final kyc = kycHandle;
   static final kycReviewPage = kycReviewPageHandle;
   static final loginPage = loginPageHandle;
@@ -64,6 +72,7 @@ abstract final class Pages {
   static final outsidePageBasic = outsidePageBasicHandle;
   static final paymentConfirm = paymentConfirmHandle;
   static final phoneVarification = phoneVarificationHandle;
+  static final privacyPolicy = privacyPolicyHandle;
   static final profileEdit = profileEditHandle;
   static final reservationConfirmed = reservationConfirmedHandle;
   static final reservationDetail = reservationDetailHandle;
@@ -73,6 +82,9 @@ abstract final class Pages {
   static final settingsPage = settingsPageHandle;
   static final signupPage = signupPageHandle;
   static final smsCode = smsCodeHandle;
+  static final supportLegalHub = supportLegalHubHandle;
+  static final systemInfo = systemInfoHandle;
+  static final termsOfService = termsOfServiceHandle;
   static final tutorialPage = tutorialPageHandle;
   static final walletPage = walletPageHandle;
   static final workPage = workPageHandle;
@@ -83,6 +95,7 @@ abstract final class Pages {
     affiliate,
     authComplete,
     basicInfoRegistration,
+    blockList,
     castProfile,
     cocomisePage,
     connectOnboarding,
@@ -90,6 +103,7 @@ abstract final class Pages {
     extensionPayment,
     homePage,
     homePageBasic,
+    inquiryForm,
     kyc,
     kycReviewPage,
     loginPage,
@@ -101,6 +115,7 @@ abstract final class Pages {
     outsidePageBasic,
     paymentConfirm,
     phoneVarification,
+    privacyPolicy,
     profileEdit,
     reservationConfirmed,
     reservationDetail,
@@ -110,6 +125,9 @@ abstract final class Pages {
     settingsPage,
     signupPage,
     smsCode,
+    supportLegalHub,
+    systemInfo,
+    termsOfService,
     tutorialPage,
     walletPage,
     workPage,

@@ -1,16 +1,16 @@
 {
   "indexes": [
     {
-      "collectionGroup": "audit_logs",
+      "collectionGroup": "schedule_slots",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "action",
+          "fieldPath": "cast_id",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "created_at",
-          "order": "DESCENDING"
+          "fieldPath": "date",
+          "order": "ASCENDING"
         }
       ]
     },
@@ -19,7 +19,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "admin_uid",
+          "fieldPath": "action",
           "order": "ASCENDING"
         },
         {
@@ -51,7 +51,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "target_type",
+          "fieldPath": "target_id",
           "order": "ASCENDING"
         },
         {
@@ -79,11 +79,11 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "is_active",
+          "fieldPath": "active",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "sort_order",
+          "fieldPath": "display_order",
           "order": "ASCENDING"
         }
       ]
@@ -297,6 +297,24 @@
       ]
     },
     {
+      "collectionGroup": "reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "reporter_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "reported_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "reviews",
       "queryScope": "COLLECTION",
       "fields": [
@@ -343,20 +361,6 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "cast_id",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "scheduled_at",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "reservations",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
           "fieldPath": "cast_ids",
           "arrayConfig": "CONTAINS"
         },
@@ -379,7 +383,7 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "scheduled_at",
+          "fieldPath": "date",
           "order": "DESCENDING"
         }
       ]
@@ -393,7 +397,7 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "scheduled_at",
+          "fieldPath": "date",
           "order": "DESCENDING"
         }
       ]
@@ -549,20 +553,6 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "is_active",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "created_time",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "users",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
           "fieldPath": "is_frozen",
           "order": "ASCENDING"
         },
@@ -591,11 +581,11 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "role",
+          "fieldPath": "approval_status",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "created_time",
+          "fieldPath": "created_at",
           "order": "DESCENDING"
         }
       ]
@@ -605,12 +595,72 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "role_admin",
+          "fieldPath": "prefecture",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "created_time",
+          "fieldPath": "created_at",
           "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "approval_status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nickname",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "kyc_status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nickname",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "prefecture",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nickname",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "account_type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "approval_status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nickname",
+          "order": "ASCENDING"
         }
       ]
     },
@@ -684,6 +734,20 @@
         },
         {
           "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "chat_rooms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "participants",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "res_id",
           "order": "ASCENDING"
         }
       ]

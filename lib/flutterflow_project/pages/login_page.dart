@@ -116,6 +116,16 @@ abstract final class LoginPageWidgets {
                           "ON_TAP",
                         ],
                       ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_i3gwmmsr",
+                        type: "Text",
+                        path: "LoginPage.body[0].children[0].children[0].children[6]",
+                        name: "TutorialLinkText",
+                        text: "使い方を見る",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
+                      ),
                     ],
                   ),
                 ],

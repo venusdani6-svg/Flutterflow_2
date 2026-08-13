@@ -15,6 +15,12 @@ final extensionPaymentHandle = ffai.ProjectPageHandle<ExtensionPaymentParams, Ex
 
 final class ExtensionPaymentParams {
   const ExtensionPaymentParams();
+  ffai.ProjectParamHandle get resId =>
+      const ffai.ProjectParamHandle(
+        name: "resId",
+        key: "xbh0qufi",
+        typeName: "String",
+      );
 }
 
 final class ExtensionPaymentState {
@@ -64,6 +70,9 @@ abstract final class ExtensionPaymentWidgets {
       type: "Scaffold",
       path: "ExtensionPayment",
       name: "ExtensionPayment",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
@@ -223,10 +232,10 @@ abstract final class ExtensionPaymentWidgets {
                                         path: "ExtensionPayment.body[0].children[0].children[1].children[0].children[0].children[2].children[0].children[0]",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_e9vm0bss",
+                                            key: "Text_vi5streu",
                                             type: "Text",
                                             path: "ExtensionPayment.body[0].children[0].children[1].children[0].children[0].children[2].children[0].children[0].children[0]",
-                                            text: "ご利用時間帯　第2部　20：00～23：00",
+                                            name: "ExtensionTimeSlotBanner",
                                           ),
                                         ],
                                       ),

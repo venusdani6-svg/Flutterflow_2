@@ -19,6 +19,36 @@ final class MyPageParams {
 
 final class MyPageState {
   const MyPageState();
+  ffai.ProjectStateFieldHandle get myReviewsList =>
+      const ffai.ProjectStateFieldHandle(
+        name: "myReviewsList",
+        key: "zll3nvug",
+        typeName: "List<String>",
+      );
+  ffai.ProjectStateFieldHandle get scheduleDayIndex =>
+      const ffai.ProjectStateFieldHandle(
+        name: "scheduleDayIndex",
+        key: "7k97uwkk",
+        typeName: "Integer",
+      );
+  ffai.ProjectStateFieldHandle get scheduleDaySlots =>
+      const ffai.ProjectStateFieldHandle(
+        name: "scheduleDaySlots",
+        key: "yjniuata",
+        typeName: "List<String>",
+      );
+  ffai.ProjectStateFieldHandle get scheduleSelectedDate =>
+      const ffai.ProjectStateFieldHandle(
+        name: "scheduleSelectedDate",
+        key: "4y79v6zr",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get scheduleWeekIndex =>
+      const ffai.ProjectStateFieldHandle(
+        name: "scheduleWeekIndex",
+        key: "caklqo92",
+        typeName: "Integer",
+      );
 }
 
 abstract final class MyPageWidgets {
@@ -358,10 +388,10 @@ abstract final class MyPageWidgets {
                                                         path: "MyPage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[3].children[1]",
                                                       ),
                                                       ffai.ProjectWidgetHandle(
-                                                        key: "Text_a7eis4fi",
+                                                        key: "Text_8ipm8e8m",
                                                         type: "Text",
                                                         path: "MyPage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[3].children[2]",
-                                                        text: "3.0",
+                                                        name: "MyPageRatingLabel",
                                                       ),
                                                     ],
                                                   ),
@@ -405,12 +435,18 @@ abstract final class MyPageWidgets {
                                 type: "Button",
                                 path: "MyPage.body[0].children[0].children[0].children[0].children[2].children[0]",
                                 text: "プロフィール編集",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
                               ),
                               ffai.ProjectWidgetHandle(
                                 key: "Button_p13i636o",
                                 type: "Button",
                                 path: "MyPage.body[0].children[0].children[0].children[0].children[2].children[1]",
                                 text: "ワーク編集",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
                               ),
                             ],
                           ),
@@ -430,10 +466,10 @@ abstract final class MyPageWidgets {
                                 path: "MyPage.body[0].children[0].children[0].children[0].children[4].children[0]",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_gpzkjpcj",
-                                    type: "Text",
+                                    key: "Image_a2t7auha",
+                                    type: "Image",
                                     path: "MyPage.body[0].children[0].children[0].children[0].children[4].children[0].children[0]",
-                                    text: "ご利用規約\n画像",
+                                    name: "TermsButtonImage",
                                   ),
                                 ],
                               ),
@@ -443,10 +479,10 @@ abstract final class MyPageWidgets {
                                 path: "MyPage.body[0].children[0].children[0].children[0].children[4].children[1]",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_bhfsi6di",
-                                    type: "Text",
+                                    key: "Image_g4f2674l",
+                                    type: "Image",
                                     path: "MyPage.body[0].children[0].children[0].children[0].children[4].children[1].children[0]",
-                                    text: "ガイドライン\n画像",
+                                    name: "GuidelineButtonImage",
                                   ),
                                 ],
                               ),
@@ -469,10 +505,10 @@ abstract final class MyPageWidgets {
                                 path: "MyPage.body[0].children[0].children[0].children[0].children[4].children[3]",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_xxauqlfi",
-                                    type: "Text",
+                                    key: "Image_4pso7u43",
+                                    type: "Image",
                                     path: "MyPage.body[0].children[0].children[0].children[0].children[4].children[3].children[0]",
-                                    text: "Q&A・ヘルプ\n画像",
+                                    name: "QaHelpButtonImage",
                                   ),
                                 ],
                               ),
@@ -1020,9 +1056,176 @@ abstract final class MyPageWidgets {
                                         path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0]",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Calendar_5lwqxdoh",
-                                            type: "Calendar",
+                                            key: "Column_ac9vequn",
+                                            type: "Column",
                                             path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0]",
+                                            name: "WorkCalendarSection",
+                                            children: <ffai.ProjectWidgetHandle>[
+                                              ffai.ProjectWidgetHandle(
+                                                key: "Row_87vtvga8",
+                                                type: "Row",
+                                                path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[0]",
+                                                name: "Row",
+                                                children: <ffai.ProjectWidgetHandle>[
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Button_j1na8a2v",
+                                                    type: "Button",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[0].children[0]",
+                                                    name: "Button",
+                                                    text: "週1",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Button_sfcibq62",
+                                                    type: "Button",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[0].children[1]",
+                                                    name: "Button",
+                                                    text: "週2",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Button_d8e7dha3",
+                                                    type: "Button",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[0].children[2]",
+                                                    name: "Button",
+                                                    text: "週3",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Button_9d6u1k3f",
+                                                    type: "Button",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[0].children[3]",
+                                                    name: "Button",
+                                                    text: "週4",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                              ffai.ProjectWidgetHandle(
+                                                key: "Row_mvva8bfb",
+                                                type: "Row",
+                                                path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[1]",
+                                                name: "Row",
+                                                children: <ffai.ProjectWidgetHandle>[
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Button_uslpagsw",
+                                                    type: "Button",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[1].children[0]",
+                                                    name: "Button",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Button_t5tyb735",
+                                                    type: "Button",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[1].children[1]",
+                                                    name: "Button",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Button_824v9l6n",
+                                                    type: "Button",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[1].children[2]",
+                                                    name: "Button",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Button_580rkxti",
+                                                    type: "Button",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[1].children[3]",
+                                                    name: "Button",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Button_pqwy3rr8",
+                                                    type: "Button",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[1].children[4]",
+                                                    name: "Button",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Button_58qj38br",
+                                                    type: "Button",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[1].children[5]",
+                                                    name: "Button",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                  ),
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Button_uv3p9rk6",
+                                                    type: "Button",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[1].children[6]",
+                                                    name: "Button",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                              ffai.ProjectWidgetHandle(
+                                                key: "Text_6k8a28ec",
+                                                type: "Text",
+                                                path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[2]",
+                                                name: "Text",
+                                              ),
+                                              ffai.ProjectWidgetHandle(
+                                                key: "GridView_q9lzuzu3",
+                                                type: "GridView",
+                                                path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[3]",
+                                                name: "ScheduleGrid",
+                                                children: <ffai.ProjectWidgetHandle>[
+                                                  ffai.ProjectWidgetHandle(
+                                                    key: "Container_b90652vk",
+                                                    type: "Container",
+                                                    path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[3].children[0]",
+                                                    name: "Container",
+                                                    triggers: const <String>[
+                                                      "ON_TAP",
+                                                    ],
+                                                    children: <ffai.ProjectWidgetHandle>[
+                                                      ffai.ProjectWidgetHandle(
+                                                        key: "Column_2i5h3on9",
+                                                        type: "Column",
+                                                        path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[3].children[0].children[0]",
+                                                        name: "Column",
+                                                        children: <ffai.ProjectWidgetHandle>[
+                                                          ffai.ProjectWidgetHandle(
+                                                            key: "Text_ltyeb863",
+                                                            type: "Text",
+                                                            path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[3].children[0].children[0].children[0]",
+                                                            name: "Text",
+                                                          ),
+                                                          ffai.ProjectWidgetHandle(
+                                                            key: "Text_d0mh5bps",
+                                                            type: "Text",
+                                                            path: "MyPage.body[0].children[0].children[0].children[0].children[6].children[0].children[5].children[0].children[0].children[3].children[0].children[0].children[1]",
+                                                            name: "Text",
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -1148,6 +1351,9 @@ abstract final class MyPageWidgets {
                     key: "Row_2h5jlior",
                     type: "Row",
                     path: "MyPage.drawer[0].children[0].children[3]",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Icon_a4fqjzyu",
@@ -1187,6 +1393,9 @@ abstract final class MyPageWidgets {
                     key: "Row_sh13tqz0",
                     type: "Row",
                     path: "MyPage.drawer[0].children[0].children[5]",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Icon_4uxyz5bh",
@@ -1205,6 +1414,9 @@ abstract final class MyPageWidgets {
                     key: "Row_17k3wf36",
                     type: "Row",
                     path: "MyPage.drawer[0].children[0].children[6]",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Icon_wug0cist",
@@ -1223,6 +1435,9 @@ abstract final class MyPageWidgets {
                     key: "Row_gnymcn1g",
                     type: "Row",
                     path: "MyPage.drawer[0].children[0].children[7]",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Icon_mkf5ra8u",
@@ -1241,6 +1456,9 @@ abstract final class MyPageWidgets {
                     key: "Row_8iq153hm",
                     type: "Row",
                     path: "MyPage.drawer[0].children[0].children[8]",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Icon_mc1nuwhi",

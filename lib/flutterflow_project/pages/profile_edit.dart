@@ -226,10 +226,24 @@ abstract final class ProfileEditWidgets {
                             path: "ProfileEdit.body[0].children[0].children[0].children[1].children[0]",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "CircleImage_fy6oz5ts",
-                                type: "CircleImage",
+                                key: "Stack_ozgvc82p",
+                                type: "Stack",
                                 path: "ProfileEdit.body[0].children[0].children[0].children[1].children[0].children[0]",
                                 name: "ProfileAvatarImage",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "CircleImage_gyts6570",
+                                    type: "CircleImage",
+                                    path: "ProfileEdit.body[0].children[0].children[0].children[1].children[0].children[0].children[0]",
+                                    name: "ProfileAvatarImageReal",
+                                  ),
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Image_gatgh5dw",
+                                    type: "Image",
+                                    path: "ProfileEdit.body[0].children[0].children[0].children[1].children[0].children[0].children[1]",
+                                    name: "ProfileAvatarImageFallback",
+                                  ),
+                                ],
                               ),
                             ],
                           ),

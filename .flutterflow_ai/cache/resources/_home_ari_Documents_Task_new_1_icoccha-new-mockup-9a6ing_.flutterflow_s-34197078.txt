@@ -1,0 +1,1838 @@
+{
+  "kind": "flutterflow_ai_dsl_resource_inventory",
+  "project": {
+    "name": "icoccha-new-mockup",
+    "pageCount": 42,
+    "componentCount": 8,
+    "pages": [
+      {
+        "name": "AdminAffiliateManagement",
+        "key": "Scaffold_6xwrwobo",
+        "route": "admin-affiliate-management"
+      },
+      {
+        "name": "AdminReportReviewPage",
+        "key": "Scaffold_711wn4dq",
+        "route": "admin-report-review"
+      },
+      {
+        "name": "Affiliate",
+        "key": "Scaffold_5v1txqgb",
+        "route": ""
+      },
+      {
+        "name": "AuthComplete",
+        "key": "Scaffold_14xfd86j",
+        "route": ""
+      },
+      {
+        "name": "BasicInfoRegistration",
+        "key": "Scaffold_kc89uzxg",
+        "route": "basic-info-registration"
+      },
+      {
+        "name": "BlockList",
+        "key": "Scaffold_48267gqq",
+        "route": "block-list"
+      },
+      {
+        "name": "CastProfile",
+        "key": "Scaffold_6r3g5txh",
+        "route": ""
+      },
+      {
+        "name": "CocomisePage",
+        "key": "Scaffold_93t65r3u",
+        "route": ""
+      },
+      {
+        "name": "ConnectOnboarding",
+        "key": "Scaffold_tk8lxwvu",
+        "route": "connect-onboarding"
+      },
+      {
+        "name": "EmailVerification",
+        "key": "Scaffold_mf05al90",
+        "route": ""
+      },
+      {
+        "name": "ExtensionPayment",
+        "key": "Scaffold_baaaibnr",
+        "route": ""
+      },
+      {
+        "name": "HomePage",
+        "key": "Scaffold_8oxh5zcd",
+        "route": ""
+      },
+      {
+        "name": "HomePageBasic",
+        "key": "Scaffold_pupslfdp",
+        "route": ""
+      },
+      {
+        "name": "InquiryForm",
+        "key": "Scaffold_vicykolq",
+        "route": "inquiry"
+      },
+      {
+        "name": "Kyc",
+        "key": "Scaffold_tf05hd4t",
+        "route": ""
+      },
+      {
+        "name": "KycReviewPage",
+        "key": "Scaffold_x33leoaa",
+        "route": "kyc-review"
+      },
+      {
+        "name": "LoginPage",
+        "key": "Scaffold_b6baz0tx",
+        "route": ""
+      },
+      {
+        "name": "MacchaChats",
+        "key": "Scaffold_x6lf2wag",
+        "route": ""
+      },
+      {
+        "name": "MacchaPage",
+        "key": "Scaffold_hx45w9vd",
+        "route": ""
+      },
+      {
+        "name": "MyPage",
+        "key": "Scaffold_c48w61db",
+        "route": ""
+      },
+      {
+        "name": "MyWorkContent",
+        "key": "Scaffold_ogbxayhi",
+        "route": "my-work-content"
+      },
+      {
+        "name": "NotificationsPage",
+        "key": "Scaffold_xqrfu11t",
+        "route": "notifications"
+      },
+      {
+        "name": "OutsidePageBasic",
+        "key": "Scaffold_67gh454x",
+        "route": ""
+      },
+      {
+        "name": "PaymentConfirm",
+        "key": "Scaffold_06j20uz5",
+        "route": ""
+      },
+      {
+        "name": "PhoneVarification",
+        "key": "Scaffold_2mhgljne",
+        "route": ""
+      },
+      {
+        "name": "PrivacyPolicy",
+        "key": "Scaffold_crkk166h",
+        "route": "privacy-policy"
+      },
+      {
+        "name": "ProfileEdit",
+        "key": "Scaffold_qtuafc9m",
+        "route": ""
+      },
+      {
+        "name": "ReservationConfirmed",
+        "key": "Scaffold_hl6321gp",
+        "route": ""
+      },
+      {
+        "name": "ReservationDetail",
+        "key": "Scaffold_5w0kx9ks",
+        "route": ""
+      },
+      {
+        "name": "ReservationForm",
+        "key": "Scaffold_zxpwg49d",
+        "route": ""
+      },
+      {
+        "name": "ReservationListPage",
+        "key": "Scaffold_00y3zobz",
+        "route": "reservation-list"
+      },
+      {
+        "name": "ReviewPending",
+        "key": "Scaffold_3auqb4ia",
+        "route": ""
+      },
+      {
+        "name": "SettingsPage",
+        "key": "Scaffold_osfb9440",
+        "route": "settings"
+      },
+      {
+        "name": "SignupPage",
+        "key": "Scaffold_algo83hc",
+        "route": ""
+      },
+      {
+        "name": "SmsCode",
+        "key": "Scaffold_ru0dbklw",
+        "route": ""
+      },
+      {
+        "name": "SupportLegalHub",
+        "key": "Scaffold_51befgfu",
+        "route": "support-legal"
+      },
+      {
+        "name": "SystemInfo",
+        "key": "Scaffold_1099l7jr",
+        "route": "system-info"
+      },
+      {
+        "name": "TermsOfService",
+        "key": "Scaffold_yaashg7i",
+        "route": "terms-of-service"
+      },
+      {
+        "name": "TutorialPage",
+        "key": "Scaffold_4fruy9na",
+        "route": ""
+      },
+      {
+        "name": "WalletPage",
+        "key": "Scaffold_foz1itma",
+        "route": "wallet"
+      },
+      {
+        "name": "WorkPage",
+        "key": "Scaffold_j32yblo1",
+        "route": ""
+      },
+      {
+        "name": "WorkPostDetailPage",
+        "key": "Scaffold_ti3w8a2w",
+        "route": "work-post-detail"
+      }
+    ],
+    "components": [
+      {
+        "name": "AffiliateQrCodeBottomSheet",
+        "key": "Container_g1dwsqxg"
+      },
+      {
+        "name": "ButtomNaviComp",
+        "key": "Container_drmhamut"
+      },
+      {
+        "name": "RegistrationPopupComp",
+        "key": "Container_upfy08ih"
+      },
+      {
+        "name": "ResetPasswordBottomSheet",
+        "key": "Container_2vowomff"
+      },
+      {
+        "name": "Work_filter_selectComp",
+        "key": "Container_lpg8ixuw"
+      },
+      {
+        "name": "nottification_filter_dialogComp",
+        "key": "Container_vuda36v0"
+      },
+      {
+        "name": "search_cast_dialogComp",
+        "key": "Container_hbxgol8e"
+      },
+      {
+        "name": "search_shop_dialogComp",
+        "key": "Container_6qutcmle"
+      }
+    ]
+  },
+  "theme": {
+    "colors": {
+      "primary": {
+        "hex": "#4B39EF",
+        "darkHex": "#4B39EF"
+      },
+      "secondary": {
+        "hex": "#39D2C0",
+        "darkHex": "#39D2C0"
+      },
+      "tertiary": {
+        "hex": "#EE8B60",
+        "darkHex": "#EE8B60"
+      },
+      "alternate": {
+        "hex": "#E0E3E7",
+        "darkHex": "#262D34"
+      },
+      "primaryBackground": {
+        "hex": "#F1F4F8",
+        "darkHex": "#1D2428"
+      },
+      "secondaryBackground": {
+        "hex": "#FFFFFF",
+        "darkHex": "#14181B"
+      },
+      "primaryText": {
+        "hex": "#14181B",
+        "darkHex": "#FFFFFF"
+      },
+      "secondaryText": {
+        "hex": "#57636C",
+        "darkHex": "#95A1AC"
+      },
+      "success": {
+        "hex": "#249689",
+        "darkHex": "#249689"
+      },
+      "warning": {
+        "hex": "#F9CF58",
+        "darkHex": "#F9CF58"
+      },
+      "error": {
+        "hex": "#FF5963",
+        "darkHex": "#FF5963"
+      },
+      "info": {
+        "hex": "#FFFFFF",
+        "darkHex": "#FFFFFF"
+      },
+      "accent1": {
+        "hex": "#4B39EF",
+        "darkHex": "#4B39EF"
+      },
+      "accent2": {
+        "hex": "#39D2C0",
+        "darkHex": "#39D2C0"
+      },
+      "accent3": {
+        "hex": "#EE8B60",
+        "darkHex": "#EE8B60"
+      },
+      "accent4": {
+        "hex": "#FFFFFF",
+        "darkHex": "#262D34"
+      },
+      "darkModeEnabled": true,
+      "displayDarkMode": false,
+      "customPaletteColors": []
+    },
+    "typography": {
+      "primaryFontFamily": "Inter Tight",
+      "secondaryFontFamily": "Inter",
+      "styles": {
+        "displayLarge": {
+          "fontFamily": "Inter Tight",
+          "fontSize": 64.0,
+          "fontWeight": "w600"
+        },
+        "displayMedium": {
+          "fontFamily": "Inter Tight",
+          "fontSize": 44.0,
+          "fontWeight": "w600"
+        },
+        "displaySmall": {
+          "fontFamily": "Inter Tight",
+          "fontSize": 36.0,
+          "fontWeight": "w600"
+        },
+        "headlineLarge": {
+          "fontFamily": "Inter Tight",
+          "fontSize": 32.0,
+          "fontWeight": "w600"
+        },
+        "headlineMedium": {
+          "fontFamily": "Inter Tight",
+          "fontSize": 28.0,
+          "fontWeight": "w600"
+        },
+        "headlineSmall": {
+          "fontFamily": "Inter Tight",
+          "fontSize": 24.0,
+          "fontWeight": "w600"
+        },
+        "titleLarge": {
+          "fontFamily": "Inter Tight",
+          "fontSize": 20.0,
+          "fontWeight": "w600"
+        },
+        "titleMedium": {
+          "fontFamily": "Inter Tight",
+          "fontSize": 18.0,
+          "fontWeight": "w600"
+        },
+        "titleSmall": {
+          "fontFamily": "Inter Tight",
+          "fontSize": 16.0,
+          "fontWeight": "w600"
+        },
+        "labelLarge": {
+          "fontFamily": "Inter",
+          "fontSize": 16.0,
+          "fontWeight": "w400"
+        },
+        "labelMedium": {
+          "fontFamily": "Inter",
+          "fontSize": 14.0,
+          "fontWeight": "w400"
+        },
+        "labelSmall": {
+          "fontFamily": "Inter",
+          "fontSize": 12.0,
+          "fontWeight": "w400"
+        },
+        "bodyLarge": {
+          "fontFamily": "Inter",
+          "fontSize": 16.0,
+          "fontWeight": "w400"
+        },
+        "bodyMedium": {
+          "fontFamily": "Inter",
+          "fontSize": 14.0,
+          "fontWeight": "w400"
+        },
+        "bodySmall": {
+          "fontFamily": "Inter",
+          "fontSize": 12.0,
+          "fontWeight": "w400"
+        }
+      }
+    },
+    "spacingTokens": [
+      {
+        "name": "xs",
+        "key": "xs",
+        "value": 4.0
+      },
+      {
+        "name": "sm",
+        "key": "sm",
+        "value": 8.0
+      },
+      {
+        "name": "md",
+        "key": "md",
+        "value": 16.0
+      },
+      {
+        "name": "lg",
+        "key": "lg",
+        "value": 24.0
+      },
+      {
+        "name": "xl",
+        "key": "xl",
+        "value": 32.0
+      }
+    ],
+    "radiusTokens": [
+      {
+        "name": "sm",
+        "key": "sm",
+        "value": 8.0
+      },
+      {
+        "name": "md",
+        "key": "md",
+        "value": 16.0
+      },
+      {
+        "name": "lg",
+        "key": "lg",
+        "value": 24.0
+      },
+      {
+        "name": "full",
+        "key": "full",
+        "value": 9999.0
+      }
+    ],
+    "shadowTokens": [
+      {
+        "name": "sm",
+        "key": "sm",
+        "blurRadius": 3.0,
+        "dx": 0.0,
+        "dy": 1.0,
+        "spreadRadius": 0.0,
+        "color": {
+          "hex": "#000000"
+        }
+      },
+      {
+        "name": "md",
+        "key": "md",
+        "blurRadius": 6.0,
+        "dx": 0.0,
+        "dy": 3.0,
+        "spreadRadius": 0.0,
+        "color": {
+          "hex": "#000000"
+        }
+      },
+      {
+        "name": "lg",
+        "key": "lg",
+        "blurRadius": 15.0,
+        "dx": 0.0,
+        "dy": 8.0,
+        "spreadRadius": 0.0,
+        "color": {
+          "hex": "#000000"
+        }
+      },
+      {
+        "name": "xl",
+        "key": "xl",
+        "blurRadius": 25.0,
+        "dx": 0.0,
+        "dy": 16.0,
+        "spreadRadius": 0.0,
+        "color": {
+          "hex": "#000000"
+        }
+      }
+    ]
+  },
+  "libraries": [],
+  "repeatedPatternCandidates": [
+    {
+      "signature": "{\"children\":[{\"details\":{\"padding\":{\"leftValue\":{\"inputValue\":16}}},\"triggers\":[{\"action\":{\"action\":{\"type\":\"pageView\"},\"nodeType\":\"action\"},\"trigger\":\"ON_TAP\"}],\"type\":\"Icon\"},{\"details\":{\"padding\":{\"rightValue\":{\"inputValue\":16}}},\"triggers\":[{\"action\":{\"action\":{\"type\":\"pageView\"},\"nodeType\":\"action\"},\"trigger\":\"ON_TAP\"}],\"type\":\"Icon\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_space_between\"},\"type\":\"Row\"}",
+      "rootType": "Row",
+      "nodeCount": 3,
+      "occurrenceCount": 10,
+      "widgetClasses": [
+        "CastProfile",
+        "CocomisePage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column/Container/PageView/PlaceholderWidget/Column/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column/Container/PageView/PlaceholderWidget/Column/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column/Container/PageView/PlaceholderWidget/Column/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column/Container/PageView/PlaceholderWidget/Column/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column/Container/PageView/PlaceholderWidget/Column/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/PageView/PlaceholderWidget/Stack/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/PageView/PlaceholderWidget/Column/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/PageView/PlaceholderWidget/Column/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/PageView/PlaceholderWidget/Column/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/PageView/PlaceholderWidget/Column/Stack/Row",
+          "widgetType": "Row"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Image\"}],\"type\":\"Container\"}",
+      "rootType": "Container",
+      "nodeCount": 2,
+      "occurrenceCount": 6,
+      "widgetClasses": [
+        "AuthComplete",
+        "EmailVerification",
+        "PhoneVarification",
+        "ReservationConfirmed",
+        "ReviewPending",
+        "SmsCode"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "AuthComplete",
+          "path": "AuthComplete/Container/Column/Container",
+          "widgetType": "Container"
+        },
+        {
+          "widgetClass": "EmailVerification",
+          "path": "EmailVerification/Container/Column/Container",
+          "widgetType": "Container"
+        },
+        {
+          "widgetClass": "PhoneVarification",
+          "path": "PhoneVarification/Container/Column/Container",
+          "widgetType": "Container"
+        },
+        {
+          "widgetClass": "ReviewPending",
+          "path": "ReviewPending/Container/Column/Container",
+          "widgetType": "Container"
+        },
+        {
+          "widgetClass": "SmsCode",
+          "path": "SmsCode/Container/Column/Container",
+          "widgetType": "Container"
+        },
+        {
+          "widgetClass": "ReservationConfirmed",
+          "path": "ReservationConfirmed/Container/Column/Container",
+          "widgetType": "Container"
+        }
+      ]
+    },
+    {
+      "signature": "{\"slots\":{\"title\":{\"children\":[{\"triggers\":[{\"action\":{\"action\":{\"type\":\"auth\"},\"nodeType\":\"action\"},\"trigger\":\"ON_TAP\"}],\"type\":\"Image\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_center\"},\"type\":\"Row\"}},\"type\":\"AppBar\"}",
+      "rootType": "AppBar",
+      "nodeCount": 3,
+      "occurrenceCount": 5,
+      "widgetClasses": [
+        "AuthComplete",
+        "EmailVerification",
+        "PhoneVarification",
+        "ReviewPending",
+        "SmsCode"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "AuthComplete",
+          "path": "AuthComplete/AppBar",
+          "widgetType": "AppBar"
+        },
+        {
+          "widgetClass": "EmailVerification",
+          "path": "EmailVerification/AppBar",
+          "widgetType": "AppBar"
+        },
+        {
+          "widgetClass": "PhoneVarification",
+          "path": "PhoneVarification/AppBar",
+          "widgetType": "AppBar"
+        },
+        {
+          "widgetClass": "ReviewPending",
+          "path": "ReviewPending/AppBar",
+          "widgetType": "AppBar"
+        },
+        {
+          "widgetClass": "SmsCode",
+          "path": "SmsCode/AppBar",
+          "widgetType": "AppBar"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"triggers\":[{\"action\":{\"action\":{\"type\":\"auth\"},\"nodeType\":\"action\"},\"trigger\":\"ON_TAP\"}],\"type\":\"Image\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_center\"},\"type\":\"Row\"}",
+      "rootType": "Row",
+      "nodeCount": 2,
+      "occurrenceCount": 5,
+      "widgetClasses": [
+        "AuthComplete",
+        "EmailVerification",
+        "PhoneVarification",
+        "ReviewPending",
+        "SmsCode"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "AuthComplete",
+          "path": "AuthComplete/AppBar/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "EmailVerification",
+          "path": "EmailVerification/AppBar/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "PhoneVarification",
+          "path": "PhoneVarification/AppBar/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "ReviewPending",
+          "path": "ReviewPending/AppBar/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "SmsCode",
+          "path": "SmsCode/AppBar/Row",
+          "widgetType": "Row"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Icon\"},{\"children\":[{\"type\":\"Icon\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"123\"},\"type\":\"Text\"}],\"details\":{\"spacing\":4},\"type\":\"Row\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_space_between\",\"padding\":{\"allValue\":{\"inputValue\":8},\"type\":\"FF_PADDING_ALL\"}},\"type\":\"Row\"}",
+      "rootType": "Row",
+      "nodeCount": 5,
+      "occurrenceCount": 4,
+      "widgetClasses": [
+        "CocomisePage",
+        "HomePage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "HomePage",
+          "path": "HomePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "HomePage",
+          "path": "HomePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Row",
+          "widgetType": "Row"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Icon\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"123\"},\"type\":\"Text\"}],\"details\":{\"spacing\":4},\"type\":\"Row\"}",
+      "rootType": "Row",
+      "nodeCount": 3,
+      "occurrenceCount": 4,
+      "widgetClasses": [
+        "CocomisePage",
+        "HomePage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "HomePage",
+          "path": "HomePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Row/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "HomePage",
+          "path": "HomePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Row/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Row/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Row/Row",
+          "widgetType": "Row"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"：\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"：\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"：\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"：\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"：\"},\"type\":\"Text\"}],\"details\":{\"spacing\":8},\"type\":\"Column\"}",
+      "rootType": "Column",
+      "nodeCount": 6,
+      "occurrenceCount": 4,
+      "widgetClasses": [
+        "CastProfile",
+        "MyPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/Stack/Container/ListView/Column/Container/TabBar/PlaceholderWidget/Column/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/Stack/Container/ListView/Column/Container/TabBar/PlaceholderWidget/Column/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/Container/Stack/TabBar/PlaceholderWidget/Container/Column/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/Container/Stack/TabBar/PlaceholderWidget/Container/Column/Row/Row/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Icon\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"検 索\"},\"type\":\"Text\"}],\"triggers\":[{\"action\":{\"action\":{\"type\":\"alertDialog\"},\"nodeType\":\"action\"},\"trigger\":\"ON_TAP\"}],\"type\":\"Column\"}",
+      "rootType": "Column",
+      "nodeCount": 3,
+      "occurrenceCount": 3,
+      "widgetClasses": [
+        "CocomisePage",
+        "HomePage",
+        "MacchaPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "HomePage",
+          "path": "HomePage/AppBar/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/AppBar/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MacchaPage",
+          "path": "MacchaPage/AppBar/Row/Row/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Icon\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"お知らせ\"},\"type\":\"Text\"}],\"type\":\"Column\"}",
+      "rootType": "Column",
+      "nodeCount": 3,
+      "occurrenceCount": 3,
+      "widgetClasses": [
+        "HomePageBasic",
+        "MyPage",
+        "WorkPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "HomePageBasic",
+          "path": "HomePageBasic/AppBar/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "WorkPage",
+          "path": "WorkPage/AppBar/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/AppBar/Row/Row/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Icon\"},{\"type\":\"Image\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_space_between\"},\"type\":\"Row\"}",
+      "rootType": "Row",
+      "nodeCount": 3,
+      "occurrenceCount": 3,
+      "widgetClasses": [
+        "Affiliate",
+        "ExtensionPayment",
+        "PaymentConfirm"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/AppBar/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "ExtensionPayment",
+          "path": "ExtensionPayment/AppBar/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/AppBar/Stack/Row",
+          "widgetType": "Row"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Icon\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"お知らせ\"},\"type\":\"Text\"}],\"triggers\":[{\"action\":{\"action\":{\"navigate\":{\"allowBack\":true,\"targetPage\":\"NotificationsPage\"},\"type\":\"navigate\"},\"nodeType\":\"action\"},\"trigger\":\"ON_TAP\"}],\"type\":\"Column\"}",
+      "rootType": "Column",
+      "nodeCount": 3,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "HomePage",
+        "MacchaPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "HomePage",
+          "path": "HomePage/AppBar/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MacchaPage",
+          "path": "MacchaPage/AppBar/Row/Row/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"slots\":{\"title\":{\"children\":[{\"type\":\"Image\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_center\"},\"type\":\"Row\"}},\"type\":\"AppBar\"}",
+      "rootType": "AppBar",
+      "nodeCount": 3,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "LoginPage",
+        "SignupPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "SignupPage",
+          "path": "SignupPage/AppBar",
+          "widgetType": "AppBar"
+        },
+        {
+          "widgetClass": "LoginPage",
+          "path": "LoginPage/AppBar",
+          "widgetType": "AppBar"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Image\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_center\"},\"type\":\"Row\"}",
+      "rootType": "Row",
+      "nodeCount": 2,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "LoginPage",
+        "SignupPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "SignupPage",
+          "path": "SignupPage/AppBar/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "LoginPage",
+          "path": "LoginPage/AppBar/Row",
+          "widgetType": "Row"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Icon\"},{\"triggers\":[{\"action\":{\"action\":{\"type\":\"auth\"},\"nodeType\":\"action\"},\"trigger\":\"ON_TAP\"}],\"type\":\"Image\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_space_between\"},\"type\":\"Row\"}",
+      "rootType": "Row",
+      "nodeCount": 3,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "Kyc",
+        "ReservationForm"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "Kyc",
+          "path": "Kyc/AppBar/Stack/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "ReservationForm",
+          "path": "ReservationForm/AppBar/Stack/Row",
+          "widgetType": "Row"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Icon\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"お知らせ\"},\"type\":\"Text\"}],\"triggers\":[{\"action\":{\"action\":{\"type\":\"alertDialog\"},\"nodeType\":\"action\"},\"trigger\":\"ON_TAP\"}],\"type\":\"Column\"}",
+      "rootType": "Column",
+      "nodeCount": 3,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "CastProfile",
+        "CocomisePage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/AppBar/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/AppBar/Row/Row/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Icon\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"マイQR\"},\"type\":\"Text\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_center\"},\"type\":\"Column\"}",
+      "rootType": "Column",
+      "nodeCount": 3,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "Affiliate",
+        "MyPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/FloatingActionButton/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/FloatingActionButton/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"type\":\"Icon\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"Stripe社決済による安全な決済\"},\"type\":\"Text\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_center\",\"spacing\":8},\"type\":\"Row\"}",
+      "rootType": "Row",
+      "nodeCount": 3,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "ExtensionPayment",
+        "PaymentConfirm"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "ExtensionPayment",
+          "path": "ExtensionPayment/Container/Column/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/Container/Column/Row",
+          "widgetType": "Row"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"children\":[{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"ニクネ\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"性　別\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"飲　酒\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"趣　味\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"職　業\"},\"type\":\"Text\"}],\"details\":{\"spacing\":8},\"type\":\"Column\"},{\"children\":[{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"：\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"：\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"：\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"：\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"：\"},\"type\":\"Text\"}],\"details\":{\"spacing\":8},\"type\":\"Column\"},{\"children\":[{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"ゆずき\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"女　性\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"少し飲む\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"ドライブ\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"ネイリスト\"},\"type\":\"Text\"}],\"details\":{\"crossAxisAlignment\":\"cross_axis_start\",\"spacing\":8},\"type\":\"Column\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_center\",\"spacing\":8},\"type\":\"Row\"}",
+      "rootType": "Row",
+      "nodeCount": 19,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "CastProfile",
+        "MyPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/Stack/Container/ListView/Column/Container/TabBar/PlaceholderWidget/Column/Row/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/Container/Stack/TabBar/PlaceholderWidget/Container/Column/Row/Row",
+          "widgetType": "Row"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"ニクネ\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"性　別\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"飲　酒\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"趣　味\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"職　業\"},\"type\":\"Text\"}],\"details\":{\"spacing\":8},\"type\":\"Column\"}",
+      "rootType": "Column",
+      "nodeCount": 6,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "CastProfile",
+        "MyPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/Stack/Container/ListView/Column/Container/TabBar/PlaceholderWidget/Column/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/Container/Stack/TabBar/PlaceholderWidget/Container/Column/Row/Row/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"ゆずき\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"女　性\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"少し飲む\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"ドライブ\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"ネイリスト\"},\"type\":\"Text\"}],\"details\":{\"crossAxisAlignment\":\"cross_axis_start\",\"spacing\":8},\"type\":\"Column\"}",
+      "rootType": "Column",
+      "nodeCount": 6,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "CastProfile",
+        "MyPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/Stack/Container/ListView/Column/Container/TabBar/PlaceholderWidget/Column/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/Container/Stack/TabBar/PlaceholderWidget/Container/Column/Row/Row/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"地　域\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"年齢層\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"喫　煙\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"特　技\"},\"type\":\"Text\"},{\"details\":{\"style\":\"BODY_MEDIUM\",\"text\":\"好き食\"},\"type\":\"Text\"}],\"details\":{\"crossAxisAlignment\":\"cross_axis_start\",\"spacing\":8},\"type\":\"Column\"}",
+      "rootType": "Column",
+      "nodeCount": 6,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "CastProfile",
+        "MyPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/Stack/Container/ListView/Column/Container/TabBar/PlaceholderWidget/Column/Row/Row/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/Container/Stack/TabBar/PlaceholderWidget/Container/Column/Row/Row/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"details\":{\"decoration\":{\"borderRadius\":{\"allValue\":{\"inputValue\":2,\"mostRecentInputValue\":2},\"bottomLeftValue\":{\"inputValue\":2,\"mostRecentInputValue\":2},\"bottomRightValue\":{\"inputValue\":2,\"mostRecentInputValue\":2},\"topLeftValue\":{\"inputValue\":2,\"mostRecentInputValue\":2},\"topRightValue\":{\"inputValue\":2,\"mostRecentInputValue\":2},\"type\":\"FF_BORDER_RADIUS_ALL\"},\"colorValue\":{\"inputValue\":{\"themeColor\":\"PRIMARY_BACKGROUND\"},\"mostRecentInputValue\":{\"themeColor\":\"PRIMARY_BACKGROUND\"}},\"image\":{\"type\":\"FF_IMAGE_TYPE_NETWORK\"}},\"padding\":{\"topValue\":{\"inputValue\":4,\"mostRecentInputValue\":4},\"type\":\"FF_PADDING_ONLY\"}},\"type\":\"Container\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_center\",\"padding\":{\"bottomValue\":{\"inputValue\":16},\"topValue\":{\"inputValue\":8}}},\"type\":\"Row\"}",
+      "rootType": "Row",
+      "nodeCount": 2,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "AffiliateQrCodeBottomSheet",
+        "ResetPasswordBottomSheet"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "ResetPasswordBottomSheet",
+          "path": "ResetPasswordBottomSheet/Container/Form/Column/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "AffiliateQrCodeBottomSheet",
+          "path": "AffiliateQrCodeBottomSheet/Container/Form/Column/Row",
+          "widgetType": "Row"
+        }
+      ]
+    },
+    {
+      "signature": "{\"children\":[{\"details\":{\"hint\":\"キーワード入力してください\"},\"type\":\"TextField\"},{\"details\":{\"text\":\"検　索\"},\"triggers\":[{\"action\":{\"action\":{\"localStateUpdate\":{\"scope\":\"APP_STATE\",\"updateType\":\"WIDGET\",\"updates\":[{\"field\":\"\",\"kind\":\"setValue\",\"setValue\":{\"variable\":{\"baseVariable\":{\"widgetState\":{\"returnParameter\":{\"allowedDestinationTypes\":[\"Integer\",\"Double\",\"Boolean\",\"ImagePath\",\"VideoPath\",\"AudioPath\"],\"dataType\":{\"scalarType\":\"String\"}}}},\"source\":\"WIDGET_STATE\"}}}]},\"type\":\"localStateUpdate\"},\"nodeType\":\"action\"},\"trigger\":\"ON_TAP\"}],\"type\":\"Button\"}],\"details\":{\"mainAxisAlignment\":\"main_axis_center\",\"spacing\":8},\"type\":\"Row\"}",
+      "rootType": "Row",
+      "nodeCount": 3,
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "search_cast_dialogComp",
+        "search_shop_dialogComp"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "search_cast_dialogComp",
+          "path": "search_cast_dialogComp/Container/Column/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "search_shop_dialogComp",
+          "path": "search_shop_dialogComp/Container/Column/Row",
+          "widgetType": "Row"
+        }
+      ]
+    }
+  ],
+  "repeatedStyleCandidates": [
+    {
+      "signature": "{\"details\":{\"borderRadius\":{\"allValue\":{\"inputValue\":8},\"type\":\"FF_BORDER_RADIUS_ALL\"},\"color\":{\"inputValue\":{\"themeColor\":\"SECONDARY_BACKGROUND\"}}},\"type\":\"Card\"}",
+      "occurrenceCount": 18,
+      "widgetClasses": [
+        "Affiliate",
+        "ExtensionPayment",
+        "Kyc",
+        "MyPage",
+        "PaymentConfirm",
+        "PhoneVarification",
+        "ProfileEdit",
+        "ReservationConfirmed",
+        "ReservationDetail",
+        "ReservationForm"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "Kyc",
+          "path": "Kyc/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "Kyc",
+          "path": "Kyc/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "PhoneVarification",
+          "path": "PhoneVarification/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "ReservationConfirmed",
+          "path": "ReservationConfirmed/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "ReservationDetail",
+          "path": "ReservationDetail/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "ReservationDetail",
+          "path": "ReservationDetail/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "ReservationDetail",
+          "path": "ReservationDetail/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "ReservationForm",
+          "path": "ReservationForm/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "ExtensionPayment",
+          "path": "ExtensionPayment/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "ExtensionPayment",
+          "path": "ExtensionPayment/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/Container/Column/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/Stack/Container/ListView/Column/Container/Card",
+          "widgetType": "Card"
+        },
+        {
+          "widgetClass": "ProfileEdit",
+          "path": "ProfileEdit/Container/ListView/Column/Card",
+          "widgetType": "Card"
+        }
+      ]
+    },
+    {
+      "signature": "{\"details\":{\"padding\":{\"allValue\":{\"inputValue\":16},\"type\":\"FF_PADDING_ALL\"},\"spacing\":16},\"type\":\"Column\"}",
+      "occurrenceCount": 15,
+      "widgetClasses": [
+        "Affiliate",
+        "BasicInfoRegistration",
+        "CocomisePage",
+        "ConnectOnboarding",
+        "HomePage",
+        "InquiryForm",
+        "MacchaChats",
+        "MyPage",
+        "MyWorkContent",
+        "SettingsPage",
+        "SystemInfo"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "HomePage",
+          "path": "HomePage/Stack/Container/ListView/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MacchaChats",
+          "path": "MacchaChats/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card/Container/Column/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card/Container/Column/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card/Container/Column/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card/Container/Column/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/Stack/Container/ListView/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/Drawer/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "BasicInfoRegistration",
+          "path": "BasicInfoRegistration/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ConnectOnboarding",
+          "path": "ConnectOnboarding/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "SettingsPage",
+          "path": "SettingsPage/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MyWorkContent",
+          "path": "MyWorkContent/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "SystemInfo",
+          "path": "SystemInfo/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "InquiryForm",
+          "path": "InquiryForm/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"details\":{\"padding\":{\"allValue\":{\"inputValue\":16},\"type\":\"FF_PADDING_ALL\"},\"spacing\":36},\"type\":\"Column\"}",
+      "occurrenceCount": 15,
+      "widgetClasses": [
+        "Affiliate",
+        "AuthComplete",
+        "EmailVerification",
+        "ExtensionPayment",
+        "LoginPage",
+        "OutsidePageBasic",
+        "PaymentConfirm",
+        "PhoneVarification",
+        "ProfileEdit",
+        "ReservationConfirmed",
+        "ReservationDetail",
+        "ReservationForm",
+        "ReviewPending",
+        "SignupPage",
+        "SmsCode"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "SignupPage",
+          "path": "SignupPage/Container/Form/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "LoginPage",
+          "path": "LoginPage/Container/Form/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "AuthComplete",
+          "path": "AuthComplete/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "EmailVerification",
+          "path": "EmailVerification/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "OutsidePageBasic",
+          "path": "OutsidePageBasic/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "PhoneVarification",
+          "path": "PhoneVarification/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ReviewPending",
+          "path": "ReviewPending/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "SmsCode",
+          "path": "SmsCode/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ReservationConfirmed",
+          "path": "ReservationConfirmed/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ReservationDetail",
+          "path": "ReservationDetail/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ReservationForm",
+          "path": "ReservationForm/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ExtensionPayment",
+          "path": "ExtensionPayment/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ProfileEdit",
+          "path": "ProfileEdit/Container/ListView/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"details\":{\"padding\":{\"allValue\":{\"inputValue\":8},\"type\":\"FF_PADDING_ALL\"},\"spacing\":8},\"type\":\"Column\"}",
+      "occurrenceCount": 13,
+      "widgetClasses": [
+        "Affiliate",
+        "ExtensionPayment",
+        "MyPage",
+        "PaymentConfirm",
+        "ReservationConfirmed",
+        "ReservationDetail"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "ReservationConfirmed",
+          "path": "ReservationConfirmed/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ReservationDetail",
+          "path": "ReservationDetail/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ReservationDetail",
+          "path": "ReservationDetail/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ReservationDetail",
+          "path": "ReservationDetail/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ExtensionPayment",
+          "path": "ExtensionPayment/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ExtensionPayment",
+          "path": "ExtensionPayment/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ExtensionPayment",
+          "path": "ExtensionPayment/Container/Column/Card/Container/Column/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/Stack/Container/ListView/Column/Container/TabBar/PlaceholderWidget/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"details\":{\"padding\":{\"allValue\":{\"inputValue\":4},\"type\":\"FF_PADDING_ALL\"},\"style\":\"BODY_MEDIUM\"},\"type\":\"Text\"}",
+      "occurrenceCount": 6,
+      "widgetClasses": [
+        "CocomisePage",
+        "HomePage",
+        "WorkPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "HomePage",
+          "path": "HomePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Container/Column/Text",
+          "widgetType": "Text"
+        },
+        {
+          "widgetClass": "HomePage",
+          "path": "HomePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Container/Column/Text",
+          "widgetType": "Text"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Container/Column/Text",
+          "widgetType": "Text"
+        },
+        {
+          "widgetClass": "CocomisePage",
+          "path": "CocomisePage/Stack/Container/ListView/Column/Container/GridView/Container/Stack/Column/Container/Column/Text",
+          "widgetType": "Text"
+        },
+        {
+          "widgetClass": "WorkPage",
+          "path": "WorkPage/Stack/Container/Column/Column/Container/Column/Row/Container/Text",
+          "widgetType": "Text"
+        },
+        {
+          "widgetClass": "WorkPage",
+          "path": "WorkPage/Stack/Container/Column/Column/Container/Column/Row/Container/Text",
+          "widgetType": "Text"
+        }
+      ]
+    },
+    {
+      "signature": "{\"details\":{\"padding\":{\"allValue\":{\"inputValue\":8},\"type\":\"FF_PADDING_ALL\"},\"spacing\":8},\"type\":\"Row\"}",
+      "occurrenceCount": 6,
+      "widgetClasses": [
+        "MacchaChats",
+        "PaymentConfirm"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "MacchaChats",
+          "path": "MacchaChats/Container/Column/ListView/Container/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/Container/Column/Card/Container/Column/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/Container/Column/Card/Container/Column/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/Container/Column/Card/Container/Column/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/Container/Column/Card/Container/Column/Row",
+          "widgetType": "Row"
+        },
+        {
+          "widgetClass": "PaymentConfirm",
+          "path": "PaymentConfirm/Container/Column/Card/Container/Column/Row",
+          "widgetType": "Row"
+        }
+      ]
+    },
+    {
+      "signature": "{\"details\":{\"padding\":{\"allValue\":{\"inputValue\":16},\"type\":\"FF_PADDING_ALL\"},\"spacing\":12},\"type\":\"Column\"}",
+      "occurrenceCount": 6,
+      "widgetClasses": [
+        "AdminAffiliateManagement",
+        "AdminReportReviewPage",
+        "CastProfile",
+        "KycReviewPage",
+        "WalletPage",
+        "WorkPostDetailPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "KycReviewPage",
+          "path": "KycReviewPage/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "AdminReportReviewPage",
+          "path": "AdminReportReviewPage/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "WalletPage",
+          "path": "WalletPage/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "AdminAffiliateManagement",
+          "path": "AdminAffiliateManagement/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "WorkPostDetailPage",
+          "path": "WorkPostDetailPage/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"details\":{\"padding\":{\"allValue\":{\"inputValue\":12},\"type\":\"FF_PADDING_ALL\"},\"spacing\":4},\"type\":\"Column\"}",
+      "occurrenceCount": 5,
+      "widgetClasses": [
+        "AdminAffiliateManagement",
+        "AdminReportReviewPage",
+        "CastProfile",
+        "NotificationsPage",
+        "WorkPage"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "WorkPage",
+          "path": "WorkPage/Stack/Container/Column/Column/ListView/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "CastProfile",
+          "path": "CastProfile/Container/ListView/Column/Container/Column/ListView/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "NotificationsPage",
+          "path": "NotificationsPage/Column/ListView/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "AdminReportReviewPage",
+          "path": "AdminReportReviewPage/Column/ListView/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "AdminAffiliateManagement",
+          "path": "AdminAffiliateManagement/Column/ListView/Card/Container/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"details\":{\"padding\":{\"allValue\":{\"inputValue\":16},\"type\":\"FF_PADDING_ALL\"},\"spacing\":8},\"type\":\"Column\"}",
+      "occurrenceCount": 4,
+      "widgetClasses": [
+        "Affiliate",
+        "MacchaPage",
+        "MyPage",
+        "ReservationDetail"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "ReservationDetail",
+          "path": "ReservationDetail/Container/Column/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "Affiliate",
+          "path": "Affiliate/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MyPage",
+          "path": "MyPage/Stack/Container/ListView/Column/Container/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "MacchaPage",
+          "path": "MacchaPage/Stack/Container/ListView/Column",
+          "widgetType": "Column"
+        }
+      ]
+    },
+    {
+      "signature": "{\"details\":{\"padding\":{\"topValue\":{\"inputValue\":4}},\"style\":\"BODY_MEDIUM\"},\"type\":\"Text\"}",
+      "occurrenceCount": 3,
+      "widgetClasses": [
+        "Work_filter_selectComp",
+        "search_cast_dialogComp",
+        "search_shop_dialogComp"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "Work_filter_selectComp",
+          "path": "Work_filter_selectComp/Container/Column/Text",
+          "widgetType": "Text"
+        },
+        {
+          "widgetClass": "search_cast_dialogComp",
+          "path": "search_cast_dialogComp/Container/Column/Text",
+          "widgetType": "Text"
+        },
+        {
+          "widgetClass": "search_shop_dialogComp",
+          "path": "search_shop_dialogComp/Container/Column/Text",
+          "widgetType": "Text"
+        }
+      ]
+    },
+    {
+      "signature": "{\"details\":{\"padding\":{\"allValue\":{\"inputValue\":8},\"type\":\"FF_PADDING_ALL\"},\"spacing\":16},\"type\":\"Column\"}",
+      "occurrenceCount": 2,
+      "widgetClasses": [
+        "ProfileEdit",
+        "ReservationForm"
+      ],
+      "occurrences": [
+        {
+          "widgetClass": "ReservationForm",
+          "path": "ReservationForm/Container/Column/Card/Container/Column",
+          "widgetType": "Column"
+        },
+        {
+          "widgetClass": "ProfileEdit",
+          "path": "ProfileEdit/Container/ListView/Column/Card/Container/Column",
+          "widgetType": "Column"
+        }
+      ]
+    }
+  ],
+  "resourceMatchers": {
+    "componentNames": [
+      "AffiliateQrCodeBottomSheet",
+      "ButtomNaviComp",
+      "RegistrationPopupComp",
+      "ResetPasswordBottomSheet",
+      "Work_filter_selectComp",
+      "nottification_filter_dialogComp",
+      "search_cast_dialogComp",
+      "search_shop_dialogComp"
+    ],
+    "themeTokenNames": [
+      "accent1",
+      "accent2",
+      "accent3",
+      "accent4",
+      "alternate",
+      "bodyLarge",
+      "bodyMedium",
+      "bodySmall",
+      "displayLarge",
+      "displayMedium",
+      "displaySmall",
+      "error",
+      "full",
+      "headlineLarge",
+      "headlineMedium",
+      "headlineSmall",
+      "info",
+      "labelLarge",
+      "labelMedium",
+      "labelSmall",
+      "lg",
+      "lg",
+      "lg",
+      "md",
+      "md",
+      "md",
+      "primary",
+      "primaryBackground",
+      "primaryText",
+      "secondary",
+      "secondaryBackground",
+      "secondaryText",
+      "sm",
+      "sm",
+      "sm",
+      "success",
+      "tertiary",
+      "titleLarge",
+      "titleMedium",
+      "titleSmall",
+      "warning",
+      "xl",
+      "xl",
+      "xs"
+    ]
+  }
+}

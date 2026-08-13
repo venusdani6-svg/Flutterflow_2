@@ -95,7 +95,13 @@ async function processAffiliatorPayment(
     return;
   }
 
-  const minDays = config.affiliate_min_days || 3;
+  // FIX (confirmed live bug, found during comprehensive review): `|| 3`
+  // silently coerced a legitimate admin-set `0` (no minimum working days
+  // required) back to the default 3 — unlike `affiliate_payment_day`,
+  // `affiliate_min_days` had zero write-side validation, so an admin
+  // setting exactly this value would have it silently ignored. Explicit
+  // `typeof` check preserves a real 0.
+  const minDays = typeof config.affiliate_min_days === "number" ? config.affiliate_min_days : 3;
   const workDays = await countUniqueWorkDays(affiliatorUid, monthStr);
 
   if (workDays < minDays) {
@@ -115,6 +121,25 @@ async function processAffiliatorPayment(
   let totalRewardAmount = 0;
 
   for (const reward of rewards) {
+    // FIX (confirmed live bug, found during audit): the entire per-reward
+    // body below was unguarded - `db.collection("users").doc(X)` throws
+    // SYNCHRONOUSLY (before any network call) if X is not a non-empty
+    // string, which happens if `rewardData.referred_uid` is missing on a
+    // malformed doc (admin.ts's own comments confirm at least one such
+    // `_seed` placeholder doc already exists in `affiliate_rewards`). That
+    // throw was never caught locally - it propagated out of this whole
+    // function, and the only catch is the OUTER per-(affiliator,month)
+    // try/catch in processMonthlyAffiliatePayments, which aborts the
+    // ENTIRE batch for this affiliator+month. Result: every other
+    // legitimately-valid pending reward for the same affiliator+month
+    // never gets paid OR forfeited - stuck "pending" forever, re-failing
+    // at the same bad doc every single day the cron fires. Wrapped so one
+    // bad reward doc can no longer take down every other reward alongside
+    // it; the bad one is logged and left "pending" (not silently
+    // forfeited - an admin should investigate a malformed reward doc, not
+    // have it quietly disappear) while the rest of the batch proceeds
+    // normally.
+    try {
     const rewardData = reward.data();
     const referredDoc = await db.collection("users").doc(rewardData.referred_uid).get();
     const referredData = referredDoc.data();
@@ -145,8 +170,57 @@ async function processAffiliatorPayment(
       }
     }
 
+    // Client-confirmed decision (audit follow-up, 2026-08-12): freezing a
+    // referred cast counts the same as that cast leaving, month-scoped
+    // identically to the voluntary-withdrawal path above (only the
+    // reward accrued in the SAME month the freeze happened is forfeited -
+    // reward already earned in prior months, while still active and
+    // unfrozen, is unaffected). `frozen_at` (admin.ts's adminToggleFreeze)
+    // gives the same month-scoping precision `left_at` gives the
+    // voluntary-departure case.
+    if (referredData.is_frozen) {
+      const frozenMonthStr = referredData.frozen_at
+        ? monthStrFromDate(referredData.frozen_at.toDate())
+        : null;
+      if (frozenMonthStr === null || frozenMonthStr === rewardData.month) {
+        await reward.ref.update({ status: "forfeited" });
+        console.log(
+          `Referred cast ${rewardData.referred_uid} frozen (${frozenMonthStr ?? "unknown"}). Forfeiting reward ${reward.id} for ${rewardData.month}.`
+        );
+        continue;
+      }
+    }
+
+    // FIX (confirmed live bug, found during audit): the mutual-approval
+    // rule (IMPLEMENTATION_PLAN.md §3.7.12/§4.2, "both parties remained
+    // approved throughout") was only re-checked for the REFERRER above
+    // (line ~92) at payment time - the REFERRED cast's own
+    // `approval_status` was never re-checked here at all, only `is_active`/
+    // `is_frozen`. A referred cast whose KYC gets revoked (re-review,
+    // fraud flag, expired license) after their referral reward already
+    // accrued but before the monthly batch would still be paid in full,
+    // violating the rule. No `left_at`-equivalent timestamp exists for an
+    // approval_status change to month-scope this precisely, so mirrors the
+    // REFERRER-side precedent exactly (line ~92-96): forfeit outright
+    // rather than defer, matching how "not approved" is already treated
+    // for the other party in this exact function.
+    if (referredData.approval_status !== "approved") {
+      await reward.ref.update({ status: "forfeited" });
+      console.log(
+        `Referred cast ${rewardData.referred_uid} not approved (${referredData.approval_status}). Forfeiting reward ${reward.id} for ${rewardData.month}.`
+      );
+      continue;
+    }
+
     validRewards.push(reward);
     totalRewardAmount += rewardData.reward_amount;
+    } catch (err) {
+      console.error(
+        `Skipping malformed/unprocessable reward ${reward.id} for affiliator ${affiliatorUid} (left pending, not forfeited):`,
+        err
+      );
+      continue;
+    }
   }
 
   if (validRewards.length === 0 || totalRewardAmount <= 0) {
@@ -159,19 +233,68 @@ async function processAffiliatorPayment(
     return;
   }
 
+  // FIX (PROJECT_KNOWLEDGE.md §70, CRITICAL — comprehensive project-wide
+  // review): the original single try/catch below spanned well past the
+  // point where real money had already moved (the transfer) and the
+  // rewards had already been marked "paid" — if the LEDGER write or the
+  // NOTIFICATION write threw for any transient reason, the catch block
+  // unconditionally reverted every reward back to "pending", with no check
+  // of whether the transfer itself had actually succeeded. The next
+  // scheduled run's `status=="pending"` query would then pick up the SAME
+  // rewards again and pay this affiliator a second time — a real,
+  // demonstrated double-transfer path, not a theoretical one.
+  //
+  // Two independent layers of defense now:
+  // 1. An `idempotencyKey` on the Stripe call itself, stable per
+  //    (affiliator, month) — confirmed via processMonthlyAffiliatePayments'
+  //    own grouping (line ~65) that this function is called at most once
+  //    per (affiliatorUid, monthStr) pair within a single run. If this
+  //    function is EVER invoked again for the same pair (a later run after
+  //    a bookkeeping failure, a manual re-trigger, anything) Stripe itself
+  //    returns the SAME transfer object instead of creating a second one —
+  //    this is what actually prevents the double-payment, independent of
+  //    whatever Firestore bookkeeping does afterward.
+  // 2. The try/catch boundary now only wraps the transfer call itself.
+  //    Once the transfer succeeds, marking rewards "paid" is retried
+  //    in-place rather than silently reverted (reverting here would be the
+  //    same bug again — a batch-commit failure right after a successful
+  //    transfer must never make these rewards look untouched to the next
+  //    run's query), and the ledger/notification writes are separately
+  //    best-effort: their failure is logged loudly but never un-marks a
+  //    reward or touches the transfer.
+  let transfer: import("stripe").Stripe.Transfer;
   try {
-    const transfer = await stripe.transfers.create({
-      amount: totalRewardAmount,
-      currency: "jpy",
-      destination: affiliatorData.stripe_account_id,
-      metadata: {
-        type: "affiliate",
-        affiliator_uid: affiliatorUid,
-        month: monthStr,
-        reward_count: validRewards.length.toString(),
+    transfer = await stripe.transfers.create(
+      {
+        amount: totalRewardAmount,
+        currency: "jpy",
+        destination: affiliatorData.stripe_account_id,
+        metadata: {
+          type: "affiliate",
+          affiliator_uid: affiliatorUid,
+          month: monthStr,
+          reward_count: validRewards.length.toString(),
+        },
       },
-    });
+      { idempotencyKey: `affiliate_${affiliatorUid}_${monthStr}` }
+    );
+  } catch (err: any) {
+    console.error(`Affiliate transfer failed for ${affiliatorUid}:`, err);
+    // The transfer itself never succeeded — nothing was marked "paid" yet,
+    // so leaving every reward "pending" for the next run to retry is
+    // correct here (this is the one failure mode where the original
+    // revert-to-pending logic was actually right).
+    return;
+  }
 
+  // Money has now genuinely moved (or, if this is a retried call for the
+  // same affiliator+month, the idempotency key resolved to the SAME
+  // already-completed transfer). From this point on, nothing may revert
+  // these rewards to "pending" — that would risk a second real transfer on
+  // the next run despite the idempotency key already having prevented the
+  // Stripe-side duplicate; the bookkeeping must independently stay
+  // consistent with "this money has already moved."
+  try {
     const batch = db.batch();
     for (const reward of validRewards) {
       batch.update(reward.ref, {
@@ -180,7 +303,15 @@ async function processAffiliatorPayment(
       });
     }
     await batch.commit();
+  } catch (err) {
+    console.error(
+      `CRITICAL: Stripe transfer ${transfer.id} succeeded for affiliator ${affiliatorUid} (${monthStr}, ¥${totalRewardAmount}) but marking ${validRewards.length} reward(s) "paid" failed — they remain "pending" and WILL be re-evaluated (and, absent the idempotencyKey fix above, re-paid) on the next run. Manual reconciliation required.`,
+      err
+    );
+    return;
+  }
 
+  try {
     await db.collection("ledger").add({
       ledger_id: "",
       res_id: "",
@@ -200,7 +331,14 @@ async function processAffiliatorPayment(
       processed: true,
       created_at: Timestamp.now(),
     });
+  } catch (err) {
+    console.error(
+      `Failed to write ledger entry for affiliate transfer ${transfer.id} (affiliator ${affiliatorUid}, ${monthStr}) — transfer succeeded and rewards are already marked "paid"; this is a reporting gap only, not a payment issue:`,
+      err
+    );
+  }
 
+  try {
     await db
       .collection("users")
       .doc(affiliatorUid)
@@ -217,27 +355,65 @@ async function processAffiliatorPayment(
         read: false,
         created_at: Timestamp.now(),
       });
-
-    console.log(
-      `Affiliate payment completed: ${affiliatorUid}, ¥${totalRewardAmount}, ${validRewards.length} rewards`
+  } catch (err) {
+    console.error(
+      `Failed to write notification for affiliate transfer ${transfer.id} (affiliator ${affiliatorUid}):`,
+      err
     );
-  } catch (err: any) {
-    console.error(`Affiliate transfer failed for ${affiliatorUid}:`, err);
-
-    for (const reward of validRewards) {
-      await reward.ref.update({ status: "pending" });
-    }
   }
+
+  console.log(
+    `Affiliate payment completed: ${affiliatorUid}, ¥${totalRewardAmount}, ${validRewards.length} rewards`
+  );
+}
+
+// FIX (confirmed live bug, found during audit): every date-bucketing
+// function in this file used to read `Date.getFullYear()`/`getMonth()`/
+// `getDate()` directly, which report the SERVER's local time (UTC in Cloud
+// Functions), not Japan's. A reservation completed between 00:00-08:59 JST
+// landed in the PREVIOUS UTC calendar day, so it could be counted toward
+// the wrong month's work-day total (affecting the minDays eligibility
+// threshold in processAffiliatorPayment) or the wrong day in
+// getAffiliateDashboard's today/week stats, for roughly a 9-hour window
+// every single day. Mirrors the identical, already-correct
+// JST_OFFSET_MS-shift pattern used in admin.ts's adminGetDashboardStats.
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+function jstParts(date: Date): { year: number; month: number; date: number } {
+  const shifted = new Date(date.getTime() + JST_OFFSET_MS);
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth(),
+    date: shifted.getUTCDate(),
+  };
+}
+
+// The UTC instant for JST midnight on the given JST calendar date (month is
+// 0-indexed, matching `Date.UTC`) - the correct lower bound for a Firestore
+// range query scoped to "this JST day/month". `Date.UTC` normalizes
+// out-of-range month/date indices itself (e.g. month 12 rolls into January
+// of the next year), so callers don't need to pre-normalize.
+function jstMidnightUtc(year: number, month: number, date: number): Date {
+  return new Date(Date.UTC(year, month, date) - JST_OFFSET_MS);
+}
+
+function jstDateKey(date: Date): string {
+  const { year, month, date: d } = jstParts(date);
+  return `${year}-${month}-${d}`;
 }
 
 function monthStrFromDate(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  const { year, month } = jstParts(date);
+  return `${year}-${String(month + 1).padStart(2, "0")}`;
 }
 
 async function countUniqueWorkDays(castUid: string, monthStr: string): Promise<number> {
   const [year, month] = monthStr.split("-").map(Number);
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0, 23, 59, 59);
+  const startDate = jstMidnightUtc(year, month - 1, 1);
+  // Exclusive upper bound (one ms before JST midnight of the FOLLOWING
+  // month) rather than "day 0 of month+1 at 23:59:59 local" - sidesteps
+  // both the timezone bug and any last-day-of-month edge cases.
+  const endDate = new Date(jstMidnightUtc(year, month, 1).getTime() - 1);
 
   const completedReservations = await db
     .collection("reservations")
@@ -251,8 +427,7 @@ async function countUniqueWorkDays(castUid: string, monthStr: string): Promise<n
   for (const doc of completedReservations.docs) {
     const completedDate = doc.data().updated_at?.toDate();
     if (completedDate) {
-      const dateStr = `${completedDate.getFullYear()}-${completedDate.getMonth()}-${completedDate.getDate()}`;
-      uniqueDates.add(dateStr);
+      uniqueDates.add(jstDateKey(completedDate));
     }
   }
 
@@ -288,6 +463,10 @@ export const getAffiliateDashboard = onCall(async (request) => {
   }
 
   const config = await getSystemConfig();
+  // FIX (confirmed live bug, found during comprehensive review): `|| 3`
+  // silently coerced a legitimate admin-set `0` back to the default 3 —
+  // same fix as processAffiliatorPayment above.
+  const minDaysDisplay = typeof config.affiliate_min_days === "number" ? config.affiliate_min_days : 3;
 
   const referredCasts = await db
     .collection("users")
@@ -302,7 +481,7 @@ export const getAffiliateDashboard = onCall(async (request) => {
   }
 
   const now = new Date();
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const currentMonth = monthStrFromDate(now);
 
   const currentRewards = await db
     .collection("affiliate_rewards")
@@ -322,11 +501,17 @@ export const getAffiliateDashboard = onCall(async (request) => {
   // this week / this month / all-time, from their own completed
   // reservations' duration_minutes and distinct completion dates. One
   // unbounded fetch, bucketed client-side by boundary, rather than four
-  // separate range queries against the same composite index.
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfWeek = new Date(startOfToday);
-  startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  // separate range queries against the same composite index. Boundaries
+  // computed against JST (see jstParts/jstMidnightUtc above), not the
+  // server's own local time, for the same reason as countUniqueWorkDays.
+  const { year: tYear, month: tMonth, date: tDate } = jstParts(now);
+  const startOfToday = jstMidnightUtc(tYear, tMonth, tDate);
+  // Weekday doesn't depend on time-of-day, so the weekday of the JST
+  // calendar date equals the UTC weekday of a UTC-midnight instant built
+  // from the same year/month/date.
+  const jstWeekday = new Date(Date.UTC(tYear, tMonth, tDate)).getUTCDay();
+  const startOfWeek = jstMidnightUtc(tYear, tMonth, tDate - jstWeekday);
+  const startOfMonth = jstMidnightUtc(tYear, tMonth, 1);
 
   const ownCompleted = await db
     .collection("reservations")
@@ -345,7 +530,7 @@ export const getAffiliateDashboard = onCall(async (request) => {
     const completedAt = d.updated_at?.toDate();
     if (!completedAt) continue;
     const minutes = d.duration_minutes || 0;
-    const dateKey = `${completedAt.getFullYear()}-${completedAt.getMonth()}-${completedAt.getDate()}`;
+    const dateKey = jstDateKey(completedAt);
 
     minutesCumulative += minutes;
     daysCumulative.add(dateKey);
@@ -391,7 +576,7 @@ export const getAffiliateDashboard = onCall(async (request) => {
     inactive_referred_count: inactiveReferredCount,
     current_month: currentMonth,
     current_month_work_days: workDays,
-    current_month_min_days: config.affiliate_min_days || 3,
+    current_month_min_days: minDaysDisplay,
     current_month_pending_amount: currentMonthPending,
     current_month_reward_count: currentMonthCount,
     all_time_paid: allTimePaid,
@@ -401,7 +586,7 @@ export const getAffiliateDashboard = onCall(async (request) => {
     // days (§3.7.12's mutual-approval + continued-contribution rules), so
     // "eligible" would be misleading if it only checked work days.
     eligible_for_payment:
-      workDays >= (config.affiliate_min_days || 3) &&
+      workDays >= minDaysDisplay &&
       !!userData.is_active &&
       !userData.is_frozen &&
       userData.approval_status === "approved",

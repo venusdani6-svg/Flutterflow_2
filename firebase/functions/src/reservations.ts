@@ -5,7 +5,17 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { db, stripe, Timestamp, getSystemConfig } from "./config";
-import { transferPendingCastRewards } from "./stripe-payments";
+import { transferPendingCastRewards, captureAuthorizedExtensions } from "./stripe-payments";
+import { findUnavailableCastId, reservedSlotsQuery } from "./schedule";
+
+// DoS-prevention bound only, not a product rule (PROJECT_KNOWLEDGE.md §68):
+// the DSL only ever sends a single cast_id today, but this callable accepts
+// an arbitrary array — cast_ids.length × (duration_minutes/30) becomes the
+// number of writes in the Authorize-time slot-lock transaction
+// (stripe-webhooks.ts), and Firestore hard-caps a transaction at 500
+// writes. Generously above any real group-invite scenario, far below that
+// ceiling even at the max allowed duration.
+const MAX_CAST_IDS_PER_RESERVATION = 10;
 
 /**
  * Callable: Create reservation request
@@ -43,10 +53,104 @@ export const createReservation = onCall(async (request) => {
   if (!cast_ids || cast_ids.length === 0) {
     throw new HttpsError("invalid-argument", "キャストを選択してください。");
   }
+  if (cast_ids.length > MAX_CAST_IDS_PER_RESERVATION) {
+    throw new HttpsError("invalid-argument", "選択できるキャストの人数が上限を超えています。");
+  }
+  // FIX (PROJECT_KNOWLEDGE.md §68, found in self-review): duplicate entries
+  // in cast_ids were never rejected or deduped — beyond the pre-existing
+  // cosmetic issue (a duplicated cast gets the "new request" notification
+  // twice, below), this became a real crash risk once Authorize-time
+  // locking (stripe-webhooks.ts) started building one schedule_slots doc
+  // ref per {cast_id × slot}: a duplicate cast_id produces a duplicate ref,
+  // and writing to the same document twice within one Firestore
+  // transaction is unsafe territory this codebase has no reason to
+  // exercise. Deduping here — not just defensively inside
+  // buildReservationSlotRefs (schedule.ts also dedupes, for callers that
+  // don't go through this validation) — closes it at the source, so
+  // `cast_ids` never contains a duplicate anywhere downstream in this
+  // function either (the per-cast validation loop, notifications, the
+  // reservation doc itself).
+  const castIds: string[] = [...new Set(cast_ids as string[])];
 
-  for (const castId of cast_ids) {
+  // FIX (confirmed live bug, found during audit): none of these required
+  // fields were validated for presence/type before use. `Timestamp.
+  // fromDate(new Date(date))` a few lines below throws SYNCHRONOUSLY
+  // (before any Firestore write) if `date` is missing/unparseable (`new
+  // Date(undefined)` -> Invalid Date -> NaN), and Firestore's Admin SDK
+  // rejects literal `undefined` values in document writes by default -
+  // both cases surfaced as an opaque `HttpsError('internal', 'INTERNAL')`
+  // (onCall's default wrapper for non-HttpsError throws) instead of a
+  // clean validation message, for the single most important function in
+  // this file. `time_slot`/`base_amount` specifically also feed
+  // downstream calculations (`nightTimeSlots.includes(time_slot)`,
+  // `total_amount = base_amount + ...`) that don't throw on bad input
+  // (`.includes(undefined)` just returns false; `undefined + number` is
+  // `NaN`) but would silently write a corrupted/incorrect reservation
+  // rather than reject the request - validated explicitly here instead.
+  if (typeof date !== "string" && typeof date !== "number") {
+    throw new HttpsError("invalid-argument", "日付が必要です。");
+  }
+  const requestedStart = new Date(date);
+  if (isNaN(requestedStart.getTime())) {
+    throw new HttpsError("invalid-argument", "日付の形式が不正です。");
+  }
+  // FIX (PROJECT_KNOWLEDGE.md §68): the client always sends a 30-min-
+  // aligned start (resStartTime's dropdown only ever offers :00/:30
+  // values), but nothing server-side enforced it — a direct-callable
+  // caller could send an unaligned instant, which the slot-locking math in
+  // stripe-webhooks.ts would silently floor into the wrong leading slot.
+  // Checked in UTC, matching this codebase's own established "Cloud
+  // Functions run in UTC" fact (affiliate.ts) and parseDayStart's own
+  // convention (schedule.ts).
+  if (
+    requestedStart.getUTCMinutes() % 30 !== 0 ||
+    requestedStart.getUTCSeconds() !== 0 ||
+    requestedStart.getUTCMilliseconds() !== 0
+  ) {
+    throw new HttpsError("invalid-argument", "予約時刻は30分単位で指定してください。");
+  }
+  if (typeof time_slot !== "string" || !time_slot) {
+    throw new HttpsError("invalid-argument", "時間帯が必要です。");
+  }
+  if (typeof duration_minutes !== "number" || duration_minutes <= 0) {
+    throw new HttpsError("invalid-argument", "利用時間が必要です。");
+  }
+  // FIX (PROJECT_KNOWLEDGE.md §68): an unbounded duration_minutes could,
+  // combined with cast_ids.length, exceed Firestore's 500-writes-per-
+  // transaction cap at Authorize-time slot-locking (stripe-webhooks.ts).
+  // Reuses the existing max_total_hours config already used by the
+  // extension-payment flow (config.ts) rather than inventing a separate
+  // limit for the same real-world constraint.
+  if (duration_minutes % 30 !== 0) {
+    throw new HttpsError("invalid-argument", "利用時間は30分単位で指定してください。");
+  }
+  if (typeof base_amount !== "number" || isNaN(base_amount) || base_amount <= 0) {
+    throw new HttpsError("invalid-argument", "金額が必要です。");
+  }
+
+  for (const castId of castIds) {
+    if (typeof castId !== "string" || !castId) {
+      throw new HttpsError("invalid-argument", "キャストIDが不正です。");
+    }
     const castDoc = await db.collection("users").doc(castId).get();
-    if (!castDoc.exists || castDoc.data()?.approval_status !== "approved") {
+    // FIX (confirmed live bug, found during audit): this loop checked
+    // existence/approval_status/is_frozen/blocked_users but never
+    // `account_type === "cast"` - `approval_status` is a shared field
+    // present on every user doc regardless of type (confirmed by the
+    // guest check a few lines above, which reads the exact same field on
+    // the CALLER's own guest doc), so any approved, non-frozen, non-
+    // blocking user - including another GUEST - passed every check here.
+    // A guest could create a reservation naming another guest as the
+    // "cast", triggering spurious notifications and letting that guest's
+    // account drive the reservation through respondToReservation/
+    // confirmMeetup/reportCompletion (all of which authorize purely via
+    // `cast_ids.includes(uid)`, with no account_type check of their own)
+    // entirely outside the guest<->cast business model.
+    if (
+      !castDoc.exists ||
+      castDoc.data()?.account_type !== "cast" ||
+      castDoc.data()?.approval_status !== "approved"
+    ) {
       throw new HttpsError("not-found", `キャスト ${castId} が見つかりません。`);
     }
     if (castDoc.data()?.is_frozen) {
@@ -58,6 +162,13 @@ export const createReservation = onCall(async (request) => {
   }
 
   const config = await getSystemConfig();
+
+  if (duration_minutes > config.max_total_hours * 60) {
+    throw new HttpsError(
+      "invalid-argument",
+      `利用時間は最大${config.max_total_hours}時間までです。`
+    );
+  }
 
   // Staff-fee-first split (§3.9.11): `staff_selections` is an optional
   // array of {staff_id, role: "security"|"transport"}. Each staff member
@@ -133,13 +244,29 @@ export const createReservation = onCall(async (request) => {
 
   const totalAmount = base_amount + transportFee + staffFeeTotal;
 
+  // Guest-side booking validation against availability (PROJECT_KNOWLEDGE.md
+  // §68) — advisory, not the authoritative enforcement (that's the
+  // transactional lock in stripe-webhooks.ts's handleAmountCapturableUpdated,
+  // which runs at the moment funds are actually held). This exists purely
+  // to give a guest fast, friendly feedback before they ever reach the
+  // payment sheet, for the common case where a cast has already blocked or
+  // is already booked for the requested window. Runs after all cast/staff
+  // validation above so every cast_id here is confirmed real.
+  const unavailableCastId = await findUnavailableCastId(castIds, requestedStart, duration_minutes);
+  if (unavailableCastId) {
+    throw new HttpsError(
+      "failed-precondition",
+      "選択した時間帯はご利用いただけません。別の日時をお選びください。"
+    );
+  }
+
   const resRef = db.collection("reservations").doc();
   const resId = resRef.id;
 
   await resRef.set({
     res_id: resId,
     guest_id: uid,
-    cast_ids,
+    cast_ids: castIds,
     staff_ids: staffIds,
     status: "request_pending",
     date: Timestamp.fromDate(new Date(date)),
@@ -169,7 +296,7 @@ export const createReservation = onCall(async (request) => {
   });
 
   const batch = db.batch();
-  for (const castId of cast_ids) {
+  for (const castId of castIds) {
     const notifRef = db.collection("users").doc(castId).collection("notifications").doc();
     batch.set(notifRef, {
       type: "matching",
@@ -203,30 +330,75 @@ export const respondToReservation = onCall(async (request) => {
   const { res_id, accept } = request.data;
   const uid = request.auth.uid;
 
-  const resDoc = await db.collection("reservations").doc(res_id).get();
-  if (!resDoc.exists) {
-    throw new HttpsError("not-found", "予約が見つかりません。");
+  if (typeof res_id !== "string" || !res_id) {
+    throw new HttpsError("invalid-argument", "予約IDが必要です。");
+  }
+  // FIX (confirmed live bug, found during audit): `accept` was only ever
+  // checked with bare JS truthiness (`if (accept)` below) - Cloud
+  // Functions are directly callable with arbitrary JSON, so a non-boolean
+  // payload like `accept: "false"` (a non-empty, and therefore truthy,
+  // string) would silently take the ACCEPT branch despite its content
+  // saying otherwise, flipping a cast's intended decline into an accept.
+  if (typeof accept !== "boolean") {
+    throw new HttpsError("invalid-argument", "acceptはtrue/falseで指定してください。");
   }
 
-  const resData = resDoc.data()!;
+  // FIX (confirmed live bug, comprehensive review): the status guard
+  // (below) and the status-transition write were two separate,
+  // non-transactional operations — two near-simultaneous `respondToReservation`
+  // calls for the same reservation (double-tap, or a client retry) could
+  // both read the same pre-transition status and both pass the guard
+  // before either write landed, then both proceed to create a fresh
+  // `chat_rooms` doc (auto-ID, not idempotent) and duplicate `work_posts`
+  // entries. Wrapped the read-check-write in a transaction so only ONE
+  // caller can ever win the status transition; the loser sees the
+  // already-updated status and fails the guard, exactly as if it had
+  // arrived after the first call actually finished.
+  const resData = await db.runTransaction(async (tx) => {
+    const resRef = db.collection("reservations").doc(res_id);
+    const resSnap = await tx.get(resRef);
+    if (!resSnap.exists) {
+      throw new HttpsError("not-found", "予約が見つかりません。");
+    }
 
-  if (!resData.cast_ids.includes(uid)) {
-    throw new HttpsError("permission-denied", "この予約の対象キャストではありません。");
-  }
+    const data = resSnap.data()!;
 
-  if (!["authorized", "cast_pending"].includes(resData.status)) {
-    throw new HttpsError(
-      "failed-precondition",
-      "この予約はすでに処理されています。"
-    );
-  }
+    if (!data.cast_ids?.includes(uid)) {
+      throw new HttpsError("permission-denied", "この予約の対象キャストではありません。");
+    }
 
-  if (accept) {
-    await db.collection("reservations").doc(res_id).update({
-      status: "confirmed",
+    if (!["authorized", "cast_pending"].includes(data.status)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "この予約はすでに処理されています。"
+      );
+    }
+
+    // Slot-lock release (PROJECT_KNOWLEDGE.md §68), folded into this SAME
+    // transaction rather than called after it commits — an orphaned
+    // "reserved" schedule_slots doc has no self-healing path, unlike the
+    // Stripe hold this branch also releases below (a stale hold there just
+    // self-expires in ~7 days). Read before the write (reads-before-writes
+    // is a hard Firestore transaction requirement) but only actually
+    // deleted on decline — an accepted reservation must keep its slots
+    // reserved.
+    const slotsSnap = !accept ? await tx.get(reservedSlotsQuery(res_id)) : null;
+
+    tx.update(resRef, {
+      status: accept ? "confirmed" : "cancelled",
+      ...(accept
+        ? {}
+        : { cancel_reason: "キャストが辞退しました", cancelled_by: "cast" }),
       updated_at: Timestamp.now(),
     });
+    if (slotsSnap) {
+      slotsSnap.forEach((doc) => tx.delete(doc.ref));
+    }
 
+    return data;
+  });
+
+  if (accept) {
     const chatRef = db.collection("chat_rooms").doc();
     await chatRef.set({
       room_id: chatRef.id,
@@ -308,13 +480,8 @@ export const respondToReservation = onCall(async (request) => {
 
     return { success: true, message: "リクエストを承諾しました。", chat_room_id: chatRef.id };
   } else {
-    await db.collection("reservations").doc(res_id).update({
-      status: "cancelled",
-      cancel_reason: "キャストが辞退しました",
-      cancelled_by: "cast",
-      updated_at: Timestamp.now(),
-    });
-
+    // Status transition (status: "cancelled", cancel_reason, cancelled_by)
+    // already written atomically inside the transaction above.
     if (resData.payment_intent_id) {
       try {
         await stripe.paymentIntents.cancel(resData.payment_intent_id);
@@ -351,37 +518,67 @@ export const confirmMeetup = onCall(async (request) => {
   const { res_id } = request.data;
   const uid = request.auth.uid;
 
-  const resDoc = await db.collection("reservations").doc(res_id).get();
-  if (!resDoc.exists) {
-    throw new HttpsError("not-found", "予約が見つかりません。");
+  if (typeof res_id !== "string" || !res_id) {
+    throw new HttpsError("invalid-argument", "予約IDが必要です。");
   }
 
-  const resData = resDoc.data()!;
-  const isGuest = uid === resData.guest_id;
-  const isCast = resData.cast_ids?.includes(uid);
+  // FIX (PROJECT_KNOWLEDGE.md §70, LOW-MEDIUM — comprehensive project-wide
+  // review): this used to be a plain read, a status guard against that
+  // stale snapshot, an unconditional field update, then a SECOND plain
+  // read + conditional status write — none of it transactional. If a
+  // cancellation (cancelPayment/adminForceCancel/autoCancelExpiredAuth)
+  // landed in the window between the first read and the writes, this
+  // could still flip an already-cancelled reservation's status to
+  // "in_progress" over a PaymentIntent that's already been
+  // released/cancelled at Stripe. Money itself stays protected (Stripe
+  // rejects capturing an already-canceled PaymentIntent, so
+  // reportCompletion's later capture attempt fails loudly rather than
+  // silently succeeding) but the reservation is left in a confusing,
+  // stuck state needing manual admin cleanup. Wrapped the whole
+  // read-check-write-reread-write sequence in one transaction, with a
+  // fresh read, matching the fix already applied to respondToReservation
+  // for the identical race shape.
+  const result = await db.runTransaction(async (tx) => {
+    const resRef = db.collection("reservations").doc(res_id);
+    const resSnap = await tx.get(resRef);
+    if (!resSnap.exists) {
+      throw new HttpsError("not-found", "予約が見つかりません。");
+    }
 
-  if (!isGuest && !isCast) {
-    throw new HttpsError("permission-denied", "権限がありません。");
-  }
+    const resData = resSnap.data()!;
+    const isGuest = uid === resData.guest_id;
+    const isCast = resData.cast_ids?.includes(uid);
 
-  const confirmField = isGuest ? "guest_confirmed_meetup" : "cast_confirmed_meetup";
+    if (!isGuest && !isCast) {
+      throw new HttpsError("permission-denied", "権限がありません。");
+    }
 
-  await db.collection("reservations").doc(res_id).update({
-    [confirmField]: true,
-    updated_at: Timestamp.now(),
-  });
+    // §3.5 state 3→4 only makes sense from `confirmed` (合流待ち) —
+    // calling this on an already-cancelled/completed reservation would
+    // otherwise effectively reopen a closed reservation.
+    if (resData.status !== "confirmed") {
+      throw new HttpsError(
+        "failed-precondition",
+        "この予約は合流確認できる状態ではありません。"
+      );
+    }
 
-  const updatedDoc = await db.collection("reservations").doc(res_id).get();
-  const updatedData = updatedDoc.data()!;
+    const confirmField = isGuest ? "guest_confirmed_meetup" : "cast_confirmed_meetup";
+    const otherConfirmed = isGuest ? resData.cast_confirmed_meetup : resData.guest_confirmed_meetup;
+    const bothConfirmed = otherConfirmed === true;
 
-  if (updatedData.guest_confirmed_meetup && updatedData.cast_confirmed_meetup) {
-    await db.collection("reservations").doc(res_id).update({
-      status: "in_progress",
+    tx.update(resRef, {
+      [confirmField]: true,
+      ...(bothConfirmed ? { status: "in_progress" } : {}),
       updated_at: Timestamp.now(),
     });
+
+    return bothConfirmed;
+  });
+
+  if (result) {
     return { success: true, message: "交流が開始されました。", both_confirmed: true };
   }
-
   return { success: true, message: "合流確認を送信しました。", both_confirmed: false };
 });
 
@@ -395,6 +592,10 @@ export const reportCompletion = onCall(async (request) => {
 
   const { res_id } = request.data;
   const uid = request.auth.uid;
+
+  if (typeof res_id !== "string" || !res_id) {
+    throw new HttpsError("invalid-argument", "予約IDが必要です。");
+  }
 
   const resDoc = await db.collection("reservations").doc(res_id).get();
   if (!resDoc.exists) {
@@ -443,6 +644,18 @@ export const reportCompletion = onCall(async (request) => {
     console.error(`Reservation ${res_id} reached completion_pending with no payment_intent_id.`);
   }
 
+  // FIX: any extension PaymentIntents authorized during this session were
+  // never captured anywhere before (confirmed live bug, see
+  // captureAuthorizedExtensions's own doc comment in stripe-payments.ts) -
+  // capture them at the same natural moment as the main payment. Best-
+  // effort, same reasoning as the main capture above: must not fail the
+  // cast's completion report over a downstream Stripe issue.
+  try {
+    await captureAuthorizedExtensions(res_id, resData);
+  } catch (err) {
+    console.error(`Extension capture sweep failed for ${res_id}:`, err);
+  }
+
   await db
     .collection("users")
     .doc(resData.guest_id)
@@ -470,7 +683,16 @@ export const submitReview = onCall(async (request) => {
   const { res_id, cast_id, rating, comment } = request.data;
   const uid = request.auth.uid;
 
-  if (!rating || rating < 1 || rating > 5) {
+  if (typeof res_id !== "string" || !res_id) {
+    throw new HttpsError("invalid-argument", "予約IDが必要です。");
+  }
+  // FIX (confirmed live bug, found during audit): `!rating || rating < 1 ||
+  // rating > 5` used bare comparisons, so a boolean `true` (coerces to 1)
+  // or a numeric-looking STRING like "3" (coerces via `<`/`>`) both passed
+  // this check and were stored verbatim as a non-number in the `reviews`
+  // doc - a type nothing that averages/sums ratings elsewhere could
+  // reconcile. Requires an actual number now.
+  if (typeof rating !== "number" || !rating || rating < 1 || rating > 5) {
     throw new HttpsError("invalid-argument", "評価は1-5の範囲で入力してください。");
   }
 
@@ -485,19 +707,83 @@ export const submitReview = onCall(async (request) => {
     throw new HttpsError("permission-denied", "ゲストのみ評価可能です。");
   }
 
-  await db.collection("reviews").add({
-    res_id,
-    reviewer_id: uid,
-    reviewee_id: cast_id,
-    rating,
-    comment: comment || "",
-    created_at: Timestamp.now(),
-  });
+  // FIX (confirmed live bugs, found during audit): this callable had none
+  // of the three checks below - a guest could review an arbitrary cast
+  // never actually on this reservation (cast_id came straight from client
+  // input, never checked against resData.cast_ids), could jump straight to
+  // `completed` before any meetup/capture ever happened (no status guard),
+  // and could call this repeatedly to spam/inflate a cast's rating (no
+  // duplicate check).
+  if (!resData.cast_ids?.includes(cast_id)) {
+    throw new HttpsError("invalid-argument", "この予約に該当するキャストではありません。");
+  }
 
-  await db.collection("reservations").doc(res_id).update({
-    status: "completed",
-    updated_at: Timestamp.now(),
-  });
+  if (!["completion_pending", "review_pending"].includes(resData.status)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "この予約は評価できる状態ではありません。"
+    );
+  }
+
+  // FIX (confirmed live bug, found during audit): this used to be scoped
+  // to `res_id + reviewer_id` only - NOT `reviewee_id`/`cast_id`. Multi-
+  // cast reservations are a real, supported feature (validated in
+  // createReservation's cast_ids loop, and reportCompletion/confirmMeetup
+  // both accept a call from ANY cast in the array) - but that meant the
+  // guest's FIRST review call for ANY ONE cast on a multi-cast reservation
+  // both (a) created a doc matching this exact-match check, permanently
+  // blocking a second review call for a DIFFERENT cast on the SAME
+  // reservation, and (b) flipped `reservations.status` to "completed"
+  // unconditionally (below), which independently failed the status guard
+  // above for any subsequent call regardless. Net effect: on a
+  // reservation with 2+ casts, the guest could rate exactly one of them -
+  // the others silently never received a review. Scoped to `reviewee_id`
+  // too now, so each cast on the reservation gets its own independent
+  // duplicate check.
+  // FIX (confirmed live bug, comprehensive review): the duplicate check
+  // (query) and the review write (`.add()`) were two separate,
+  // non-transactional operations — two near-simultaneous submissions for
+  // the same (res_id, reviewer_id, reviewee_id) could both pass the query
+  // check before either write committed. Switched from an auto-ID `.add()`
+  // to a deterministic doc ID + `.create()`, which Firestore rejects
+  // atomically (ALREADY_EXISTS) if the doc already exists — a single-
+  // document atomic operation, race-safe without needing a transaction.
+  const reviewId = `${res_id}_${uid}_${cast_id}`;
+  try {
+    await db.collection("reviews").doc(reviewId).create({
+      res_id,
+      reviewer_id: uid,
+      reviewee_id: cast_id,
+      rating,
+      comment: comment || "",
+      created_at: Timestamp.now(),
+    });
+  } catch (err: any) {
+    if (err?.code === 6 /* ALREADY_EXISTS */) {
+      throw new HttpsError("already-exists", "このキャストはすでに評価済みです。");
+    }
+    throw err;
+  }
+
+  // Only flip the reservation itself to "completed" once every cast on it
+  // has actually been reviewed - otherwise a single-cast reservation
+  // (the overwhelming common case) would never see this branch skipped,
+  // but a multi-cast one would prematurely fail the status guard above
+  // for whichever cast(s) the guest hasn't rated yet.
+  const allReviewsForRes = await db
+    .collection("reviews")
+    .where("res_id", "==", res_id)
+    .where("reviewer_id", "==", uid)
+    .get();
+  const reviewedCastIds = new Set(allReviewsForRes.docs.map((d) => d.data().reviewee_id));
+  const allCastsReviewed = (resData.cast_ids || []).every((id: string) => reviewedCastIds.has(id));
+
+  if (allCastsReviewed) {
+    await db.collection("reservations").doc(res_id).update({
+      status: "completed",
+      updated_at: Timestamp.now(),
+    });
+  }
 
   const chatRooms = await db.collection("chat_rooms").where("res_id", "==", res_id).get();
   for (const room of chatRooms.docs) {
@@ -540,9 +826,21 @@ export const autoCancelExpiredAuth = onSchedule("every 1 hours", async () => {
   const cutoff = new Date();
   cutoff.setHours(cutoff.getHours() - 24);
 
+  // FIX (confirmed live bug, found during audit): `cast_pending` is a dead
+  // status value - `schema.md` documents it, but nothing anywhere in this
+  // codebase ever WRITES it (confirmed via grep; the real implemented
+  // state machine only ever produces the 7 states this plan's own §5 item
+  // 9 lists). Replaced with `request_pending` - a reservation the guest
+  // submitted but never went on to pay for (no PaymentIntent ever
+  // authorized) previously had NO expiry path at all: `authorized` is the
+  // only status `respondToReservation` will accept, so a `request_pending`
+  // reservation can never be approved/declined by the cast either, and
+  // just lingered forever with nothing to clean it up. `payment_intent_id`
+  // may legitimately be empty for these - the cancel call below is
+  // already guarded for that.
   const expired = await db
     .collection("reservations")
-    .where("status", "in", ["authorized", "cast_pending"])
+    .where("status", "in", ["request_pending", "authorized"])
     .where("created_at", "<", Timestamp.fromDate(cutoff))
     .get();
 
@@ -555,10 +853,20 @@ export const autoCancelExpiredAuth = onSchedule("every 1 hours", async () => {
         await stripe.paymentIntents.cancel(resData.payment_intent_id);
       }
 
-      await doc.ref.update({
-        status: "expired",
-        cancel_reason: "24時間以内に承諾されなかったため自動キャンセル",
-        updated_at: Timestamp.now(),
+      // Slot-lock release (PROJECT_KNOWLEDGE.md §68), folded into the same
+      // transaction as the status write — this is the highest-value site
+      // for this: an "authorized" reservation stuck here for 24h is
+      // exactly the case most likely to actually hold a lock. An orphaned
+      // "reserved" slot has no self-healing path, unlike the Stripe hold
+      // above.
+      await db.runTransaction(async (tx) => {
+        const slotsSnap = await tx.get(reservedSlotsQuery(doc.id));
+        tx.update(doc.ref, {
+          status: "expired",
+          cancel_reason: "24時間以内に承諾されなかったため自動キャンセル",
+          updated_at: Timestamp.now(),
+        });
+        slotsSnap.forEach((slotDoc) => tx.delete(slotDoc.ref));
       });
     } catch (err) {
       console.error(`Failed to auto-cancel ${doc.id}:`, err);
@@ -631,6 +939,18 @@ export const autoCompleteReviews = onSchedule("every 1 hours", async () => {
       updated_at: Timestamp.now(),
     });
     await closeChatRoomsFor(doc.id);
+    // Defensive safety net: an extension authorized very late (close to
+    // the cast's completion report) could in principle still be sitting
+    // at `status: "authorized"` if `reportCompletion`'s own inline
+    // capture attempt (see reportCompletion above) failed or never ran.
+    // Idempotent - captureAuthorizedExtensions only ever touches docs
+    // still `status == "authorized"`, so this is a no-op once they're
+    // already captured.
+    try {
+      await captureAuthorizedExtensions(doc.id, doc.data());
+    } catch (err) {
+      console.error(`Extension capture sweep failed for ${doc.id}:`, err);
+    }
     // Phase 3 (§17.9 C4, PROJECT_KNOWLEDGE.md §18.111): this is the
     // timeout-fallback path to "完了" (the app's own state machine:
     // "guest review OR 24h auto batch") - the cast reward Transfer that
@@ -669,6 +989,14 @@ export const autoCompleteReviews = onSchedule("every 1 hours", async () => {
       );
     }
 
+    // Retry safety net for captureAuthorizedExtensions, mirroring the main
+    // payment_intent_id retry immediately above it.
+    try {
+      await captureAuthorizedExtensions(doc.id, resData);
+    } catch (err) {
+      console.error(`Extension capture retry failed for stalled reservation ${doc.id}:`, err);
+    }
+
     await closeChatRoomsFor(doc.id);
   }
 });
@@ -691,21 +1019,41 @@ export const sendChatMessage = onCall(async (request) => {
   const { res_id, text } = request.data;
   const uid = request.auth.uid;
 
+  if (typeof res_id !== "string" || !res_id) {
+    throw new HttpsError("invalid-argument", "予約IDが必要です。");
+  }
   if (typeof text !== "string" || !text.trim()) {
     throw new HttpsError("invalid-argument", "メッセージを入力してください。");
   }
 
-  const roomSnap = await db.collection("chat_rooms").where("res_id", "==", res_id).limit(1).get();
+  // FIX (PROJECT_KNOWLEDGE.md §70, CRITICAL — comprehensive project-wide
+  // review): this used to query chat_rooms by res_id alone (`.limit(1)`)
+  // and only check participants AFTER fetching whichever room the query
+  // happened to return. Once a group-invite reservation gets a SECOND
+  // chat_rooms doc for the same res_id (the cast-to-cast coordination room
+  // work-posts.ts's selectWorkApplicant creates for partner_recruit posts,
+  // same res_id, DIFFERENT participants), a cast who's a participant in
+  // BOTH rooms could have this resolve to the WRONG one — the participant
+  // check would still pass (they're in both), silently delivering a
+  // private coordination message into the guest-facing room or vice versa.
+  // Filtering by participants IN the query (matching the DSL's own
+  // already-correct fetch_chat_messages.dart pattern) resolves to the
+  // SPECIFIC room this caller actually belongs to, not just any room
+  // sharing this res_id. Composite index already exists
+  // (firestore.indexes.json: chat_rooms participants-array-contains +
+  // res_id).
+  const roomSnap = await db
+    .collection("chat_rooms")
+    .where("res_id", "==", res_id)
+    .where("participants", "array-contains", uid)
+    .limit(1)
+    .get();
   if (roomSnap.empty) {
     throw new HttpsError("not-found", "チャットルームが見つかりません。");
   }
 
   const roomDoc = roomSnap.docs[0];
   const roomData = roomDoc.data();
-
-  if (!roomData.participants?.includes(uid)) {
-    throw new HttpsError("permission-denied", "このチャットの参加者ではありません。");
-  }
 
   if (!roomData.active) {
     throw new HttpsError("failed-precondition", "このチャットはすでに終了しています。");
@@ -743,6 +1091,10 @@ export const getChatRoomInfo = onCall(async (request) => {
   const { res_id } = request.data;
   const uid = request.auth.uid;
 
+  if (typeof res_id !== "string" || !res_id) {
+    throw new HttpsError("invalid-argument", "予約IDが必要です。");
+  }
+
   const resDoc = await db.collection("reservations").doc(res_id).get();
   if (!resDoc.exists) {
     throw new HttpsError("not-found", "予約が見つかりません。");
@@ -765,7 +1117,17 @@ export const getChatRoomInfo = onCall(async (request) => {
     }
   }
 
-  const roomSnap = await db.collection("chat_rooms").where("res_id", "==", res_id).limit(1).get();
+  // FIX (PROJECT_KNOWLEDGE.md §70): same res_id-only-lookup ambiguity as
+  // sendChatMessage above — filter by participants too so this resolves
+  // the SPECIFIC room this caller belongs to, not just any room sharing
+  // this res_id (a group-invite reservation can have a second, different-
+  // participants chat_rooms doc for the same res_id).
+  const roomSnap = await db
+    .collection("chat_rooms")
+    .where("res_id", "==", res_id)
+    .where("participants", "array-contains", uid)
+    .limit(1)
+    .get();
   const roomExists = !roomSnap.empty;
   const active = roomExists ? roomSnap.docs[0].data().active === true : false;
 
@@ -860,7 +1222,18 @@ export const getMyMatchaList = onCall(async (request) => {
         category = "declined";
       }
 
-      const roomSnap = await db.collection("chat_rooms").where("res_id", "==", resId).limit(1).get();
+      // FIX (PROJECT_KNOWLEDGE.md §70): same res_id-only-lookup ambiguity
+      // as sendChatMessage/getChatRoomInfo above — without a participants
+      // filter, this could pull the WRONG room's last_message/active state
+      // into this caller's match-list preview once a group-invite
+      // reservation has a second chat_rooms doc (same res_id, different
+      // participants) for the cast-to-cast coordination room.
+      const roomSnap = await db
+        .collection("chat_rooms")
+        .where("res_id", "==", resId)
+        .where("participants", "array-contains", uid)
+        .limit(1)
+        .get();
       let roomActive = false;
       let lastMessage = "";
       let sortTimeMs = data.updated_at?.toMillis?.() || data.created_at?.toMillis?.() || 0;

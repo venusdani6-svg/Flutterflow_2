@@ -742,12 +742,55 @@ Future<bool> sendPhoneVerificationCode(
 ''',
   );
 
-  app.customAction(
-    'verifyPhoneCodeAndLink',
-    args: {'smsCode': string},
-    returns: bool_,
-    description: 'SMS認証コードを確認し、ログイン中のアカウントに電話番号をリンクする。',
-    code: r'''
+  // Original declaration frozen — content now maintained via the
+  // `updateCustomAction` call below (this action already landed in an
+  // earlier push; `app.customAction(...)` compiles to `ensureCustomAction`,
+  // create-if-missing only, so a further edit here would be permanently
+  // inert — established rule, see `callUpdateProfile`'s own identical
+  // comment elsewhere in this file).
+  //   app.customAction(
+  //     'verifyPhoneCodeAndLink',
+  //     args: {'smsCode': string},
+  //     returns: bool_,
+  //     description: 'SMS認証コードを確認し、ログイン中のアカウントに電話番号をリンクする。',
+  //     code: r'''
+  // import '/auth/firebase_auth/auth_util.dart';
+  // import 'package:flutter/foundation.dart';
+  //
+  // Future<bool> verifyPhoneCodeAndLink(String? smsCode) async {
+  //   if (smsCode == null || smsCode.isEmpty) return false;
+  //   if (kIsWeb) {
+  //     return false;
+  //   }
+  //   final verificationId =
+  //       authManager.phoneAuthManager.phoneAuthVerificationCode;
+  //   final currentUser = FirebaseAuth.instance.currentUser;
+  //   if (verificationId == null || currentUser == null) return false;
+  //   try {
+  //     final credential = PhoneAuthProvider.credential(
+  //       verificationId: verificationId,
+  //       smsCode: smsCode,
+  //     );
+  //     await currentUser.linkWithCredential(credential);
+  //     return true;
+  //   } catch (e) {
+  //     return false;
+  //   }
+  // }
+  // ''',
+  //   );
+
+  // FIX (PROJECT_KNOWLEDGE.md §71 — comprehensive project-wide review):
+  // added a forced ID-token refresh right after a successful link. Firebase
+  // Auth only adds the `phone_number` custom claim to the ID token once
+  // it's refreshed post-link — without this, the very next backend call
+  // (callSyncVerifiedPhone, below) would read a stale token with no
+  // phone_number claim yet, and silently no-op.
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'verifyPhoneCodeAndLink',
+      code: r'''
 import '/auth/firebase_auth/auth_util.dart';
 import 'package:flutter/foundation.dart';
 
@@ -771,7 +814,38 @@ Future<bool> verifyPhoneCodeAndLink(String? smsCode) async {
       smsCode: smsCode,
     );
     await currentUser.linkWithCredential(credential);
+    // Force a token refresh so the phone_number custom claim is present
+    // for the immediately-following callSyncVerifiedPhone call.
+    await currentUser.getIdToken(true);
     return true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+    );
+  });
+
+  // Thin wrapper matching this file's own established minimal-call pattern
+  // (see callUpdateProfilePhoto) — persists the just-verified phone number
+  // server-side via syncVerifiedPhone (auth.ts), which reads it from the
+  // ID token's own phone_number claim rather than trusting a client value.
+  // Best-effort by design (returns false on any failure, never throws) —
+  // called right after a successful link; a sync failure shouldn't block
+  // the guest's own onboarding progress.
+  app.customAction(
+    'callSyncVerifiedPhone',
+    returns: bool_,
+    description: '確認済み電話番号をサーバー側に反映する（syncVerifiedPhone呼び出し）。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callSyncVerifiedPhone() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('syncVerifiedPhone');
+    final result = await callable.call();
+    return result.data is Map && result.data['success'] == true;
   } catch (e) {
     return false;
   }
@@ -1067,7 +1141,17 @@ Future<bool> checkBasicInfoFieldsComplete(
         ),
         If(
           ActionOutput('verifyPhoneResult'),
-          then: [Navigate('AuthComplete')],
+          then: [
+            // FIX (PROJECT_KNOWLEDGE.md §71): persist the just-verified
+            // phone number server-side. Best-effort, no branch on its own
+            // result — a sync failure shouldn't block onboarding progress
+            // for a guest who already successfully verified their phone.
+            CallCustomAction.named(
+              'callSyncVerifiedPhone',
+              outputAs: 'syncPhoneResult',
+            ),
+            Navigate('AuthComplete'),
+          ],
           orElse: [Snackbar('認証コードが正しくありません。')],
         ),
       ],
@@ -1514,6 +1598,29 @@ Future<bool> isNonEmptyString(String? value) async {
   // copy — redirecting there (rather than inventing a duplicate popup)
   // sidesteps the whole problem: whatever text that page already shows IS
   // the source of truth, unmodified here.
+  // Thin wrapper matching this file's own established minimal-call pattern
+  // (see callUpdateProfilePhoto) — calls updateLastLogin (auth.ts), which
+  // stamps last_login_at and is_online:true on the caller's own doc.
+  app.customAction(
+    'callUpdateLastLogin',
+    returns: bool_,
+    description: '最終ログイン日時とオンライン状態を更新する（updateLastLogin呼び出し）。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callUpdateLastLogin() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('updateLastLogin');
+    final result = await callable.call();
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
   app.customAction(
     'checkApprovalStatus',
     returns: bool_,
@@ -1578,6 +1685,22 @@ Future<bool> checkApprovalStatus() async {
       triggerType: FFActionTriggerType.ON_INIT_STATE,
       actions: [
         UpdateAppState.set(ff.AppState.navIndex, 0),
+        // FIX (PROJECT_KNOWLEDGE.md §71 — comprehensive project-wide
+        // review): `updateLastLogin` (auth.ts) was deployed but never
+        // called from any page, and `is_online` was never set true
+        // anywhere — 2 of getDiscoveryCasts' 3 documented Home-ranking
+        // sort keys were frozen at signup-time defaults for every user,
+        // forever. Best-effort, no branch on its own result — a sync
+        // failure shouldn't block the rest of this chain. Deliberately a
+        // simple "mark active on app-open" signal, not true real-time
+        // presence (would need a Realtime-Database-style onDisconnect
+        // mechanism Firestore alone can't provide) — a disclosed,
+        // reasonable simplification, not a claim of full presence
+        // tracking.
+        CallCustomAction.named(
+          'callUpdateLastLogin',
+          outputAs: 'updateLastLoginResult',
+        ),
         CallCustomAction.named(
           'checkApprovalStatus',
           outputAs: 'approvalCheckResult',
@@ -2045,11 +2168,80 @@ Future<bool> checkConnectFieldsComplete(
   // (confirmed — only its logout button and logo tap had triggers per
   // PROJECT_ANALYSIS.md's own inventory), so `ensureActions` here is safe
   // with no existing chain to risk reproducing/losing.
+  // FIX (PROJECT_KNOWLEDGE.md §71 — comprehensive project-wide review):
+  // ReviewPending's copy was static regardless of the caller's real
+  // kyc_status — a rejected user saw the exact same "ただいま審査中です"
+  // (currently under review) message as a genuinely pending one, with no
+  // route back to the Kyc page to resubmit. `users/{uid}` stays
+  // client-readable (only the §70 write lockdown changed), so a direct
+  // client-side Firestore read is still the correct, established
+  // mechanism here — matching `needsConnectOnboarding`'s own identical
+  // read-own-doc pattern in the very next block.
+  app.customAction(
+    'fetchOwnKycStatus',
+    returns: string,
+    description: '自分の現在のkyc_statusを取得する（ReviewPendingの表示分岐用）。',
+    code: r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '/auth/firebase_auth/auth_util.dart';
+
+Future<String> fetchOwnKycStatus() async {
+  try {
+    final uid = currentUserUid;
+    if (uid.isEmpty) return '';
+    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    return doc.data()?['kyc_status'] as String? ?? '';
+  } catch (e) {
+    return '';
+  }
+}
+''',
+  );
+
+  final kycStatusTitleFn = app.customFunction(
+    'kycStatusTitle',
+    args: {'status': string},
+    returns: string,
+    description: 'kyc_statusに応じた見出しテキストを返す（ReviewPending）。',
+    code: r'''
+switch (status) {
+  case 'rejected':
+    return '書類の確認ができませんでした';
+  default:
+    return 'ただいま審査中です...';
+}
+''',
+  );
+
+  final kycStatusBodyFn = app.customFunction(
+    'kycStatusBody',
+    args: {'status': string},
+    returns: string,
+    description: 'kyc_statusに応じた本文テキストを返す（ReviewPending）。',
+    code: r'''
+switch (status) {
+  case 'rejected':
+    return '提出いただいた書類の確認ができませんでした。\nお手数ですが書類を再提出してください。';
+  default:
+    return '書類の審査には1〜2営業日かかります\n承認されましたらお知らせします';
+}
+''',
+  );
+
+  app.editPageState(ff.Pages.reviewPending, (state) {
+    state.ensureField('kycStatus', string.withDefault(''));
+  });
+
   app.editPage(ff.Pages.reviewPending, (page) {
     page.ensureActions(
       page.root,
       triggerType: FFActionTriggerType.ON_INIT_STATE,
       actions: [
+        CallCustomAction.named(
+          'fetchOwnKycStatus',
+          outputAs: 'kycStatusResult',
+        ),
+        SetState('kycStatus', ActionOutput('kycStatusResult')),
         CallCustomAction.named(
           'needsConnectOnboarding',
           outputAs: 'needsConnectResult',
@@ -2061,7 +2253,37 @@ Future<bool> checkConnectFieldsComplete(
         ),
       ],
     );
+
+    page.bindText(
+      page.findByKey('Text_2q2k2nfm'),
+      CustomFunction(kycStatusTitleFn, args: {'status': State('kycStatus')}),
+    );
+    page.bindText(
+      page.findByKey('Text_tja6u2is'),
+      CustomFunction(kycStatusBodyFn, args: {'status': State('kycStatus')}),
+    );
   });
+
+  // FROZEN (2026-08-13, immediately after this exact block landed):
+  // confirmed via generated_code/lib/auth/review_pending/review_pending_widget.dart
+  // — the button renders as a real `if (_model.kycStatus == 'rejected')`
+  // conditional (not just a visibility wrapper), correct text, and
+  // navigates to `KycWidget.routeName`. Confirmed via
+  // lib/flutterflow_project/pages/review_pending.dart — new key
+  // `Button_veotpfut`, name "KycResubmitButton". Any future change must
+  // target that key/name instead of re-inserting.
+  // app.editPage(ff.Pages.reviewPending, (page) {
+  //   page.ensureInsertedAfter(
+  //     page.findByKey('Text_tja6u2is'),
+  //     Button(
+  //       '書類を再提出する',
+  //       name: 'KycResubmitButton',
+  //       variant: ButtonVariant.outlined,
+  //       visible: Equals(State('kycStatus'), 'rejected'),
+  //       onTap: [Navigate(ff.Pages.kyc)],
+  //     ),
+  //   );
+  // });
 
   // ==========================================================================
   // Phase 4 — Reservation core (IMPLEMENTATION_PLAN.md §3.5). Wires
@@ -2545,8 +2767,23 @@ Future<String?> callCreateReservation(
             If(
               ActionOutput('createReservationSucceeded'),
               then: [
+                // FIX (confirmed critical live bug, found during audit):
+                // this used to navigate straight to ReservationConfirmed,
+                // completely skipping payment. `createReservation` always
+                // writes `payment_intent_id: ""` — the ONLY place that
+                // ever gets populated is `createPaymentIntent`, which is
+                // only ever called from PaymentConfirm's own submit
+                // button. Since PaymentConfirm was never reached from
+                // anywhere in the app, EVERY reservation created through
+                // this form was permanently stuck with no PaymentIntent —
+                // `reportCompletion` would later hit its own defensive
+                // "reached completion_pending with no payment_intent_id"
+                // error path for every single one. Now routes through
+                // PaymentConfirm first; PaymentConfirm's own submit button
+                // (see its ON_TAP chain) forwards to ReservationConfirmed
+                // only after Stripe payment actually succeeds.
                 Navigate(
-                  ff.Pages.reservationConfirmed,
+                  ff.Pages.paymentConfirm,
                   replaceRoute: true,
                   params: {
                     'resId': ActionOutput('createReservationResult'),
@@ -3392,7 +3629,22 @@ Future<bool> isPaymentSuccess(String? value) async {
             ),
             If(
               ActionOutput('paymentSucceeded'),
-              then: [Snackbar('お支払いが完了しました。'), NavigateBack()],
+              // FIX (confirmed critical live bug, found during audit):
+              // this used to just pop back (to ReservationForm, since
+              // that's now what pushes this page) — the guest would land
+              // right back on the empty booking form after successfully
+              // paying, with no confirmation screen at all. Forwards to
+              // ReservationConfirmed instead, completing the intended
+              // ReservationForm -> PaymentConfirm -> ReservationConfirmed
+              // chain.
+              then: [
+                Snackbar('お支払いが完了しました。'),
+                Navigate(
+                  ff.Pages.reservationConfirmed,
+                  replaceRoute: true,
+                  params: {'resId': PageParam('resId')},
+                ),
+              ],
               orElse: [Snackbar('決済がキャンセルされたか失敗しました。')],
             ),
           ],
@@ -4035,11 +4287,20 @@ return parts.length > 4 ? parts[4] : '';
   // performance concern the page's own bounded scale makes minor. Revisit
   // if this queue's scale assumption changes (e.g. `limit` is raised or
   // pagination is added later, per §26's own disclosed "not done" list).
-  app.editPage(ff.Pages.kycReviewPage, (page) {
-    page.mutateNode(page.findByKey('ListView_ohcx81fg'), (node) {
-      node.props.listView.shrinkWrapValue = FFBooleanValue(inputValue: true);
-    });
-  });
+  // SUPERSEDED (2026-08-13, comprehensive review pass — PROJECT_KNOWLEDGE.md
+  // §64): §63's no-photo-fallback rollout later reconstructed this SAME
+  // `ListView_ohcx81fg` from scratch via `ensureReplaced` (to add the doc/
+  // selfie image fallbacks) — that reconstruction's own literal already
+  // carries `shrinkWrap: true` forward explicitly (confirmed), so this
+  // mutateNode's fix is preserved, just applied at the new call site
+  // instead. This mutateNode now targets a key that no longer exists
+  // (confirmed — it hard-failed the review-pass push with `findByKey(
+  // "ListView_ohcx81fg") found no matches` until frozen here) and is inert.
+  // app.editPage(ff.Pages.kycReviewPage, (page) {
+  //   page.mutateNode(page.findByKey('ListView_ohcx81fg'), (node) {
+  //     node.props.listView.shrinkWrapValue = FFBooleanValue(inputValue: true);
+  //   });
+  // });
 
   // SECOND real bug found on the SAME second re-review pass, immediately
   // after the shrinkWrap fix above: fixing the crash by setting
@@ -4189,6 +4450,21 @@ return isCast && (status == 'authorized' || status == 'cast_pending');
 ''',
   );
 
+  // CORRECTION (comprehensive review pass, 2026-08-12): an earlier audit
+  // this round claimed this function had "zero live references anywhere"
+  // and queued it for removal via `app.removeCustomFunction` — that check
+  // only grepped this DSL SCRIPT's own text (where indeed nothing calls it
+  // by name), not the actual deployed project. `flutterflow ai run`
+  // rejected the removal outright with "Custom function not found" /
+  // compile failure, and a direct grep of `generated_code/` confirmed why:
+  // `reservation_detail_widget.dart` gates the meetup-confirmation button's
+  // `visible:` on `functions.canConfirmReservationMeetup(...)` — wired via
+  // an earlier, since-frozen `ensureReplaced`/similar block whose own text
+  // no longer names this function directly. Genuinely live; NOT dead code.
+  // Restored below exactly as it was. Second confirmed false-positive this
+  // review round (see PROJECT_KNOWLEDGE.md §54) — caught here by
+  // `flutterflow ai run`'s own validation before anything actually pushed,
+  // not by inspection alone.
   app.customFunction(
     'canConfirmReservationMeetup',
     args: {'data': string},
@@ -4204,6 +4480,11 @@ return (isGuest || isCast) && status == 'confirmed';
 ''',
   );
 
+  // CORRECTION (comprehensive review pass, 2026-08-12): same false-positive
+  // finding as `canConfirmReservationMeetup` above — `generated_code/`
+  // confirms `reservation_detail_widget.dart` gates the completion-report
+  // button's `visible:` on `functions.canReportReservationCompletion(...)`.
+  // Restored exactly as it was.
   app.customFunction(
     'canReportReservationCompletion',
     args: {'data': string},
@@ -4232,6 +4513,11 @@ return isGuest && status == 'review_pending';
 ''',
   );
 
+  // CORRECTION (comprehensive review pass, 2026-08-12): same false-positive
+  // finding as `canConfirmReservationMeetup`/`canReportReservationCompletion`
+  // above — `generated_code/` confirms `reservation_detail_widget.dart`
+  // gates the cancel button's `visible:` on
+  // `functions.canCancelReservationNow(...)`. Restored exactly as it was.
   app.customFunction(
     'canCancelReservationNow',
     args: {'data': string},
@@ -5076,12 +5362,23 @@ return parts.length > 3 && parts[3] == 'true';
   // used for `shrinkWrapValue`/`Column.scrollable` earlier this session —
   // confirmed the exact proto field via `UI.gridView` in ui.dart
   // (`props.gridView.childAspectRatioValue`, a plain `FFDoubleValue`, not
-  // deprecated). Safe to leave live/rerun, same class as those fixes.
-  app.editPage(ff.Pages.homePage, (page) {
-    page.mutateNode(page.findByKey('GridView_8292ke7j'), (node) {
-      node.props.gridView.childAspectRatioValue = FFDoubleValue(inputValue: 1.05);
-    });
-  });
+  // deprecated).
+  //
+  // SUPERSEDED (2026-08-13, comprehensive review pass — PROJECT_KNOWLEDGE.md
+  // §64): §63's no-photo-fallback rollout later reconstructed this SAME
+  // `GridView_8292ke7j` node from scratch via `ensureReplaced` (to add the
+  // fallback image), with a literal `childAspectRatio: 0.75` — silently
+  // reintroducing the exact gap this mutateNode fixed, since the later
+  // reconstruction runs after this in the same script and replaces the
+  // whole node. Confirmed via generated_code showing 0.75, not 1.05, was
+  // actually live. The fix is now applied directly in that reconstruction's
+  // own literal instead (search for `DiscoveryCastGrid` below) — this
+  // mutateNode is inert (targets a key that no longer exists) and frozen.
+  // app.editPage(ff.Pages.homePage, (page) {
+  //   page.mutateNode(page.findByKey('GridView_8292ke7j'), (node) {
+  //     node.props.gridView.childAspectRatioValue = FFDoubleValue(inputValue: 1.05);
+  //   });
+  // });
 
   // ==========================================================================
   // Phase 3 — Service-area master data (§3.2.2), prefecture-level slice.
@@ -5976,12 +6273,42 @@ Future<String> fetchChatRoomInfo(String? resId) async {
 ''',
   );
 
-  app.customAction(
-    'fetchChatMessages',
-    args: {'resId': string},
-    returns: listOf(string),
-    description: '指定した予約のチャットルームのメッセージ履歴を取得する（chat_rooms/{roomId}/messages、参加者のみ読み取り可）。',
-    code: r'''
+  // `fetchChatMessages` already exists live — `app.customAction` compiles to
+  // `ensureCustomAction` (create-if-missing only, confirmed the hard way
+  // many times this session), so the original declaration is commented out
+  // and the fix goes through `updateCustomAction` instead, per the
+  // already-established rule for editing an already-landed custom action
+  // (same pattern already used for `confirmStripePayment` above).
+  //   app.customAction(
+  //     'fetchChatMessages',
+  //     args: {'resId': string},
+  //     returns: listOf(string),
+  //     description: '指定した予約のチャットルームのメッセージ履歴を取得する（chat_rooms/{roomId}/messages、参加者のみ読み取り可）。',
+  //     code: r'''
+  //     ... (superseded by the updateCustomAction call below — this comment
+  //     block intentionally omits the stale original body) ...
+  //     ''',
+  //   );
+
+  // FIX (confirmed live bug, found during comprehensive review): this query
+  // used to filter ONLY on `res_id` — firestore.rules' `chat_rooms` read
+  // rule requires `resource.data.participants.hasAny([uid])`, which
+  // Firestore's rule engine can only prove for a QUERY (not a get-by-id)
+  // when the query's OWN where-clauses already mirror the rule's condition
+  // — a filter on `res_id` alone can't prove that, so this query was denied
+  // outright for every non-admin caller, silently swallowed by the catch
+  // below into an empty list. Every guest/cast opening a chat has seen zero
+  // messages since this page was built. Adding the `participants`
+  // array-contains filter lets the rule engine verify it statically,
+  // matching the same pattern already used correctly elsewhere in this file
+  // (e.g. reservations queries scoped by `cast_ids`/`array-contains`). A
+  // matching composite index (`chat_rooms`: participants CONTAINS + res_id
+  // ASC) was added to firestore.indexes.json and deployed.
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'fetchChatMessages',
+      code: r'''
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '/auth/firebase_auth/auth_util.dart';
 
@@ -5990,10 +6317,12 @@ Future<List<String>> fetchChatMessages(String? resId) async {
     final rid = resId ?? '';
     if (rid.isEmpty) return <String>[];
     final uid = currentUserUid;
+    if (uid.isEmpty) return <String>[];
     final firestore = FirebaseFirestore.instance;
     final roomSnap = await firestore
         .collection('chat_rooms')
         .where('res_id', isEqualTo: rid)
+        .where('participants', arrayContains: uid)
         .limit(1)
         .get();
     if (roomSnap.docs.isEmpty) return <String>[];
@@ -6020,7 +6349,8 @@ Future<List<String>> fetchChatMessages(String? resId) async {
   }
 }
 ''',
-  );
+    );
+  });
 
   app.customAction(
     'callSendChatMessage',
@@ -6245,34 +6575,40 @@ Future<bool> callMarkNotificationRead(String? notifId) async {
     // the NEW key (`ListView_rlyf5278`, confirmed via the regenerated typed
     // SDK after the previous push) since `ensureReplaced` on the ORIGINAL
     // key is one-shot and already consumed.
-    page.ensureReplaced(
-      page.findByKey('ListView_rlyf5278'),
-      Expanded(
-        ListView(
-          name: 'ChatMessagesListView',
-          spacing: 6,
-          source: State('chatMessagesList'),
-          itemBuilder: (item) => Container(
-            padding: 8,
-            child: Row(
-              spacing: 8,
-              children: [
-                Text(
-                  CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
-                  style: Styles.labelSmall,
-                ),
-                Text(CustomFunction(splitFieldFn, args: {'data': item, 'index': 1})),
-                Text(
-                  CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
-                  style: Styles.labelSmall,
-                ),
-              ],
-            ),
-          ),
-        ),
-        name: 'ChatMessagesListExpanded',
-      ),
-    );
+    //
+    // Frozen (comprehensive review pass, 2026-08-12): confirmed landed via
+    // generated_code — `ensureReplaced` has no dedup guard, so leaving this
+    // live risked reassigning fresh keys to the whole subtree on every
+    // future unrelated push. Commented out per the established freeze
+    // discipline (PROJECT_KNOWLEDGE.md §54/project_rules.md).
+    // page.ensureReplaced(
+    //   page.findByKey('ListView_rlyf5278'),
+    //   Expanded(
+    //     ListView(
+    //       name: 'ChatMessagesListView',
+    //       spacing: 6,
+    //       source: State('chatMessagesList'),
+    //       itemBuilder: (item) => Container(
+    //         padding: 8,
+    //         child: Row(
+    //           spacing: 8,
+    //           children: [
+    //             Text(
+    //               CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+    //               style: Styles.labelSmall,
+    //             ),
+    //             Text(CustomFunction(splitFieldFn, args: {'data': item, 'index': 1})),
+    //             Text(
+    //               CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
+    //               style: Styles.labelSmall,
+    //             ),
+    //           ],
+    //         ),
+    //       ),
+    //     ),
+    //     name: 'ChatMessagesListExpanded',
+    //   ),
+    // );
 
     // Message input — gave it a real name (required for `ClearTextField`
     // below) and bound its value to state via `onChanged`; this DSL's
@@ -6664,78 +7000,87 @@ return (value == 'true') ? '既読' : '未読';
 ''',
   );
 
-  app.editPage(ff.Pages.notificationsPage, (page) {
-    page.ensureReplaced(
-      page.findByKey('ListView_fev2xlkv'),
-      Expanded(
-        ListView(
-          name: 'NotificationsListView',
-          spacing: 8,
-          padding: 16,
-          source: State(ff.Pages.notificationsPage.state.visibleNotifications),
-          itemBuilder: (item) => Card(
-            name: 'NotificationCard',
-            onTap: [
-              CallCustomAction.named(
-                'callMarkNotificationRead',
-                arguments: {
-                  'notifId': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
-                },
-              ),
-              CallCustomAction.named('fetchMyNotifications', outputAs: 'notifRefetchResult'),
-              SetState(ff.Pages.notificationsPage.state.notificationsList, ActionOutput('notifRefetchResult')),
-              SetState(
-                ff.Pages.notificationsPage.state.visibleNotifications,
-                CustomFunction(
-                  filterListByFieldFn,
-                  args: {
-                    'items': ActionOutput('notifRefetchResult'),
-                    'fieldIndex': 1,
-                    'targetValue': State(ff.Pages.notificationsPage.state.notifFilter),
-                  },
-                ),
-              ),
-            ],
-            child: Container(
-              padding: 12,
-              child: Column(
-                crossAxis: CrossAxis.start,
-                spacing: 4,
-                children: [
-                  Row(
-                    spacing: 8,
-                    children: [
-                      Text(
-                        CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
-                        style: Styles.titleSmall,
-                      ),
-                      Text(
-                        CustomFunction(
-                          readStatusLabelFn,
-                          args: {'value': CustomFunction(splitFieldFn, args: {'data': item, 'index': 4})},
-                        ),
-                        style: Styles.labelSmall,
-                      ),
-                    ],
-                  ),
-                  Text(
-                    CustomFunction(splitFieldFn, args: {'data': item, 'index': 3}),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    CustomFunction(splitFieldFn, args: {'data': item, 'index': 5}),
-                    style: Styles.labelSmall,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        name: 'NotificationsListExpanded2',
-      ),
-    );
-  });
+  // Frozen (comprehensive review pass, 2026-08-12): confirmed landed via
+  // generated_code — `ensureReplaced` has no dedup guard, so leaving this
+  // live risked reassigning fresh keys to the whole subtree (and
+  // invalidating `readStatusLabelFn`'s only call site) on every future
+  // unrelated push. Commented out per the established freeze discipline
+  // (PROJECT_KNOWLEDGE.md §54/project_rules.md). `readStatusLabelFn`'s own
+  // `app.customFunction(...)` declaration above is left live/registered —
+  // only its widget-tree usage moves here — since ensureCustomFunction is
+  // safe to leave active indefinitely (unlike ensureReplaced).
+  // app.editPage(ff.Pages.notificationsPage, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('ListView_fev2xlkv'),
+  //     Expanded(
+  //       ListView(
+  //         name: 'NotificationsListView',
+  //         spacing: 8,
+  //         padding: 16,
+  //         source: State(ff.Pages.notificationsPage.state.visibleNotifications),
+  //         itemBuilder: (item) => Card(
+  //           name: 'NotificationCard',
+  //           onTap: [
+  //             CallCustomAction.named(
+  //               'callMarkNotificationRead',
+  //               arguments: {
+  //                 'notifId': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+  //               },
+  //             ),
+  //             CallCustomAction.named('fetchMyNotifications', outputAs: 'notifRefetchResult'),
+  //             SetState(ff.Pages.notificationsPage.state.notificationsList, ActionOutput('notifRefetchResult')),
+  //             SetState(
+  //               ff.Pages.notificationsPage.state.visibleNotifications,
+  //               CustomFunction(
+  //                 filterListByFieldFn,
+  //                 args: {
+  //                   'items': ActionOutput('notifRefetchResult'),
+  //                   'fieldIndex': 1,
+  //                   'targetValue': State(ff.Pages.notificationsPage.state.notifFilter),
+  //                 },
+  //               ),
+  //             ),
+  //           ],
+  //           child: Container(
+  //             padding: 12,
+  //             child: Column(
+  //               crossAxis: CrossAxis.start,
+  //               spacing: 4,
+  //               children: [
+  //                 Row(
+  //                   spacing: 8,
+  //                   children: [
+  //                     Text(
+  //                       CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
+  //                       style: Styles.titleSmall,
+  //                     ),
+  //                     Text(
+  //                       CustomFunction(
+  //                         readStatusLabelFn,
+  //                         args: {'value': CustomFunction(splitFieldFn, args: {'data': item, 'index': 4})},
+  //                       ),
+  //                       style: Styles.labelSmall,
+  //                     ),
+  //                   ],
+  //                 ),
+  //                 Text(
+  //                   CustomFunction(splitFieldFn, args: {'data': item, 'index': 3}),
+  //                   maxLines: 2,
+  //                   overflow: TextOverflow.ellipsis,
+  //                 ),
+  //                 Text(
+  //                   CustomFunction(splitFieldFn, args: {'data': item, 'index': 5}),
+  //                   style: Styles.labelSmall,
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ),
+  //       ),
+  //       name: 'NotificationsListExpanded2',
+  //     ),
+  //   );
+  // });
 
   // Wire both known "お知らせ" (notifications) entry points to the new
   // page — MacchaPage's own (above) and HomePage's, both declared with an
@@ -6746,6 +7091,49 @@ return (value == 'true') ? '既読' : '未読';
       triggerType: FFActionTriggerType.ON_TAP,
       actions: [Navigate(ff.Pages.notificationsPage)],
     );
+
+    // Comprehensive review pass (2026-08-12): `ReservationListPage`
+    // (IMPLEMENTATION_PLAN.md §7 — the client's explicitly-requested
+    // "reservation list, not the Maccha match feed") was fully built
+    // (§14) but had ZERO incoming navigation anywhere in the app — a
+    // "built but nobody can get to it" bug, same class as
+    // MyWorkContent/Affiliate/BlockList before each was fixed, but with a
+    // larger blast radius: `ReservationDetail` (approve/decline/meetup/
+    // complete/rate/cancel) and `ExtensionPayment` are ONLY reachable from
+    // this page's own row-tap, so the entire post-booking
+    // reservation-management flow was an orphaned island. No existing
+    // AppBar icon fits semantically (both HomePage's and MacchaPage's
+    // "検索"/"お知らせ" icon slots are either already wired to something
+    // else or a poor semantic fit for "my reservations") — added a new
+    // third icon instead, matching the exact precedent already
+    // established for this same class of gap (WorkPage's "マイワーク" nav
+    // icon, Phase 10).
+    // `Column` has no `onTap:` parameter in this DSL (confirmed by reading
+    // its constructor — only the ORIGINAL native scaffold's Columns carry
+    // an onTap-capable trigger at the proto level, not something newly
+    // DSL-authored ones can replicate) — use `Button` instead, matching
+    // the exact precedent already proven for this same "add a new nav
+    // icon" situation (WorkPage's `MyWorkNavButton`, Phase 10).
+    //
+    // FROZEN (2026-08-13, comprehensive review pass — PROJECT_KNOWLEDGE.md
+    // §64): confirmed landed via generated_code/lib/home/home_page/
+    // home_page_widget.dart (the "予約一覧" Button with
+    // ReservationListPageWidget.routeName navigation is present) and via
+    // lib/flutterflow_project/pages/home_page.dart (name
+    // "ReservationListNavButton", anchor Column_w5wltkuu still exists — this
+    // one wouldn't have hard-failed a re-run like the ensureReplaced calls
+    // above, since the anchor isn't consumed, but re-running would silently
+    // no-op any future change authored in this exact block).
+    // page.ensureInsertedAfter(
+    //   page.findByKey('Column_w5wltkuu'),
+    //   Button(
+    //     '予約一覧',
+    //     icon: 'event_note',
+    //     variant: ButtonVariant.text,
+    //     name: 'ReservationListNavButton',
+    //     onTap: [Navigate(ff.Pages.reservationListPage)],
+    //   ),
+    // );
   });
 
   // ==========================================================================
@@ -6871,6 +7259,180 @@ Future<bool> callReportUser(String? reportedId, String? reason) async {
 ''',
   );
 
+  // ==========================================================================
+  // Phase 11 slice 3 — legal-content viewers + inquiry form (drawer row 6,
+  // サポート・法的項目 — left unwired in slice 1 because none of this
+  // existed yet). No real ToS/privacy-policy text exists anywhere in this
+  // repo (confirmed again this session) — IMPLEMENTATION_PLAN.md's own
+  // Phase 0.5 flags this as a legal drafting deliverable, not a coding
+  // task. Built for real, with explicit placeholder content per the
+  // client-facing decision already made when this gap was first
+  // disclosed (slice 1) — not fabricated legal text.
+  // ==========================================================================
+
+  app.customAction(
+    'callSubmitInquiry',
+    args: {'subject': string, 'message': string},
+    returns: bool_,
+    description: 'submitInquiry Cloud Functionを呼び出し、運営への問い合わせを送信する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callSubmitInquiry(String? subject, String? message) async {
+  try {
+    final s = (subject ?? '').trim();
+    final m = (message ?? '').trim();
+    if (s.isEmpty || m.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('submitInquiry');
+    final result = await callable.call({'subject': s, 'message': m});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  // FROZEN (2026-08-12, same-turn review step, immediately after this exact
+  // push landed): all 4 pages now exist — confirmed via
+  // generated_code/lib/{terms_of_service,privacy_policy,inquiry_form,
+  // support_legal_hub}/ and lib/flutterflow_project/pages/{terms_of_service,
+  // privacy_policy,inquiry_form,support_legal_hub}.dart. Same rationale as
+  // SystemInfo/BlockList in slices 1-2 — `ensurePage` is idempotent (won't
+  // error if left live) but would silently no-op any future edit to these
+  // pages' bodies. Any future change must go through
+  // `app.editPage(ff.Pages.<name>, ...)` instead. The drawer-wiring block
+  // below and SupportLegalHub's own onTap references now use `ff.Pages.*`
+  // (the real typed handles, regenerated after this push) instead of the
+  // locally-captured variables, which were only needed within the run that
+  // created them.
+  //   const legalPlaceholderText =
+  //       '本規約の内容は法務レビュー待ちです。最終版が確定次第、本画面に反映されます。';
+  //   final termsOfServicePage = app.ensurePage(
+  //     'TermsOfService',
+  //     route: '/terms-of-service',
+  //     description: '利用規約ページ（代行受領スキーム・手数料条項を含む）。',
+  //     body: Scaffold(
+  //       appBar: AppBar(title: '利用規約'),
+  //       body: Column(
+  //         padding: 16,
+  //         children: [
+  //           Text(
+  //             '本規約には、予約手数料および代行受領スキーム（プラットフォームがゲストからの決済を受領し、キャストへの支払義務を履行する仕組み）に関する条項を含みます。',
+  //             style: Styles.labelSmall,
+  //           ),
+  //           Text(legalPlaceholderText, style: Styles.bodyMedium),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  //   final privacyPolicyPage = app.ensurePage(
+  //     'PrivacyPolicy',
+  //     route: '/privacy-policy',
+  //     description: 'プライバシーポリシーページ。',
+  //     body: Scaffold(
+  //       appBar: AppBar(title: 'プライバシーポリシー'),
+  //       body: Column(
+  //         padding: 16,
+  //         children: [
+  //           Text(legalPlaceholderText, style: Styles.bodyMedium),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  //   final inquiryFormPage = app.ensurePage(
+  //     'InquiryForm',
+  //     route: '/inquiry',
+  //     description: 'お問い合わせページ（運営への一般問い合わせフォーム）。',
+  //     state: {
+  //       'inquirySubject': string.withDefault(''),
+  //       'inquiryMessage': string.withDefault(''),
+  //     },
+  //     body: Scaffold(
+  //       appBar: AppBar(title: 'お問い合わせ'),
+  //       body: Column(
+  //         padding: 16,
+  //         spacing: 16,
+  //         children: [
+  //           TextField(
+  //             name: 'InquirySubjectField',
+  //             hint: '件名',
+  //             onChanged: SetState('inquirySubject', const TextValue()),
+  //           ),
+  //           TextField(
+  //             name: 'InquiryMessageField',
+  //             hint: 'お問い合わせ内容',
+  //             onChanged: SetState('inquiryMessage', const TextValue()),
+  //           ),
+  //           // No `And`/`Or` boolean combinator exists in this DSL (confirmed
+  //           // by reading references.dart — only `Not` does) — two required
+  //           // fields are validated via nested `If`s instead of a single
+  //           // combined condition, matching this file's own established
+  //           // pattern for multi-step validation elsewhere.
+  //           Button(
+  //             '送信する',
+  //             onTap: [
+  //               If(
+  //                 Not(Equals(State('inquirySubject'), '')),
+  //                 then: [
+  //                   If(
+  //                     Not(Equals(State('inquiryMessage'), '')),
+  //                     then: [
+  //                       CallCustomAction.named(
+  //                         'callSubmitInquiry',
+  //                         arguments: {'subject': State('inquirySubject'), 'message': State('inquiryMessage')},
+  //                         outputAs: 'inquiryResult',
+  //                       ),
+  //                       If(
+  //                         ActionOutput('inquiryResult'),
+  //                         then: [
+  //                           SetState('inquirySubject', ''),
+  //                           SetState('inquiryMessage', ''),
+  //                           Snackbar('お問い合わせを送信しました。'),
+  //                         ],
+  //                         orElse: [Snackbar('送信に失敗しました。')],
+  //                       ),
+  //                     ],
+  //                     orElse: [Snackbar('お問い合わせ内容を入力してください。')],
+  //                   ),
+  //                 ],
+  //                 orElse: [Snackbar('件名を入力してください。')],
+  //               ),
+  //             ],
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  //   final supportLegalHubPage = app.ensurePage(
+  //     'SupportLegalHub',
+  //     route: '/support-legal',
+  //     description: 'サポート・法的項目ページ（利用規約・プライバシーポリシー・お問い合わせへの入口）。',
+  //     body: Scaffold(
+  //       appBar: AppBar(title: 'サポート・法的項目'),
+  //       body: Column(
+  //         children: [
+  //           Button(
+  //             '利用規約',
+  //             variant: ButtonVariant.text,
+  //             onTap: [Navigate(termsOfServicePage)],
+  //           ),
+  //           Button(
+  //             'プライバシーポリシー',
+  //             variant: ButtonVariant.text,
+  //             onTap: [Navigate(privacyPolicyPage)],
+  //           ),
+  //           Button(
+  //             'お問い合わせ',
+  //             variant: ButtonVariant.text,
+  //             onTap: [Navigate(inquiryFormPage)],
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+
   app.customAction(
     'callBlockUser',
     args: {'targetUid': string},
@@ -6889,6 +7451,57 @@ Future<bool> callBlockUser(String? targetUid) async {
     return result.data is Map && result.data['success'] == true;
   } catch (e) {
     return false;
+  }
+}
+''',
+  );
+
+  // ==========================================================================
+  // Phase 11 slice 2 — block-list viewer + unblock (§3.7.14's other half —
+  // blockUser above is add-only; nothing views or reverses it).
+  // ==========================================================================
+
+  app.customAction(
+    'callUnblockUser',
+    args: {'targetUid': string},
+    returns: bool_,
+    description: 'unblockUser Cloud Functionを呼び出し、ユーザーのブロックを解除する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callUnblockUser(String? targetUid) async {
+  try {
+    final uid = targetUid ?? '';
+    if (uid.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('unblockUser');
+    final result = await callable.call({'target_uid': uid});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'fetchBlockedUsers',
+    returns: listOf(string),
+    description: 'getBlockedUsersDetails Cloud Functionを呼び出し、ブロック中のユーザー一覧（uid|||nickname|||photoUrl）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchBlockedUsers() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('getBlockedUsersDetails');
+    final result = await callable.call();
+    if (result.data is Map && result.data['items'] is List) {
+      return (result.data['items'] as List).map((e) => e.toString()).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
   }
 }
 ''',
@@ -6921,113 +7534,125 @@ Future<bool> callBlockUser(String? targetUid) async {
     // Appended as a new section after the existing 3-tab profile/photo/
     // schedule container (the page's last existing child) — additive, does
     // not disturb the invite-button row or the tabs themselves.
-    page.ensureInsertedAfter(
-      page.findByKey('Container_vk811dsc'),
-      Container(
-        name: 'CastReviewsAndSafetySection',
-        padding: 16,
-        child: Column(
-          crossAxis: CrossAxis.start,
-          spacing: 12,
-          children: [
-            Text('レビュー', style: Styles.titleMedium),
-            Text(
-              CustomFunction(averageRatingLabelFn, args: {'reviews': State('castReviewsList')}),
-              style: Styles.bodyMedium,
-            ),
-            ListView(
-              name: 'CastReviewsListView',
-              shrinkWrap: true,
-              spacing: 8,
-              source: State('castReviewsList'),
-              itemBuilder: (item) => Card(
-                name: 'ReviewCard',
-                child: Container(
-                  padding: 12,
-                  child: Column(
-                    crossAxis: CrossAxis.start,
-                    spacing: 4,
-                    children: [
-                      Row(
-                        spacing: 8,
-                        children: [
-                          Text(
-                            CustomFunction(reviewItemRatingLabelFn, args: {'item': item}),
-                            style: Styles.labelMedium,
-                          ),
-                          Text(
-                            CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
-                            style: Styles.labelSmall,
-                          ),
-                        ],
-                      ),
-                      Text(
-                        CustomFunction(splitFieldFn, args: {'data': item, 'index': 1}),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Divider(),
-            Text('このユーザーを通報・ブロックする', style: Styles.titleSmall),
-            TextField(
-              name: 'ReportReasonField',
-              hint: '通報理由を入力してください',
-              onChanged: SetState('reportReason', const TextValue()),
-            ),
-            Row(
-              spacing: 12,
-              children: [
-                Button(
-                  '通報する',
-                  variant: ButtonVariant.outlined,
-                  onTap: [
-                    If(
-                      Not(Equals(State('reportReason'), '')),
-                      then: [
-                        CallCustomAction.named(
-                          'callReportUser',
-                          arguments: {'reportedId': PageParam('castId'), 'reason': State('reportReason')},
-                          outputAs: 'reportResult',
-                        ),
-                        If(
-                          ActionOutput('reportResult'),
-                          then: [
-                            SetState('reportReason', ''),
-                            Snackbar('通報を受け付けました。'),
-                          ],
-                          orElse: [Snackbar('通報に失敗しました。')],
-                        ),
-                      ],
-                      orElse: [Snackbar('通報理由を入力してください。')],
-                    ),
-                  ],
-                ),
-                Button(
-                  'ブロックする',
-                  variant: ButtonVariant.outlined,
-                  onTap: [
-                    CallCustomAction.named(
-                      'callBlockUser',
-                      arguments: {'targetUid': PageParam('castId')},
-                      outputAs: 'blockResult',
-                    ),
-                    If(
-                      ActionOutput('blockResult'),
-                      then: [Snackbar('ブロックしました。'), NavigateBack()],
-                      orElse: [Snackbar('ブロックに失敗しました。')],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+    //
+    // FROZEN (2026-08-12, comprehensive review pass): confirmed landed —
+    // `CastReviewsAndSafetySection` exists in
+    // lib/flutterflow_project/pages/cast_profile.dart. `ensureInsertedAfter`
+    // is one-shot (create-if-missing by name at the anchor); the anchor key
+    // `Container_vk811dsc` still exists, so a future unrelated push
+    // re-running this exact call would silently no-op (harmless today) —
+    // but any future EDIT to this section's content would be silently
+    // ignored the same way, per this file's own established
+    // `ensureInsertedAfter` one-shot discipline. Any future change to this
+    // section must go through `app.editPage(ff.Pages.castProfile, ...)`
+    // targeting its real widget keys instead.
+    // page.ensureInsertedAfter(
+    //   page.findByKey('Container_vk811dsc'),
+    //   Container(
+    //     name: 'CastReviewsAndSafetySection',
+    //     padding: 16,
+    //     child: Column(
+    //       crossAxis: CrossAxis.start,
+    //       spacing: 12,
+    //       children: [
+    //         Text('レビュー', style: Styles.titleMedium),
+    //         Text(
+    //           CustomFunction(averageRatingLabelFn, args: {'reviews': State('castReviewsList')}),
+    //           style: Styles.bodyMedium,
+    //         ),
+    //         ListView(
+    //           name: 'CastReviewsListView',
+    //           shrinkWrap: true,
+    //           spacing: 8,
+    //           source: State('castReviewsList'),
+    //           itemBuilder: (item) => Card(
+    //             name: 'ReviewCard',
+    //             child: Container(
+    //               padding: 12,
+    //               child: Column(
+    //                 crossAxis: CrossAxis.start,
+    //                 spacing: 4,
+    //                 children: [
+    //                   Row(
+    //                     spacing: 8,
+    //                     children: [
+    //                       Text(
+    //                         CustomFunction(reviewItemRatingLabelFn, args: {'item': item}),
+    //                         style: Styles.labelMedium,
+    //                       ),
+    //                       Text(
+    //                         CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
+    //                         style: Styles.labelSmall,
+    //                       ),
+    //                     ],
+    //                   ),
+    //                   Text(
+    //                     CustomFunction(splitFieldFn, args: {'data': item, 'index': 1}),
+    //                     maxLines: 3,
+    //                     overflow: TextOverflow.ellipsis,
+    //                   ),
+    //                 ],
+    //               ),
+    //             ),
+    //           ),
+    //         ),
+    //         Divider(),
+    //         Text('このユーザーを通報・ブロックする', style: Styles.titleSmall),
+    //         TextField(
+    //           name: 'ReportReasonField',
+    //           hint: '通報理由を入力してください',
+    //           onChanged: SetState('reportReason', const TextValue()),
+    //         ),
+    //         Row(
+    //           spacing: 12,
+    //           children: [
+    //             Button(
+    //               '通報する',
+    //               variant: ButtonVariant.outlined,
+    //               onTap: [
+    //                 If(
+    //                   Not(Equals(State('reportReason'), '')),
+    //                   then: [
+    //                     CallCustomAction.named(
+    //                       'callReportUser',
+    //                       arguments: {'reportedId': PageParam('castId'), 'reason': State('reportReason')},
+    //                       outputAs: 'reportResult',
+    //                     ),
+    //                     If(
+    //                       ActionOutput('reportResult'),
+    //                       then: [
+    //                         SetState('reportReason', ''),
+    //                         Snackbar('通報を受け付けました。'),
+    //                       ],
+    //                       orElse: [Snackbar('通報に失敗しました。')],
+    //                     ),
+    //                   ],
+    //                   orElse: [Snackbar('通報理由を入力してください。')],
+    //                 ),
+    //               ],
+    //             ),
+    //             Button(
+    //               'ブロックする',
+    //               variant: ButtonVariant.outlined,
+    //               onTap: [
+    //                 CallCustomAction.named(
+    //                   'callBlockUser',
+    //                   arguments: {'targetUid': PageParam('castId')},
+    //                   outputAs: 'blockResult',
+    //                 ),
+    //                 If(
+    //                   ActionOutput('blockResult'),
+    //                   then: [Snackbar('ブロックしました。'), NavigateBack()],
+    //                   orElse: [Snackbar('ブロックに失敗しました。')],
+    //                 ),
+    //               ],
+    //             ),
+    //           ],
+    //         ),
+    //       ],
+    //     ),
+    //   ),
+    // );
   });
 
   // ── ReservationDetail: tip (§3.6.15/§3.7.10). ──
@@ -7087,61 +7712,68 @@ Future<bool> callProcessTip(String? resId, String? castId, String? amountYen) as
     state.ensureField('tipAmount', string.withDefault(''));
   });
 
-  app.editPage(ff.Pages.reservationDetail, (page) {
-    // `Row_5d46emlt` (SubmitReviewRow) and `Row_5xrhh8tz` (CancelReservationRow)
-    // are siblings in the same parent Column — inserting after the former
-    // places the tip section between the review action and the cancel
-    // action, additive, no disruption to either.
-    page.ensureInsertedAfter(
-      page.findByKey('Row_5d46emlt'),
-      Container(
-        name: 'TipSection',
-        padding: 16,
-        visible: CustomFunction(canSendTipFn, args: {'data': State('resVisibilityData')}),
-        child: Column(
-          crossAxis: CrossAxis.start,
-          spacing: 8,
-          children: [
-            Text('チップを送る', style: Styles.titleSmall),
-            TextField(
-              name: 'TipAmountField',
-              hint: '金額（円）例: 1000',
-              keyboard: Keyboard.number,
-              onChanged: SetState('tipAmount', const TextValue()),
-            ),
-            Button(
-              '送る',
-              onTap: [
-                If(
-                  Not(Equals(State('tipAmount'), '')),
-                  then: [
-                    CallCustomAction.named(
-                      'callProcessTip',
-                      arguments: {
-                        'resId': PageParam('resId'),
-                        'castId': PageParam('castId'),
-                        'amountYen': State('tipAmount'),
-                      },
-                      outputAs: 'tipResult',
-                    ),
-                    If(
-                      ActionOutput('tipResult'),
-                      then: [
-                        SetState('tipAmount', ''),
-                        Snackbar('チップを送りました。'),
-                      ],
-                      orElse: [Snackbar('チップの送信に失敗しました。')],
-                    ),
-                  ],
-                  orElse: [Snackbar('金額を入力してください。')],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  });
+  // FROZEN (2026-08-12, comprehensive review pass): confirmed landed —
+  // `TipSection` exists in lib/flutterflow_project/pages/reservation_detail.dart.
+  // `ensureInsertedAfter` is one-shot; the anchor key `Row_5d46emlt` still
+  // exists, so a rerun would silently no-op, but any future EDIT to this
+  // section's content would be silently ignored the same way. Any future
+  // change must go through `app.editPage(ff.Pages.reservationDetail, ...)`
+  // targeting its real widget keys instead.
+  // app.editPage(ff.Pages.reservationDetail, (page) {
+  //   // `Row_5d46emlt` (SubmitReviewRow) and `Row_5xrhh8tz` (CancelReservationRow)
+  //   // are siblings in the same parent Column — inserting after the former
+  //   // places the tip section between the review action and the cancel
+  //   // action, additive, no disruption to either.
+  //   page.ensureInsertedAfter(
+  //     page.findByKey('Row_5d46emlt'),
+  //     Container(
+  //       name: 'TipSection',
+  //       padding: 16,
+  //       visible: CustomFunction(canSendTipFn, args: {'data': State('resVisibilityData')}),
+  //       child: Column(
+  //         crossAxis: CrossAxis.start,
+  //         spacing: 8,
+  //         children: [
+  //           Text('チップを送る', style: Styles.titleSmall),
+  //           TextField(
+  //             name: 'TipAmountField',
+  //             hint: '金額（円）例: 1000',
+  //             keyboard: Keyboard.number,
+  //             onChanged: SetState('tipAmount', const TextValue()),
+  //           ),
+  //           Button(
+  //             '送る',
+  //             onTap: [
+  //               If(
+  //                 Not(Equals(State('tipAmount'), '')),
+  //                 then: [
+  //                   CallCustomAction.named(
+  //                     'callProcessTip',
+  //                     arguments: {
+  //                       'resId': PageParam('resId'),
+  //                       'castId': PageParam('castId'),
+  //                       'amountYen': State('tipAmount'),
+  //                     },
+  //                     outputAs: 'tipResult',
+  //                   ),
+  //                   If(
+  //                     ActionOutput('tipResult'),
+  //                     then: [
+  //                       SetState('tipAmount', ''),
+  //                       Snackbar('チップを送りました。'),
+  //                     ],
+  //                     orElse: [Snackbar('チップの送信に失敗しました。')],
+  //                   ),
+  //                 ],
+  //                 orElse: [Snackbar('金額を入力してください。')],
+  //               ),
+  //             ],
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // });
 
   // ── AdminReportReviewPage: minimal Phase-12 slice pulled forward for
   // testability (§3.6.17/§3.7.14/§3.8.16's report-review-with-chat-log-
@@ -7409,82 +8041,88 @@ Future<bool> callResolveReport(String? reportId, String? adminNote) async {
   // bare `State('x')`/`SetState('x', ...)` sugar only works while the page
   // is still being freshly declared in the same script, per this file's
   // own already-documented `ensurePage`-body-inert lesson.
-  app.editPage(ff.Pages.adminReportReviewPage, (page) {
-    page.ensureReplaced(
-      page.findByKey('ListView_l34gmmuj'),
-      Expanded(
-        ListView(
-          name: 'PendingReportsListView',
-          spacing: 8,
-          source: State(ff.Pages.adminReportReviewPage.state.pendingReportsList),
-          itemBuilder: (item) => Card(
-            name: 'ReportCard',
-            child: Container(
-              padding: 12,
-              child: Column(
-                crossAxis: CrossAxis.start,
-                spacing: 4,
-                children: [
-                  Text(
-                    CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
-                    style: Styles.titleSmall,
-                  ),
-                  Text(
-                    CustomFunction(splitFieldFn, args: {'data': item, 'index': 4}),
-                    style: Styles.labelSmall,
-                  ),
-                  Button(
-                    '詳細を見る',
-                    variant: ButtonVariant.outlined,
-                    onTap: [
-                      SetState(
-                        ff.Pages.adminReportReviewPage.state.selectedReportId,
-                        CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
-                      ),
-                      CallCustomAction.named(
-                        'fetchReportChatLog',
-                        arguments: {
-                          'reportId': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
-                        },
-                        outputAs: 'chatLogResult',
-                      ),
-                      SetState(
-                        ff.Pages.adminReportReviewPage.state.selectedReportChatLog,
-                        ActionOutput('chatLogResult'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        name: 'PendingReportsExpanded',
-      ),
-    );
-
-    page.ensureReplaced(
-      page.findByKey('ListView_wm38oxxo'),
-      Expanded(
-        ListView(
-          name: 'SelectedReportChatLogListView',
-          spacing: 6,
-          source: State(ff.Pages.adminReportReviewPage.state.selectedReportChatLog),
-          itemBuilder: (item) => Row(
-            spacing: 8,
-            children: [
-              Text(
-                CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
-                style: Styles.labelSmall,
-              ),
-              Text(CustomFunction(splitFieldFn, args: {'data': item, 'index': 1})),
-            ],
-          ),
-        ),
-        name: 'SelectedReportChatLogExpanded',
-      ),
-    );
-  });
+  //
+  // Frozen (comprehensive review pass, 2026-08-12): both confirmed landed
+  // via generated_code — `ensureReplaced` has no dedup guard, so leaving
+  // either live risked reassigning fresh keys to their whole subtrees on
+  // every future unrelated push. Commented out per the established freeze
+  // discipline (PROJECT_KNOWLEDGE.md §54/project_rules.md).
+  // app.editPage(ff.Pages.adminReportReviewPage, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('ListView_l34gmmuj'),
+  //     Expanded(
+  //       ListView(
+  //         name: 'PendingReportsListView',
+  //         spacing: 8,
+  //         source: State(ff.Pages.adminReportReviewPage.state.pendingReportsList),
+  //         itemBuilder: (item) => Card(
+  //           name: 'ReportCard',
+  //           child: Container(
+  //             padding: 12,
+  //             child: Column(
+  //               crossAxis: CrossAxis.start,
+  //               spacing: 4,
+  //               children: [
+  //                 Text(
+  //                   CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
+  //                   style: Styles.titleSmall,
+  //                 ),
+  //                 Text(
+  //                   CustomFunction(splitFieldFn, args: {'data': item, 'index': 4}),
+  //                   style: Styles.labelSmall,
+  //                 ),
+  //                 Button(
+  //                   '詳細を見る',
+  //                   variant: ButtonVariant.outlined,
+  //                   onTap: [
+  //                     SetState(
+  //                       ff.Pages.adminReportReviewPage.state.selectedReportId,
+  //                       CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+  //                     ),
+  //                     CallCustomAction.named(
+  //                       'fetchReportChatLog',
+  //                       arguments: {
+  //                         'reportId': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+  //                       },
+  //                       outputAs: 'chatLogResult',
+  //                     ),
+  //                     SetState(
+  //                       ff.Pages.adminReportReviewPage.state.selectedReportChatLog,
+  //                       ActionOutput('chatLogResult'),
+  //                     ),
+  //                   ],
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ),
+  //       ),
+  //       name: 'PendingReportsExpanded',
+  //     ),
+  //   );
+  //
+  //   page.ensureReplaced(
+  //     page.findByKey('ListView_wm38oxxo'),
+  //     Expanded(
+  //       ListView(
+  //         name: 'SelectedReportChatLogListView',
+  //         spacing: 6,
+  //         source: State(ff.Pages.adminReportReviewPage.state.selectedReportChatLog),
+  //         itemBuilder: (item) => Row(
+  //           spacing: 8,
+  //           children: [
+  //             Text(
+  //               CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+  //               style: Styles.labelSmall,
+  //             ),
+  //             Text(CustomFunction(splitFieldFn, args: {'data': item, 'index': 1})),
+  //           ],
+  //         ),
+  //       ),
+  //       name: 'SelectedReportChatLogExpanded',
+  //     ),
+  //   );
+  // });
 
   // ==========================================================================
   // Phase 8 — Wallet & payout (§3.7.9-11, §3.9.15).
@@ -7559,6 +8197,25 @@ switch (type) {
 ''',
   );
 
+  // WARNING (found during the "review everything" audit pass): unlike
+  // `fetchWalletLedgerHistory`/`fetchMyWorkSettings` above, this
+  // declaration CANNOT be commented out the same way even though a LATER
+  // `updateCustomFunction(name: 'formatYen', ...)` call also exists for
+  // this name (WalletPage section, below) - `formatYenFn` (the Dart
+  // variable this call returns) is referenced directly as a widget
+  // expression elsewhere in this file (`CustomFunction(formatYenFn,
+  // args: {...})`), so removing this declaration would break Dart
+  // compilation, not just the FlutterFlow-side registration. Content is
+  // currently byte-identical between this declaration and the
+  // `updateCustomFunction` call below (not currently broken) - but this is
+  // the exact "live declaration + later update, same name" shape that
+  // already threw `ensureCustomAction found an existing custom action...
+  // with a different payload` for `callCreateExtensionPayment` earlier
+  // this session, even with seemingly-identical content. If `formatYen`'s
+  // behavior is ever changed, BOTH this declaration's `code:` AND the
+  // `updateCustomFunction` call's `code:` below must be edited together,
+  // in the SAME push, kept byte-for-byte identical - do not edit one
+  // without the other.
   final formatYenFn = app.customFunction(
     'formatYen',
     args: {'amount': string},
@@ -7614,44 +8271,26 @@ Future<String> fetchWalletBalance() async {
 ''',
   );
 
-  app.customAction(
-    'fetchWalletLedgerHistory',
-    returns: listOf(string),
-    description: '自分の台帳（ledger）履歴を取得する（type/金額/日付、user_idスコープの内容ベースルールで安全に直接読み取り可）。', // NOTE: code: below now returns a 4th "status" field too — description text not yet synced (updateCustomAction only touched code:, not description:; low-value to chase with another push for a cosmetic-only field).
-    code: r'''
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '/auth/firebase_auth/auth_util.dart';
-
-Future<List<String>> fetchWalletLedgerHistory() async {
-  try {
-    final uid = currentUserUid;
-    if (uid.isEmpty) return <String>[];
-    final snap = await FirebaseFirestore.instance
-        .collection('ledger')
-        .where('user_id', isEqualTo: uid)
-        .orderBy('created_at', descending: true)
-        .limit(50)
-        .get();
-    return snap.docs.map((d) {
-      final data = d.data();
-      final type = data['type']?.toString() ?? '';
-      final amountRaw = data['net_transfer'] ?? data['amount'] ?? 0;
-      final amount = amountRaw.toString();
-      var dateLabel = '';
-      final ts = data['created_at'];
-      if (ts is Timestamp) {
-        final dt = ts.toDate();
-        dateLabel = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-      }
-      final status = data['status']?.toString() ?? 'confirmed';
-      return '$type|||$amount|||$dateLabel|||$status';
-    }).toList();
-  } catch (e) {
-    return <String>[];
-  }
-}
-''',
-  );
+  // `fetchWalletLedgerHistory` — FIX (found during the "review everything"
+  // audit pass): this used to be a LIVE `app.customAction(...)` declaration
+  // co-existing with a LATER `updateCustomAction` call for the same name
+  // (WalletPage's own section, below) — the exact anti-pattern this file's
+  // own comments already confirmed throws a false "different payload"
+  // mismatch (`callCreateExtensionPayment`, twice, earlier this session),
+  // even when content looks byte-identical. Content here happened to still
+  // match at audit time (not currently broken), but per the established,
+  // now-proven-safe pattern used everywhere else in this file for a
+  // post-`updateCustomAction` target (`checkReservationFieldsComplete`,
+  // `fetchMyReservations`, `reservationListItemLabel`, etc.), commented
+  // out rather than left live and "kept in sync" by hand. The
+  // `updateCustomAction(name: 'fetchWalletLedgerHistory', ...)` call
+  // (WalletPage section) is now the only source of truth for this action.
+  //   app.customAction(
+  //     'fetchWalletLedgerHistory',
+  //     returns: listOf(string),
+  //     description: '自分の台帳（ledger）履歴を取得する。',
+  //     code: r'''...(see updateCustomAction call below for real code)...''',
+  //   );
 
   app.customAction(
     'fetchMyLogicalDebt',
@@ -7894,6 +8533,235 @@ Future<String> callRequestWithdrawal() async {
   // §3.7.9's own wording — a guest has no Stripe Connect account to mirror
   // a balance from), so no additional guest/cast gate is needed on top of
   // what already implicitly scopes this whole page.
+  // ==========================================================================
+  // Phase 11 slice 1 — new `SystemInfo` page for MyPage drawer row 7
+  // (システム・情報): a real, discoverable version-info + logout screen.
+  // Logout already technically works today (a stock FlutterFlow AppBar-logo
+  // ON_TAP present on ~16 pages project-wide, not built by any session
+  // phase), but it's an undocumented gesture, not a labeled UI element —
+  // left as-is (harmless, out of scope to remove) while this page adds the
+  // real, discoverable path Phase 11 calls for.
+  // ==========================================================================
+
+  app.pubDependency('package_info_plus', '^10.2.1');
+
+  app.customAction(
+    'fetchAppVersionLabel',
+    args: {},
+    returns: string,
+    description: 'アプリのバージョン番号・ビルド番号を取得し、表示用ラベル（例: v1.0.0 (3)）を返す。',
+    code: r'''
+import 'package:package_info_plus/package_info_plus.dart';
+
+Future<String> fetchAppVersionLabel() async {
+  try {
+    final info = await PackageInfo.fromPlatform();
+    return 'v${info.version} (${info.buildNumber})';
+  } catch (e) {
+    return '';
+  }
+}
+''',
+  );
+
+  // FROZEN (2026-08-12, review pass, immediately after this exact push
+  // landed): `SystemInfo` now exists — confirmed via
+  // generated_code/lib/system_info/ and lib/flutterflow_project/pages/
+  // system_info.dart. `app.ensurePage` is genuinely idempotent (no-ops if
+  // the page already exists) so leaving this live would not error on a
+  // future push, but it WOULD silently no-op the whole declaration
+  // including body/state/onLoad — the same "safe but a silent-edit trap"
+  // rationale already documented for every other `ensurePage`'d page in
+  // this file (MyWorkContent, SettingsPage, etc.). Any future change to
+  // this page must go through `app.editPage(ff.Pages.systemInfo, ...)`
+  // instead. The drawer-wiring block below now references
+  // `ff.Pages.systemInfo` (the real typed handle, regenerated after this
+  // push) instead of the locally-captured `systemInfoPage` variable this
+  // block originally returned — that capture was only needed to reference
+  // the page within the SAME run it was created in.
+  //   final systemInfoPage = app.ensurePage(
+  //     'SystemInfo',
+  //     route: '/system-info',
+  //     description: 'システム・情報ページ（バージョン情報、ログアウト）。',
+  //     state: {'versionLabel': string.withDefault('')},
+  //     onLoad: [
+  //       CallCustomAction.named('fetchAppVersionLabel', outputAs: 'versionResult'),
+  //       SetState('versionLabel', ActionOutput('versionResult')),
+  //     ],
+  //     body: Scaffold(
+  //       appBar: AppBar(title: 'システム・情報'),
+  //       body: Column(
+  //         padding: 16,
+  //         spacing: 16,
+  //         children: [
+  //           Text('バージョン情報', style: Styles.titleMedium),
+  //           Text(State('versionLabel'), style: Styles.labelSmall),
+  //           Button(
+  //             'ログアウト',
+  //             variant: ButtonVariant.outlined,
+  //             onTap: const [Logout()],
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+
+  // `isListEmpty` stays a live declaration — used by the (now frozen)
+  // BlockList page below, and `ensureCustomFunction` is safe to leave
+  // active indefinitely, unlike `ensurePage`.
+  final isListEmptyFn = app.customFunction(
+    'isListEmpty',
+    args: {'items': listOf(string)},
+    returns: bool_,
+    description: '文字列リストが空かどうかを判定する（空状態メッセージの表示切り替え用）。',
+    code: r'''
+return (items ?? const <String>[]).isEmpty;
+''',
+  );
+
+  // FROZEN (2026-08-12, same-turn review step, immediately after this exact
+  // push landed): `BlockList` now exists — confirmed via
+  // generated_code/lib/block_list/ and
+  // lib/flutterflow_project/pages/block_list.dart. Same rationale as
+  // `SystemInfo` in slice 1 — `ensurePage` is idempotent (won't error if
+  // left live) but would silently no-op any future edit to this page's
+  // body/state/onLoad. Any future change to this page must go through
+  // `app.editPage(ff.Pages.blockList, ...)` instead. The drawer-wiring
+  // block below now references `ff.Pages.blockList` (the real typed
+  // handle, regenerated after this push) instead of the locally-captured
+  // `blockListPage` variable, which was only needed within the run that
+  // created it.
+  //   final blockListPage = app.ensurePage(
+  //     'BlockList',
+  //     route: '/block-list',
+  //     description: 'ブロックリスト画面（ブロック中のユーザー一覧、解除）。',
+  //     state: {'blockedUsersList': listOf(string)},
+  //     onLoad: [
+  //       CallCustomAction.named('fetchBlockedUsers', outputAs: 'blockedUsersResult'),
+  //       SetState('blockedUsersList', ActionOutput('blockedUsersResult')),
+  //     ],
+  //     body: Scaffold(
+  //       appBar: AppBar(title: 'ブロックリスト'),
+  //       body: Column(
+  //         padding: 16,
+  //         children: [
+  //           Text(
+  //             'ブロックしているユーザーはいません。',
+  //             style: Styles.bodyMedium,
+  //             visible: CustomFunction(isListEmptyFn, args: {'items': State('blockedUsersList')}),
+  //           ),
+  //           Expanded(
+  //             ListView(
+  //               name: 'BlockedUsersListView',
+  //               spacing: 8,
+  //               source: State('blockedUsersList'),
+  //               itemBuilder: (item) => Card(
+  //                 child: Container(
+  //                   padding: 12,
+  //                   child: Row(
+  //                     mainAxis: MainAxis.spaceBetween,
+  //                     children: [
+  //                       Text(CustomFunction(splitFieldFn, args: {'data': item, 'index': 1})),
+  //                       Button(
+  //                         'ブロック解除',
+  //                         variant: ButtonVariant.outlined,
+  //                         onTap: [
+  //                           CallCustomAction.named(
+  //                             'callUnblockUser',
+  //                             arguments: {'targetUid': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0})},
+  //                             outputAs: 'unblockResult',
+  //                           ),
+  //                           CallCustomAction.named('fetchBlockedUsers', outputAs: 'refetchResult'),
+  //                           SetState('blockedUsersList', ActionOutput('refetchResult')),
+  //                         ],
+  //                       ),
+  //                     ],
+  //                   ),
+  //                 ),
+  //               ),
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+
+  // Comprehensive review pass (2026-08-12), 2 fixes to the BlockedUsersListView
+  // itemBuilder, found by an independent fresh-eyes review of this slice's
+  // own work:
+  // 1. The unblock button captured `callUnblockUser`'s result but never
+  //    branched on it — no feedback either way, unlike the sibling
+  //    `callBlockUser`/`callReportUser` wiring on CastProfile, which
+  //    correctly shows a success/failure Snackbar. A failed unblock (e.g.
+  //    a dropped network call) left the button looking completely inert.
+  // 2. The nickname Text had no `maxLines`/`overflow`, unlike every other
+  //    dynamic list-item Text in this file (reviews, notifications, chat
+  //    previews) — a long/emoji-heavy nickname would overflow the Row.
+  //    Wrapped in `Expanded` too — `maxLines`/`overflow` alone don't take
+  //    effect on a Text inside a `Row` unless the Text has a bounded width
+  //    to compare against.
+  // FROZEN (2026-08-13, comprehensive review pass — PROJECT_KNOWLEDGE.md
+  // §64): confirmed landed via lib/flutterflow_project/pages/block_list.dart
+  // — ListView_18cohngf no longer exists, replaced by ListView_iuyaje2t
+  // "BlockedUsersListView". Same no-dedup-guard risk as every other
+  // ensureReplaced in this file — this specific block predates the freeze
+  // discipline being applied consistently and was found still-live during
+  // this review pass, not newly introduced by it.
+  // app.editPage(ff.Pages.blockList, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('ListView_18cohngf'),
+  //     Expanded(
+  //       ListView(
+  //         name: 'BlockedUsersListView',
+  //         spacing: 8,
+  //         source: State('blockedUsersList'),
+  //         itemBuilder: (item) => Card(
+  //           child: Container(
+  //             padding: 12,
+  //             child: Row(
+  //               mainAxis: MainAxis.spaceBetween,
+  //               children: [
+  //                 Expanded(
+  //                   Text(
+  //                     CustomFunction(splitFieldFn, args: {'data': item, 'index': 1}),
+  //                     maxLines: 1,
+  //                     overflow: TextOverflow.ellipsis,
+  //                   ),
+  //                 ),
+  //                 Button(
+  //                   'ブロック解除',
+  //                   variant: ButtonVariant.outlined,
+  //                   onTap: [
+  //                     CallCustomAction.named(
+  //                       'callUnblockUser',
+  //                       arguments: {'targetUid': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0})},
+  //                       outputAs: 'unblockResult',
+  //                     ),
+  //                     If(
+  //                       ActionOutput('unblockResult'),
+  //                       then: [
+  //                         CallCustomAction.named('fetchBlockedUsers', outputAs: 'refetchResult'),
+  //                         SetState('blockedUsersList', ActionOutput('refetchResult')),
+  //                         Snackbar('ブロックを解除しました。'),
+  //                       ],
+  //                       orElse: [Snackbar('ブロック解除に失敗しました。')],
+  //                     ),
+  //                   ],
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ),
+  //       ),
+  //       name: 'BlockedUsersListExpanded',
+  //     ),
+  //   );
+  // });
+
+  app.editPageState(ff.Pages.myPage, (state) {
+    state.ensureField('myReviewsList', listOf(string));
+  });
+
   app.editPage(ff.Pages.myPage, (page) {
     page.ensureActions(
       page.findByKey('Row_4184o5rw'), // 報酬・売上・決済管理
@@ -7904,6 +8772,110 @@ Future<String> callRequestWithdrawal() async {
       page.findByKey('Row_ydbc8yfa'), // アカウント・基本管理
       triggerType: FFActionTriggerType.ON_TAP,
       actions: [Navigate(ff.Pages.settingsPage)],
+    );
+
+    // Phase 11 slice 1 (2026-08-12) — real own-rating, reusing the exact
+    // fetchCastReviews/averageRatingLabelFn pair already live on
+    // CastProfile (Phase 7), just called with the current user's own uid
+    // (`AuthUser(AuthUserField.userId)`, a built-in DSL expression — no new
+    // custom action needed). `page.root`'s ON_INIT_STATE already carries a
+    // real native action (`FFAppState().navIndex = 4`, confirmed via
+    // generated_code) — reproduced here verbatim before appending the new
+    // fetch, since `ensureActions` replaces the WHOLE chain on every call
+    // and a SECOND separate `ensureActions` call on the same root+trigger
+    // is confirmed (HomePage's own history, this file) to fail
+    // `compileDslApp` outright even when reproducing an unchanged chain —
+    // this must be the single source of truth for this trigger.
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        UpdateAppState.set(ff.AppState.navIndex, 4),
+        CallCustomAction.named(
+          'fetchCastReviews',
+          arguments: {'castId': AuthUser(AuthUserField.userId)},
+          outputAs: 'myReviewsResult',
+        ),
+        SetState('myReviewsList', ActionOutput('myReviewsResult')),
+      ],
+    );
+    // `EditWidgetPatch.text(...)` only accepts a literal String, not a
+    // dynamic expression (confirmed by compile error) — this DSL's known
+    // "patch.* methods take literals only" drift, same class already
+    // documented for `patch.visible(...)`. Used `ensureReplaced` instead to
+    // reconstruct this specific `Text` with a genuinely dynamic binding.
+    //
+    // FROZEN (2026-08-12, review pass, immediately after this exact push
+    // landed): confirmed via lib/flutterflow_project/pages/my_page.dart —
+    // `Text_a7eis4fi` no longer exists; `ensureReplaced` reassigned it a
+    // fresh key (`Text_8ipm8e8m`) the moment this ran, same one-shot
+    // behavior as every other `ensureReplaced` call in this file. Left
+    // live, the NEXT push (for any unrelated reason) would fail outright —
+    // `findByKey('Text_a7eis4fi')` would find nothing, since that key is
+    // already gone. Any future change to this specific Text node must
+    // target `Text_8ipm8e8m` (or re-resolve via
+    // ff.Pages.myPage.widgets.byName('MyPageRatingLabel')) instead of this
+    // stale key.
+    // page.ensureReplaced(
+    //   page.findByKey('Text_a7eis4fi'),
+    //   Text(
+    //     CustomFunction(averageRatingLabelFn, args: {'reviews': State('myReviewsList')}),
+    //     name: 'MyPageRatingLabel',
+    //   ),
+    // );
+
+    // Phase 11 slice 1 (2026-08-12) — the remaining drawer rows/buttons
+    // whose destinations already exist and are fully backend-wired, but
+    // were never connected. `Affiliate` (Phase 9) and `MyWorkContent`
+    // (Phase 10) were both 100% unreachable from anywhere in the app until
+    // this push — same "built but nobody can get to it" class already
+    // caught and fixed for `MyWorkContent` via `WorkPage` in Phase 10.
+    // `ensureActions` is genuinely idempotent (compares current vs.
+    // requested trigger chain, no-ops on an exact rerun) so these are safe
+    // to leave live, unlike `ensureReplaced`.
+    page.ensureActions(
+      page.findByKey('Row_2h5jlior'), // ワーク・活動管理
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [Navigate(ff.Pages.myWorkContent)],
+    );
+    page.ensureActions(
+      page.findByKey('Row_sh13tqz0'), // 集客・シェア
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [Navigate(ff.Pages.affiliate)],
+    );
+    // Phase 11 slice 2 (2026-08-12) — the row deliberately left unwired in
+    // slice 1 because BlockList didn't exist yet.
+    page.ensureActions(
+      page.findByKey('Row_17k3wf36'), // 対人・実績管理
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [Navigate(ff.Pages.blockList)],
+    );
+    page.ensureActions(
+      page.findByKey('Row_8iq153hm'), // システム・情報
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [Navigate(ff.Pages.systemInfo)],
+    );
+    // Phase 11 slice 3 (2026-08-12) — the last remaining unwired drawer
+    // row, held open since slice 1 pending the legal-content pages built
+    // above in this same push.
+    page.ensureActions(
+      page.findByKey('Row_gnymcn1g'), // サポート・法的項目
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [Navigate(ff.Pages.supportLegalHub)],
+    );
+    page.ensureActions(
+      page.findByKey('Button_h37grnzt'), // プロフィール編集 — was a print() stub
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [Navigate(ff.Pages.profileEdit)],
+    );
+    page.ensureActions(
+      page.findByKey('Button_p13i636o'), // ワーク編集 — was a print() stub
+      triggerType: FFActionTriggerType.ON_TAP,
+      // Same destination as ワーク・活動管理 above. MyWorkContent already
+      // self-gates non-casts with a "この画面はキャスト専用です。" message
+      // (confirmed this session), so no extra guard is needed here even
+      // though MyPage itself is cast-only by convention, not enforcement.
+      actions: [Navigate(ff.Pages.myWorkContent)],
     );
   });
 
@@ -7993,28 +8965,37 @@ return '${isNegative ? '-' : ''}¥$buf';
       ],
     );
 
-    page.ensureInsertedAfter(
-      page.findByKey('Text_vyp0g65e'), // 論理負債があるか、出金可能な残高がないため...
-      Container(
-        name: 'NoStripeAccountGuidance',
-        visible: Not(Equals(State('hasStripeAccountStr'), 'true')),
-        child: Column(
-          crossAxis: CrossAxis.start,
-          spacing: 8,
-          children: [
-            Text(
-              'Stripeアカウントが未設定です。報酬を受け取るには、まず口座連携を完了してください。',
-              style: Styles.labelSmall,
-            ),
-            Button(
-              '口座連携を設定する',
-              variant: ButtonVariant.outlined,
-              onTap: [Navigate(ff.Pages.connectOnboarding)],
-            ),
-          ],
-        ),
-      ),
-    );
+    // FROZEN (2026-08-12, comprehensive review pass): confirmed landed —
+    // `NoStripeAccountGuidance` exists in
+    // lib/flutterflow_project/pages/wallet_page.dart. `ensureInsertedAfter`
+    // is one-shot; the anchor key `Text_vyp0g65e` still exists, so a rerun
+    // would silently no-op, but any future EDIT to this section's content
+    // would be silently ignored the same way. Any future change must go
+    // through `app.editPage(ff.Pages.walletPage, ...)` targeting its real
+    // widget keys instead. The `ensureActions` ON_INIT_STATE call above
+    // stays live (genuinely idempotent, not one-shot).
+    // page.ensureInsertedAfter(
+    //   page.findByKey('Text_vyp0g65e'), // 論理負債があるか、出金可能な残高がないため...
+    //   Container(
+    //     name: 'NoStripeAccountGuidance',
+    //     visible: Not(Equals(State('hasStripeAccountStr'), 'true')),
+    //     child: Column(
+    //       crossAxis: CrossAxis.start,
+    //       spacing: 8,
+    //       children: [
+    //         Text(
+    //           'Stripeアカウントが未設定です。報酬を受け取るには、まず口座連携を完了してください。',
+    //           style: Styles.labelSmall,
+    //         ),
+    //         Button(
+    //           '口座連携を設定する',
+    //           variant: ButtonVariant.outlined,
+    //           onTap: [Navigate(ff.Pages.connectOnboarding)],
+    //         ),
+    //       ],
+    //     ),
+    //   ),
+    // );
   });
 
   // Review-pass fix (2026-08-11): the wallet transaction history showed
@@ -8139,39 +9120,45 @@ switch (status) {
   // typed SDK for the CURRENT live key first (`ListView_1r7nitqx` — a
   // THIRD key for this same logical widget now, since each `ensureReplaced`
   // assigns a fresh one).
-  app.editPage(ff.Pages.walletPage, (page) {
-    page.ensureReplaced(
-      page.findByKey('ListView_1r7nitqx'),
-      Expanded(
-        ListView(
-          name: 'WalletHistoryListView',
-          spacing: 6,
-          source: State(ff.Pages.walletPage.state.ledgerHistoryList),
-          itemBuilder: (item) => Column(
-            crossAxis: CrossAxis.start,
-            children: [
-              Row(
-                mainAxis: MainAxis.spaceBetween,
-                children: [
-                  Text(CustomFunction(ledgerTypeLabelFn, args: {'type': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0})})),
-                  Text(CustomFunction(formatYenFn, args: {'amount': CustomFunction(splitFieldFn, args: {'data': item, 'index': 1})})),
-                  Text(
-                    CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
-                    style: Styles.labelSmall,
-                  ),
-                ],
-              ),
-              Text(
-                CustomFunction(ledgerStatusLabelFn, args: {'status': CustomFunction(splitFieldFn, args: {'data': item, 'index': 3})}),
-                style: Styles.labelSmall,
-              ),
-            ],
-          ),
-        ),
-        name: 'WalletHistoryExpanded2',
-      ),
-    );
-  });
+  //
+  // Frozen (comprehensive review pass, 2026-08-12): confirmed landed via
+  // generated_code — `ensureReplaced` has no dedup guard, so leaving this
+  // live risked assigning a FOURTH key to this same widget on any future
+  // unrelated push. Commented out per the established freeze discipline
+  // (PROJECT_KNOWLEDGE.md §54/project_rules.md).
+  // app.editPage(ff.Pages.walletPage, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('ListView_1r7nitqx'),
+  //     Expanded(
+  //       ListView(
+  //         name: 'WalletHistoryListView',
+  //         spacing: 6,
+  //         source: State(ff.Pages.walletPage.state.ledgerHistoryList),
+  //         itemBuilder: (item) => Column(
+  //           crossAxis: CrossAxis.start,
+  //           children: [
+  //             Row(
+  //               mainAxis: MainAxis.spaceBetween,
+  //               children: [
+  //                 Text(CustomFunction(ledgerTypeLabelFn, args: {'type': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0})})),
+  //                 Text(CustomFunction(formatYenFn, args: {'amount': CustomFunction(splitFieldFn, args: {'data': item, 'index': 1})})),
+  //                 Text(
+  //                   CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
+  //                   style: Styles.labelSmall,
+  //                 ),
+  //               ],
+  //             ),
+  //             Text(
+  //               CustomFunction(ledgerStatusLabelFn, args: {'status': CustomFunction(splitFieldFn, args: {'data': item, 'index': 3})}),
+  //               style: Styles.labelSmall,
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //       name: 'WalletHistoryExpanded2',
+  //     ),
+  //   );
+  // });
 
   // ==========================================================================
   // Phase 9 — Affiliate system (§3.7.12 incl. the mutual-approval hard rule,
@@ -9084,31 +10071,20 @@ return '${original ?? ''}（現在${count ?? '0'}件募集中）';
 ''',
   );
 
-  app.customAction(
-    'fetchMyWorkSettings',
-    returns: string,
-    description: '自分のgender/staff_typeを取得する（マイワーク画面用）。',
-    code: r'''
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '/auth/firebase_auth/auth_util.dart';
-
-Future<String> fetchMyWorkSettings() async {
-  try {
-    final uid = currentUserUid;
-    if (uid.isEmpty) return '|||none|||';
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-    final data = doc.data();
-    if (data == null) return '|||none|||';
-    final gender = (data['gender']?.toString() ?? '').replaceAll('|||', '');
-    final staffType = (data['staff_type']?.toString() ?? 'none').replaceAll('|||', '');
-    final accountType = (data['account_type']?.toString() ?? '').replaceAll('|||', '');
-    return '$gender|||$staffType|||$accountType';
-  } catch (e) {
-    return '|||none|||';
-  }
-}
-''',
-  );
+  // `fetchMyWorkSettings` — FIX (found during the "review everything" audit
+  // pass): same anti-pattern as `fetchWalletLedgerHistory` above - a LIVE
+  // declaration co-existing with a LATER `updateCustomAction` call for the
+  // same name (MyWorkContent section, below). Content still matched at
+  // audit time (not currently broken), but commented out per the same
+  // established, proven-safe pattern rather than left live and manually
+  // kept in sync. The `updateCustomAction(name: 'fetchMyWorkSettings', ...)`
+  // call (MyWorkContent section) is now the only source of truth.
+  //   app.customAction(
+  //     'fetchMyWorkSettings',
+  //     returns: string,
+  //     description: '自分のgender/staff_type/account_typeを取得する（マイワーク画面用）。',
+  //     code: r'''...(see updateCustomAction call below for real code)...''',
+  //   );
 
   app.customAction(
     'callUpdateStaffType',
@@ -9649,57 +10625,63 @@ Future<String> fetchMyWorkSettings() async {
   // (myGender/staffTypeDisplay, the dropdown, the save button's onTap)
   // exactly as the first push landed them, plus the new isCast gate and
   // a permission message for non-casts.
-  app.editPage(ff.Pages.myWorkContent, (page) {
-    page.ensureReplaced(
-      page.findByKey('Column_q4wl133v'),
-      Column(
-        name: 'MyWorkContentBody',
-        padding: 16,
-        spacing: 16,
-        children: [
-          Text(
-            'この画面はキャスト専用です。',
-            style: Styles.bodyMedium,
-            visible: Equals(State('isCast'), false),
-          ),
-          Text('ユーザー種別', style: Styles.labelSmall, visible: State('isCast')),
-          Text('キャスト', style: Styles.titleSmall, visible: State('isCast')),
-          Divider(visible: State('isCast')),
-          Text('ワーク種別', style: Styles.labelSmall, visible: State('isCast')),
-          Text(
-            CustomFunction(workTypeLabelFn, args: {'gender': State(ff.Pages.myWorkContent.state.myGender)}),
-            style: Styles.titleSmall,
-            visible: State('isCast'),
-          ),
-          Divider(visible: State('isCast')),
-          Text('スタッフ兼務設定', style: Styles.labelSmall, visible: State('isCast')),
-          Dropdown(
-            options: const ['なし', '警備', '送迎', '両方'],
-            label: '兼務',
-            value: State(ff.Pages.myWorkContent.state.staffTypeDisplay),
-            onChanged: SetState(ff.Pages.myWorkContent.state.staffTypeDisplay, const WidgetValue()),
-            visible: State('isCast'),
-          ),
-          Button(
-            '保存する',
-            visible: State('isCast'),
-            onTap: [
-              CallCustomAction.named(
-                'callUpdateStaffType',
-                arguments: {'staffType': CustomFunction(staffTypeToEnglishFn, args: {'japanese': State(ff.Pages.myWorkContent.state.staffTypeDisplay)})},
-                outputAs: 'updateResult',
-              ),
-              If(
-                ActionOutput('updateResult'),
-                then: [Snackbar('更新しました。')],
-                orElse: [Snackbar('更新に失敗しました。')],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  });
+  //
+  // Frozen (comprehensive review pass, 2026-08-12): confirmed landed via
+  // generated_code — `ensureReplaced` has no dedup guard, so leaving this
+  // live risked reassigning fresh keys to the whole subtree on every
+  // future unrelated push. Commented out per the established freeze
+  // discipline (PROJECT_KNOWLEDGE.md §54/project_rules.md).
+  // app.editPage(ff.Pages.myWorkContent, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('Column_q4wl133v'),
+  //     Column(
+  //       name: 'MyWorkContentBody',
+  //       padding: 16,
+  //       spacing: 16,
+  //       children: [
+  //         Text(
+  //           'この画面はキャスト専用です。',
+  //           style: Styles.bodyMedium,
+  //           visible: Equals(State('isCast'), false),
+  //         ),
+  //         Text('ユーザー種別', style: Styles.labelSmall, visible: State('isCast')),
+  //         Text('キャスト', style: Styles.titleSmall, visible: State('isCast')),
+  //         Divider(visible: State('isCast')),
+  //         Text('ワーク種別', style: Styles.labelSmall, visible: State('isCast')),
+  //         Text(
+  //           CustomFunction(workTypeLabelFn, args: {'gender': State(ff.Pages.myWorkContent.state.myGender)}),
+  //           style: Styles.titleSmall,
+  //           visible: State('isCast'),
+  //         ),
+  //         Divider(visible: State('isCast')),
+  //         Text('スタッフ兼務設定', style: Styles.labelSmall, visible: State('isCast')),
+  //         Dropdown(
+  //           options: const ['なし', '警備', '送迎', '両方'],
+  //           label: '兼務',
+  //           value: State(ff.Pages.myWorkContent.state.staffTypeDisplay),
+  //           onChanged: SetState(ff.Pages.myWorkContent.state.staffTypeDisplay, const WidgetValue()),
+  //           visible: State('isCast'),
+  //         ),
+  //         Button(
+  //           '保存する',
+  //           visible: State('isCast'),
+  //           onTap: [
+  //             CallCustomAction.named(
+  //               'callUpdateStaffType',
+  //               arguments: {'staffType': CustomFunction(staffTypeToEnglishFn, args: {'japanese': State(ff.Pages.myWorkContent.state.staffTypeDisplay)})},
+  //               outputAs: 'updateResult',
+  //             ),
+  //             If(
+  //               ActionOutput('updateResult'),
+  //               then: [Snackbar('更新しました。')],
+  //               orElse: [Snackbar('更新に失敗しました。')],
+  //             ),
+  //           ],
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // });
 
   // WorkPage's AppBar gets a 3rd nav icon (お知らせ/フィルタ already exist,
   // both still unwired — out of this phase's scope to wire, disclosed not
@@ -9707,17 +10689,24 @@ Future<String> fetchMyWorkSettings() async {
   // this entry point) since MyWorkContent's own page-level gate above is
   // the actual safety boundary — a guest tapping this sees the permission
   // message, not a broken screen.
-  app.editPage(ff.Pages.workPage, (page) {
-    page.ensureInsertedAfter(
-      page.findByKey('Column_2vfi0lu6'),
-      Button(
-        'マイワーク',
-        variant: ButtonVariant.text,
-        name: 'MyWorkNavButton',
-        onTap: [Navigate('MyWorkContent')],
-      ),
-    );
-  });
+  // FROZEN (2026-08-12, comprehensive review pass): confirmed landed —
+  // `MyWorkNavButton` exists in lib/flutterflow_project/pages/work_page.dart.
+  // `ensureInsertedAfter` is one-shot; the anchor key `Column_2vfi0lu6`
+  // still exists, so a rerun would silently no-op, but any future EDIT to
+  // this button would be silently ignored the same way. Any future change
+  // must go through `app.editPage(ff.Pages.workPage, ...)` targeting its
+  // real widget key instead.
+  // app.editPage(ff.Pages.workPage, (page) {
+  //   page.ensureInsertedAfter(
+  //     page.findByKey('Column_2vfi0lu6'),
+  //     Button(
+  //       'マイワーク',
+  //       variant: ButtonVariant.text,
+  //       name: 'MyWorkNavButton',
+  //       onTap: [Navigate('MyWorkContent')],
+  //     ),
+  //   );
+  // });
 
   // ==========================================================================
   // Phase 10 follow-up — the reservation-creation client UI never had a
@@ -9921,4 +10910,2625 @@ Future<String?> callCreateReservationWithStaff(
   //       ),
   //     );
   //   });
+
+  // ==========================================================================
+  // Dedicated error-resolution phase (2026-08-12): full-project audit found
+  // `payment_confirm.dart` was reachable-in-appearance only — its submit
+  // button chain (getPaymentClientSecret -> confirmStripePayment ->
+  // isPaymentSuccess) was already correctly wired, but NOTHING in the app
+  // ever navigated to this page (ReservationForm went straight to
+  // ReservationConfirmed, fixed above at this file's ORIGINAL
+  // ReservationForm/PaymentConfirm sections — see the FIX comments there),
+  // and its 5 price/date/location fields were still the literal FlutterFlow
+  // placeholder "Hello World" text, never wired to real reservation data.
+  // This section closes the data half of that gap: one Firestore read on
+  // load (matching the exact same established pattern as
+  // `fetchReservationSummary`/reservation_confirmed.dart), delimited string
+  // encoding, `splitFieldFn` (already declared above, this file's shared
+  // chat/notifications/matcha-list helper) extracts each field for display.
+  // ==========================================================================
+
+  app.editPageState(ff.Pages.paymentConfirm, (state) {
+    state.ensureField('paymentConfirmData', string.withDefault(''));
+  });
+
+  app.customAction(
+    'fetchPaymentConfirmDetails',
+    args: {'resId': string},
+    returns: string,
+    description: '予約の日時・場所・料金内訳を取得し、決済確認画面表示用データを返す。',
+    code: r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+Future<String?> fetchPaymentConfirmDetails(String? resId) async {
+  try {
+    if (resId == null || resId.isEmpty) return '';
+    final doc = await FirebaseFirestore.instance
+        .collection('reservations')
+        .doc(resId)
+        .get();
+    final data = doc.data();
+    if (data == null) return '';
+    final rawDate = data['date'];
+    var dateLabel = '';
+    if (rawDate is Timestamp) {
+      final d = rawDate.toDate();
+      dateLabel =
+          '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')} '
+          '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    }
+    final location = (data['location']?.toString() ?? '').replaceAll('|||', '');
+    final baseAmount = (data['base_amount'] as num?)?.toInt() ?? 0;
+    final transportFee = (data['transport_fee'] as num?)?.toInt() ?? 0;
+    final staffFee = (data['staff_fee'] as num?)?.toInt() ?? 0;
+    final totalAmount = (data['total_amount'] as num?)?.toInt() ??
+        (baseAmount + transportFee + staffFee);
+    return '$dateLabel|||$location|||$baseAmount|||$transportFee|||$totalAmount';
+  } catch (e) {
+    return '';
+  }
+}
+''',
+  );
+
+  app.editPage(ff.Pages.paymentConfirm, (page) {
+    // Root had zero existing triggerActions (confirmed via the typed SDK —
+    // the only trigger on this page at all was the submit button's ON_TAP,
+    // already wired natively before this session).
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        CallCustomAction.named(
+          'fetchPaymentConfirmDetails',
+          arguments: {'resId': PageParam('resId')},
+          outputAs: 'paymentDetailsResult',
+        ),
+        SetState('paymentConfirmData', ActionOutput('paymentDetailsResult')),
+      ],
+    );
+
+    // Five literal "Hello World" placeholders, replaced in place (each
+    // widget's own existing position/parent untouched — only the widget
+    // itself is reconstructed) rather than rebuilding their parent
+    // Row/Column, since none of these need a structural change, just a
+    // dynamic text source. `maxLines`/`overflow` added per this project's
+    // Design & Quality Rule for the two free-text-derived fields (date is
+    // a fixed-format string built by the action above, near-zero overflow
+    // risk, but treated consistently with location for defense against a
+    // future format change).
+    //
+    // Frozen (comprehensive review pass, 2026-08-12): all 5 confirmed
+    // landed via generated_code — `ensureReplaced` has no dedup guard, so
+    // leaving any live risked reassigning fresh keys to that Text node on
+    // every future unrelated push. Commented out per the established
+    // freeze discipline (PROJECT_KNOWLEDGE.md §54/project_rules.md); the
+    // `ensureActions` call above stays live (genuinely idempotent, not
+    // one-shot).
+    // page.ensureReplaced(
+    //   page.findByKey('Text_meoqolci'), // 日付・時間帯
+    //   Text(
+    //     CustomFunction(splitFieldFn, args: {'data': State('paymentConfirmData'), 'index': 0}),
+    //     name: 'PaymentConfirmDateValue',
+    //     maxLines: 1,
+    //     overflow: TextOverflow.ellipsis,
+    //   ),
+    // );
+    // page.ensureReplaced(
+    //   page.findByKey('Text_3707uyag'), // 場所
+    //   Text(
+    //     CustomFunction(splitFieldFn, args: {'data': State('paymentConfirmData'), 'index': 1}),
+    //     name: 'PaymentConfirmLocationValue',
+    //     maxLines: 2,
+    //     overflow: TextOverflow.ellipsis,
+    //   ),
+    // );
+    // page.ensureReplaced(
+    //   page.findByKey('Text_bh31jlw1'), // 基本料金（数値、"円" は別ウィジェット）
+    //   Text(
+    //     CustomFunction(splitFieldFn, args: {'data': State('paymentConfirmData'), 'index': 2}),
+    //     name: 'PaymentConfirmBaseAmountValue',
+    //   ),
+    // );
+    // page.ensureReplaced(
+    //   page.findByKey('Text_v6wit9ks'), // タクシー代（数値、"円" は別ウィジェット）
+    //   Text(
+    //     CustomFunction(splitFieldFn, args: {'data': State('paymentConfirmData'), 'index': 3}),
+    //     name: 'PaymentConfirmTransportFeeValue',
+    //   ),
+    // );
+    // page.ensureReplaced(
+    //   page.findByKey('Text_7m2mnl3y'), // 合計（数値、"円" は別ウィジェット）
+    //   Text(
+    //     CustomFunction(splitFieldFn, args: {'data': State('paymentConfirmData'), 'index': 4}),
+    //     name: 'PaymentConfirmTotalAmountValue',
+    //   ),
+    // );
+  });
+
+  // ==========================================================================
+  // kyc.dart: the ID-document/selfie upload cards each had a third,
+  // undisclosed "Hello World" placeholder line beneath their real
+  // description text (found during the same audit pass — not one of the 5
+  // `payment_confirm.dart` occurrences already tracked in this project's
+  // own knowledge base). `kycDocUrl`/`kycSelfieUrl` state fields already
+  // exist and are already set once a real upload completes (this page's
+  // ORIGINAL section, this file) — reusing them here turns a meaningless
+  // placeholder into a genuinely useful upload-status line instead of
+  // inventing new unrelated copy.
+  // ==========================================================================
+
+  final kycUploadStatusLabelFn = app.customFunction(
+    'kycUploadStatusLabel',
+    args: {'url': string},
+    returns: string,
+    description: 'KYCアップロード状況（未選択／アップロード済み）を表示用ラベルに変換する。',
+    code: r'''
+return (url != null && url.isNotEmpty) ? 'アップロード済み' : 'タップして選択してください';
+''',
+  );
+
+  // Frozen (comprehensive review pass, 2026-08-12): both confirmed landed
+  // via generated_code — `ensureReplaced` has no dedup guard, so leaving
+  // either live risked reassigning fresh keys to that Text node on every
+  // future unrelated push. Commented out per the established freeze
+  // discipline (PROJECT_KNOWLEDGE.md §54/project_rules.md).
+  // `kycUploadStatusLabelFn`'s own `app.customFunction(...)` declaration
+  // above is left live/registered — only its widget-tree usage moves here
+  // — since ensureCustomFunction is safe to leave active indefinitely
+  // (unlike ensureReplaced).
+  // app.editPage(ff.Pages.kyc, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('Text_uxanwugx'),
+  //     Text(
+  //       CustomFunction(kycUploadStatusLabelFn, args: {'url': State('kycDocUrl')}),
+  //       name: 'KycDocUploadStatus',
+  //     ),
+  //   );
+  //   page.ensureReplaced(
+  //     page.findByKey('Text_0qon195f'),
+  //     Text(
+  //       CustomFunction(kycUploadStatusLabelFn, args: {'url': State('kycSelfieUrl')}),
+  //       name: 'KycSelfieUploadStatus',
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // Affiliate QR barcode `data:` — PARTIAL correction to §49/PROJECT_
+  // KNOWLEDGE.md's own earlier conclusion, then a CONFIRMED SDK bug found by
+  // isolating it. `Barcode(Object? data, {...})` (widgets.dart) DOES take
+  // `data` through `normalizeExpression(data)` — a dynamic `data:` binding
+  // is NOT categorically unsupported, correcting the earlier "no
+  // DSL-authorable path" conclusion (that earlier check never looked at the
+  // widget's own constructor source, only `docs`/`references`).
+  //
+  // Three isolated attempts, each via `flutterflow ai validate` (no push),
+  // narrowing the cause:
+  //   1. Dynamic `State('referralQrData')` (component-local state, set via
+  //      a component-root ON_INIT_STATE trigger) + explicit `type:
+  //      BarcodeKind.qrCode` — FAILED with BOTH "Widget class state field
+  //      not found" AND "Barcode Type in Barcode Widget is not properly set".
+  //   2. Literal string `'https://icoccha.com'` (no state at all) + explicit
+  //      `type: BarcodeKind.qrCode` — the state-field error DISAPPEARED
+  //      entirely; "Barcode Type... not properly set" alone REMAINED.
+  //   3. Same literal string, `type:` omitted (relying on the constructor's
+  //      own `BarcodeKind.qrCode` default) — identical single failure.
+  // Conclusion: attempt 1's "Widget class state field not found" really was
+  // about the component-local-state/ON_INIT_STATE approach specifically
+  // (most likely this FF release not supporting ON_INIT_STATE on a
+  // COMPONENT root — every other ON_INIT_STATE use this session is on a
+  // PAGE root). But "Barcode Type in Barcode Widget is not properly set" is
+  // independent of ALL of that — it reproduces on a fully literal,
+  // minimal reconstruction with an explicit, correct, valid enum value.
+  // `compiler.dart`'s own `_compileBarcodeKind`/`_compileStringValue` look
+  // correct on inspection, and `_compileStringValue` is the same general
+  // helper Text/Button/Image already use successfully elsewhere in this
+  // file — so this is a genuine, reproducible SDK/codegen bug in how
+  // `ensureReplaced` reconstructs a Barcode widget's type field specifically
+  // (not something guessable further from this side of the tool), matching
+  // this project's own standing rule: an error surviving multiple distinct,
+  // plausible fixes means the bug is in the SDK, not the script — stop
+  // iterating, report it. `flutterflow ai docs ui` doesn't document a
+  // Barcode widget at all (zero hits), consistent with this being an
+  // under-exercised part of the DSL surface. Left commented out rather than
+  // pushed half-broken; `references/`/`patterns/` have no Barcode example
+  // to cross-check against. If revisited: try reconstructing the Barcode's
+  // PARENT container instead of the Barcode node directly (the same
+  // structural workaround already proven for other stuck `ensureReplaced`
+  // cases in this project), or ask FlutterFlow support directly with the
+  // exact repro above.
+  // ==========================================================================
+
+  // app.editComponentState(ff.Components.affiliateQrCodeBottomSheet, (state) {
+  //   state.ensureField('referralQrData', string.withDefault(''));
+  // });
+  //
+  // app.customAction(
+  //   'fetchReferralQrData',
+  //   returns: string,
+  //   description: '紹介QRコードに埋め込む招待リンク（自分のUIDベース）を取得する。',
+  //   code: r'''
+  // import '/auth/firebase_auth/auth_util.dart';
+  //
+  // Future<String> fetchReferralQrData() async {
+  //   final uid = currentUserUid;
+  //   if (uid.isEmpty) return '';
+  //   return 'https://icoccha.com/signup?ref=$uid';
+  // }
+  // ''',
+  // );
+  //
+  // app.editComponent(ff.Components.affiliateQrCodeBottomSheet, (component) {
+  //   component.ensureActions(
+  //     component.root,
+  //     triggerType: FFActionTriggerType.ON_INIT_STATE,
+  //     actions: [
+  //       CallCustomAction.named('fetchReferralQrData', outputAs: 'qrDataResult'),
+  //       SetState('referralQrData', ActionOutput('qrDataResult')),
+  //     ],
+  //   );
+  //   component.ensureReplaced(
+  //     component.findByKey('Barcode_a2t8zik3'),
+  //     Barcode(
+  //       State('referralQrData'),
+  //       type: BarcodeKind.qrCode,
+  //       name: 'ReferralQrBarcode',
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // extension_payment.dart — full rebuild of the submit flow, not a small
+  // patch. This page was wired directly in the FlutterFlow IDE before any
+  // AI-tooling session touched it (no `app.editPage(ff.Pages.extensionPayment,
+  // ...)` block exists anywhere in this file to edit in place), and reading
+  // the actual compiled Dart (generated_code/lib/payment/extension_payment/
+  // extension_payment_widget.dart) surfaced THREE real, compounding bugs
+  // beyond the already-known hardcoded `'test_res_001'`:
+  //   1. The submit button calls `actions.callCreatePaymentIntent(...)` —
+  //      the MAIN reservation's authorize function (createPaymentIntent),
+  //      NOT `createExtensionPayment` (the dedicated endpoint with
+  //      extension-count/max-hours cap enforcement and its own `extensions`
+  //      subcollection write). Wiring this up with a real resId as-is would
+  //      have tried to re-authorize/overwrite the MAIN reservation's own
+  //      `payment_intent_id`/status — exactly the danger this same audit's
+  //      new `createPaymentIntent` status guard (stripe-payments.ts, only
+  //      allows `status=="request_pending"`) would now correctly reject,
+  //      but the UI bug itself needed fixing regardless.
+  //   2. It wrote a NEW doc directly to a client-side `payments` collection
+  //      — disconnected from `createExtensionPayment`'s own server-side
+  //      `extensions` subcollection write, which is what this same audit's
+  //      new `captureAuthorizedExtensions` (stripe-payments.ts) actually
+  //      reads to capture the money later. Even a working resId would have
+  //      created a payment record nothing downstream ever looks at.
+  //   3. It NEVER called `confirmStripePayment` (the Stripe Payment Sheet) —
+  //      it showed "決済が完了しました" (payment completed) unconditionally
+  //      the instant the Cloud Function call returned, regardless of
+  //      whether the guest ever actually authorized a charge with a real
+  //      card. This is the same real bug class `payment_confirm.dart` had
+  //      already been correctly built around (get client_secret -> present
+  //      Payment Sheet -> check success) — this page just never followed
+  //      that pattern.
+  // The dropdown's own pricing computation (`functions.calculateExtensionPrice`
+  // driven by `_model.timeSlot`/`_model.dropDownValue`) is untouched — it
+  // was already correct, it just needed `timeSlot` fed real data instead of
+  // a permanently-hardcoded '第2部' default.
+  // ==========================================================================
+
+  app.editPageParams(ff.Pages.extensionPayment, (params) {
+    params.ensureParam('resId', string.withDefault(''));
+  });
+
+  app.customAction(
+    'fetchExtensionTimeSlot',
+    args: {'resId': string},
+    returns: string,
+    description: '予約の実際のtime_slotを取得する（延長料金計算の夜間割増判定に使用）。',
+    code: r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+Future<String?> fetchExtensionTimeSlot(String? resId) async {
+  try {
+    if (resId == null || resId.isEmpty) return '第2部';
+    final doc = await FirebaseFirestore.instance
+        .collection('reservations')
+        .doc(resId)
+        .get();
+    return doc.data()?['time_slot']?.toString() ?? '第2部';
+  } catch (e) {
+    return '第2部';
+  }
+}
+''',
+  );
+
+  final extensionTimeSlotBannerFn = app.customFunction(
+    'extensionTimeSlotBanner',
+    args: {'timeSlot': string},
+    returns: string,
+    description: '延長申請画面の時間帯バナー文言を組み立てる。',
+    code: r'''
+return 'ご利用時間帯　${timeSlot ?? "第2部"}';
+''',
+  );
+
+  // `callCreateExtensionPayment` — originally declared via a live
+  // `app.customAction(...)` call, then modified via `updateCustomAction`
+  // (confirmed landed live via generated_code). Attempting to "sync" the
+  // original declaration back to a live `app.customAction(...)` call with
+  // matching content still threw `ensureCustomAction found an existing
+  // custom action... with a different payload` on the next push, even
+  // though the content appeared byte-identical to what generated_code
+  // showed as live — root cause not fully isolated. Matches the
+  // established, already-working pattern used everywhere else in this
+  // file for a post-`updateCustomAction` target: COMMENT OUT the original
+  // live declaration entirely rather than trying to keep re-syncing it.
+  //
+  // CORRECTION (found during the "review everything" audit pass): the
+  // `updateCustomAction` call this comment used to say "mutates it from
+  // here on" was itself ALSO removed in the same push that commented out
+  // this declaration — there is currently NO live declaration OR update
+  // path anywhere in this script for `callCreateExtensionPayment`. This
+  // is not broken today (the action is confirmed live and correct
+  // server-side, verified against generated_code/lib/custom_code/actions/
+  // call_create_extension_payment.dart), but the script itself can no
+  // longer reproduce or modify this action without first adding a FRESH
+  // `updateCustomAction(name: 'callCreateExtensionPayment', code: ...)`
+  // call (not by re-adding a live `app.customAction(...)` declaration,
+  // which would hit the same mismatch again). Current live signature, for
+  // reference only (not executed):
+  //   app.customAction(
+  //     'callCreateExtensionPayment',
+  //     args: {'resId': string, 'minutes': int_, 'amount': int_},
+  //     returns: string,
+  //     code: r'''...returns "client_secret|||extension_id"...''',
+  //   );
+
+  app.customAction(
+    'callCancelExtensionPayment',
+    args: {'resId': string, 'extensionId': string},
+    returns: bool_,
+    description: 'cancelExtensionPayment Cloud Functionを呼び出し、決済が完了しなかった延長申請の予約側カウント（extension_count/duration_minutes）を取り消す。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callCancelExtensionPayment(String? resId, String? extensionId) async {
+  try {
+    if (resId == null || resId.isEmpty || extensionId == null || extensionId.isEmpty) {
+      return false;
+    }
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('cancelExtensionPayment');
+    final result = await callable.call({
+      'res_id': resId,
+      'extension_id': extensionId,
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.editPage(ff.Pages.extensionPayment, (page) {
+    // Root had zero existing triggerActions of its own (confirmed via the
+    // typed SDK — only the dropdown's ON_FORM_WIDGET_SELECTED and the
+    // submit button's ON_TAP carry any trigger at all, both native/
+    // pre-session).
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        CallCustomAction.named(
+          'fetchExtensionTimeSlot',
+          arguments: {'resId': PageParam('resId')},
+          outputAs: 'timeSlotResult',
+        ),
+        SetState(ff.Pages.extensionPayment.state.timeSlot, ActionOutput('timeSlotResult')),
+      ],
+    );
+
+    // Time-slot banner — was a hardcoded literal "第2部　20：00～23：00"
+    // regardless of the reservation's actual time_slot. Replaced with the
+    // real value; the fixed clock-range portion ("20:00〜23:00") is
+    // dropped rather than guessed — no verified slot-to-clock-range
+    // mapping exists anywhere in this backend/schema to reproduce it
+    // correctly for all 4 possible time slots.
+    //
+    // Frozen (comprehensive review pass, 2026-08-12): confirmed landed via
+    // generated_code — `ensureReplaced` has no dedup guard, so leaving
+    // this live risked reassigning a fresh key to this Text node on every
+    // future unrelated push. Commented out per the established freeze
+    // discipline (PROJECT_KNOWLEDGE.md §54/project_rules.md); the
+    // `ensureActions` call above and the submit-button rewiring below stay
+    // live (separate, non-one-shot operations).
+    // page.ensureReplaced(
+    //   page.findByKey('Text_e9vm0bss'),
+    //   Text(
+    //     CustomFunction(extensionTimeSlotBannerFn, args: {'timeSlot': State('timeSlot')}),
+    //     name: 'ExtensionTimeSlotBanner',
+    //   ),
+    // );
+
+    // Submit button — full replacement of the broken 3-bug chain described
+    // above with the same proven get-client-secret -> present-Payment-
+    // Sheet -> check-success pattern `payment_confirm.dart` already uses
+    // correctly.
+    //
+    // FIX (found on this same fix's own review pass): `createExtensionPayment`
+    // (stripe-payments.ts) increments the reservation's `extension_count`/
+    // `duration_minutes` IMMEDIATELY on PaymentIntent creation, before the
+    // guest has actually completed anything in the Payment Sheet below — a
+    // pre-existing backend design that was never reachable before this fix
+    // (extension_payment.dart previously called an entirely different,
+    // broken function), so this is the first time it's live. Without a
+    // rollback, a guest whose card fails/who cancels the sheet would
+    // permanently lose one of their 3 extension slots and see inflated
+    // duration for a payment that never happened. `callCreateExtensionPayment`
+    // now returns `client_secret|||extension_id`; on payment failure,
+    // `callCancelExtensionPayment` reverses the optimistic increment via a
+    // transactional Cloud Function (stripe-payments.ts) before showing the
+    // failure snackbar.
+    page.ensureActions(
+      page.findByKey('Button_jiosuscb'), // 延長申請する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'callCreateExtensionPayment',
+          arguments: {
+            'resId': PageParam('resId'),
+            'minutes': State(ff.Pages.extensionPayment.state.extensionMinutes),
+            'amount': State(ff.Pages.extensionPayment.state.totalAmount),
+          },
+          outputAs: 'extCreateResult',
+        ),
+        CallCustomAction.named(
+          'isNonEmptyString',
+          arguments: {'value': ActionOutput('extCreateResult')},
+          outputAs: 'extCreateSucceeded',
+        ),
+        If(
+          ActionOutput('extCreateSucceeded'),
+          then: [
+            CallCustomAction.named(
+              'confirmStripePayment',
+              arguments: {
+                'clientSecret': CustomFunction(
+                  splitFieldFn,
+                  args: {'data': ActionOutput('extCreateResult'), 'index': 0},
+                ),
+              },
+              outputAs: 'extStripeResult',
+            ),
+            CallCustomAction.named(
+              'isPaymentSuccess',
+              arguments: {'value': ActionOutput('extStripeResult')},
+              outputAs: 'extPaymentSucceeded',
+            ),
+            If(
+              ActionOutput('extPaymentSucceeded'),
+              then: [Snackbar('延長のお支払いが完了しました。'), NavigateBack()],
+              orElse: [
+                CallCustomAction.named(
+                  'callCancelExtensionPayment',
+                  arguments: {
+                    'resId': PageParam('resId'),
+                    'extensionId': CustomFunction(
+                      splitFieldFn,
+                      args: {'data': ActionOutput('extCreateResult'), 'index': 1},
+                    ),
+                  },
+                  outputAs: 'extCancelResult',
+                ),
+                Snackbar('決済がキャンセルされたか失敗しました。'),
+              ],
+            ),
+          ],
+          orElse: [Snackbar('延長申請に失敗しました。もう一度お試しください。')],
+        ),
+      ],
+    );
+  });
+
+  // ── ReservationDetail: extend session (延長する) entry point — the
+  // navigation gap `extension_payment.dart` had no way to be reached from
+  // anywhere in the app. Gated the same way every other lifecycle button
+  // on this page already is —
+  // guest-only, `in_progress` only (the only state extension makes sense
+  // in, matching `createExtensionPayment`'s own status guard added this
+  // same audit pass), inserted right after `ConfirmMeetupRow` (its own
+  // `status=='confirmed'` window ends exactly where this one's
+  // `status=='in_progress'` window begins) and before `ReportCompletionRow`.
+  final canExtendReservationFn = app.customFunction(
+    'canExtendReservation',
+    args: {'data': string},
+    returns: bool_,
+    description: '現在のユーザーがこの予約の延長を申請できるか判定する（ゲストかつin_progress状態）。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+if (parts.length < 3) return false;
+final status = parts[0];
+final isGuest = parts[1] == 'true';
+return isGuest && status == 'in_progress';
+''',
+  );
+
+  // ensureInsertedAfter — one-shot, CONFIRMED LANDED (ExtendReservationRow/
+  // ExtendReservationButton exist live, per the regenerated typed SDK) —
+  // FROZEN. Re-running this exact call with different Button styling
+  // (width/height/color/textColor/borderRadius added, in the SAME push
+  // that also fixed the extension-payment rollback bug) was silently
+  // ignored — `generated_code` still showed the unstyled button afterward,
+  // confirming `ensureInsertedAfter` is create-if-missing/one-shot just
+  // like `ensureReplaced`/`ensurePage`, not something safe to re-issue
+  // with different content once its target already exists. Styling fixed
+  // separately below via `ensureReplaced` on the button's own real key
+  // instead (a genuinely first-time operation on that specific node).
+  //   app.editPage(ff.Pages.reservationDetail, (page) {
+  //     page.ensureInsertedAfter(
+  //       page.findByKey('Row_qv779nx8'), // ConfirmMeetupRow
+  //       Row(
+  //         name: 'ExtendReservationRow',
+  //         visible: CustomFunction(canExtendReservationFn, args: {'data': State('resVisibilityData')}),
+  //         children: [
+  //           Button(
+  //             '延長する',
+  //             name: 'ExtendReservationButton',
+  //             onTap: [
+  //               Navigate(
+  //                 ff.Pages.extensionPayment,
+  //                 params: {'resId': PageParam('resId')},
+  //               ),
+  //             ],
+  //           ),
+  //         ],
+  //       ),
+  //     );
+  //   });
+
+  // Frozen (comprehensive review pass, 2026-08-12): confirmed landed via
+  // generated_code — `ensureReplaced` has no dedup guard, so leaving this
+  // live risked reassigning a fresh key to this Button on every future
+  // unrelated push. Commented out per the established freeze discipline
+  // (PROJECT_KNOWLEDGE.md §54/project_rules.md).
+  // app.editPage(ff.Pages.reservationDetail, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('Button_ju2dtcif'), // ExtendReservationButton
+  //     Button(
+  //       '延長する',
+  //       name: 'ExtendReservationButton',
+  //       width: 150,
+  //       height: 40,
+  //       color: Colors.primary,
+  //       textColor: Colors.hex(0xFFFFFFFF),
+  //       borderRadius: 8,
+  //       onTap: [
+  //         Navigate(
+  //           ff.Pages.extensionPayment,
+  //           params: {'resId': PageParam('resId')},
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // CRITICAL FIX (comprehensive review pass, 2026-08-12): the app's
+  // initial/home route resolved to `ExtensionPaymentWidget()` for every
+  // logged-in user, not `HomePageWidget()` — confirmed directly in
+  // generated_code/lib/flutter_flow/nav/nav.dart:
+  //   initialLocation: '/',
+  //   errorBuilder: (context, state) =>
+  //       appStateNotifier.loggedIn ? ExtensionPaymentWidget() : LoginPageWidget(),
+  //   routes: [ FFRoute(name: '_initialize', path: '/', builder: (context, _) =>
+  //       appStateNotifier.loggedIn ? ExtensionPaymentWidget() : LoginPageWidget()), ... ]
+  // Every returning, already-logged-in user's cold app launch landed on
+  // ExtensionPayment (which needs a `resId` param that's empty on a fresh
+  // launch, since nothing set it) instead of Home — almost certainly a
+  // stale "Initial Page" project setting left over from whenever
+  // ExtensionPayment was being actively developed (§50), never reverted.
+  // Nothing in this DSL script ever declared this — `app.page`/
+  // `app.ensurePage` both default `isInitial: false`, confirmed by reading
+  // every ExtensionPayment-related block in this file, none pass
+  // `isInitial: true` — this is a raw project-level setting.
+  //
+  // Fixed surgically: `project.authPageInfo.homePageNodeKeyRef` (read via
+  // `auth_helpers.dart`'s `configureFirebaseAuth`, confirmed as the exact
+  // field it writes) is the field driving this — NOT the generic
+  // `initialPageKeyRef`/`setInitialPage` (that helper isn't part of the
+  // public DSL export surface anyway, confirmed by compile error:
+  // "Method not found: 'setInitialPage'" — `project_helpers.dart` only
+  // exports `findPage`/`findComponent`). Rewriting the WHOLE Firebase Auth
+  // config via `configureFirebaseAuth` was deliberately avoided — it also
+  // requires the current `providers` list, which isn't readable from
+  // anywhere this session has access to, and passing the wrong list risks
+  // silently disabling a live auth provider. Setting only
+  // `homePageNodeKeyRef` via already-exported `findPage`/`FFNodeKeyReference`
+  // touches nothing else (providers, signInPageNodeKeyRef, active flag all
+  // untouched).
+  app.raw((project) {
+    final homePage = findPage(project, name: 'HomePage');
+    if (homePage == null) {
+      throw StateError('HomePage not found — cannot fix the initial route.');
+    }
+    project.ensureAuthPageInfo().homePageNodeKeyRef = FFNodeKeyReference(
+      key: homePage.node.key,
+    );
+  });
+
+  // ==========================================================================
+  // style/ folder asset wiring (2026-08-13): client delivered final brand/UI
+  // assets (icon font + logo were already confirmed live — PROJECT_KNOWLEDGE.md
+  // §60) plus ~35 page photos and 8 illustration-button SVGs. Assets were
+  // uploaded to Media Assets by the user directly through the FlutterFlow
+  // builder (this SDK has no binary-upload path — confirmed, §60); every
+  // filename below was confirmed against the user's own screenshots and,
+  // where ambiguous, the actual rendered image content — not guessed.
+  // ==========================================================================
+
+  app.editPage(ff.Pages.authComplete, (page) {
+    page.update(page.findByKey('Image_2vhivfmk'), (patch) {
+      patch.imagePath('assets/images/authComplete_image.png', source: ImageSource.asset);
+    });
+  });
+
+  app.editPage(ff.Pages.emailVerification, (page) {
+    page.update(page.findByKey('Image_u4kc8ka8'), (patch) {
+      patch.imagePath('assets/images/emailVerification_image.png', source: ImageSource.asset);
+    });
+  });
+
+  app.editPage(ff.Pages.phoneVarification, (page) {
+    page.update(page.findByKey('Image_0cmx04qo'), (patch) {
+      patch.imagePath('assets/images/phoneVarification_image.png', source: ImageSource.asset);
+    });
+  });
+
+  app.editPage(ff.Pages.smsCode, (page) {
+    page.update(page.findByKey('Image_jwl544iu'), (patch) {
+      patch.imagePath('assets/images/smsCode_image.png', source: ImageSource.asset);
+    });
+  });
+
+  app.editPage(ff.Pages.reviewPending, (page) {
+    page.update(page.findByKey('Image_csmhzvc7'), (patch) {
+      patch.imagePath('assets/images/reviewPending_image.png', source: ImageSource.asset);
+    });
+  });
+
+  app.editPage(ff.Pages.reservationConfirmed, (page) {
+    page.update(page.findByKey('Image_1p1n3305'), (patch) {
+      patch.imagePath('assets/images/reservationConfirmed_image.png', source: ImageSource.asset);
+    });
+  });
+
+  app.editPage(ff.Pages.castProfile, (page) {
+    // Was hardcoded to `image0_(1).jpeg` — confirmed genuinely broken (the
+    // actual pre-existing file is `.png`, an extension mismatch that
+    // predates this round). Repointed at the new upload instead of
+    // chasing the old mismatched path.
+    page.update(page.findByKey('Image_1txk54nz'), (patch) {
+      patch.imagePath('assets/images/castProfile_image.jpeg', source: ImageSource.asset);
+    });
+  });
+
+  app.editPage(ff.Pages.kyc, (page) {
+    // kyc_image_man.png = ID-document upload illustration; kyc_image_woman.png
+    // = selfie-upload illustration — mapped by actual rendered content
+    // (confirmed by the user opening both files), not by filename.
+    page.update(page.findByKey('Image_caclcv9m'), (patch) {
+      patch.imagePath('assets/images/kyc_image_man.png', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('Image_8r83ksqp'), (patch) {
+      patch.imagePath('assets/images/kyc_image_woman.png', source: ImageSource.asset);
+    });
+  });
+
+  // §71: CocomisePage ("ココ店" tab) wiring to the real `cocoten_shops`
+  // collection. Was 2 hardcoded fake shop cards + 7 dead filter chips + a
+  // dead "オープン" switch + a dead search dialog (wrote
+  // FFAppState().searchShopKeyword, nothing ever read it back — confirmed
+  // via full-tree grep). `cocoten_shops` is already a typed DSL collection
+  // (ff.Collections.cocotenShops) with public read in firestore.rules
+  // (matches banners/prefectures precedent) — no new Cloud Function needed.
+  // `FirestoreQuery` (the DSL action) has no where/filter clause at all, so
+  // filtering happens client-side via a custom function against the one
+  // full fetch (collection is small — 5 docs today per admin's own
+  // adminGetCocotenShops comment "shop counts are expected to be small").
+  //
+  // Real-data caveat, already disclosed via adminUpsertCocotenShop's own
+  // comment ("photos deliberately not handled here"): only `name`/`genre`/
+  // `active` are both real (actually written by adminUpsertCocotenShop) AND
+  // in the typed schema — `address`/`location`/`photos`/`menu`/
+  // `guest_benefits`/`tags` are declared in the schema but never populated
+  // by any current writer, so the grid/dialog intentionally bind only to
+  // the three real fields. Scope, confirmed with the user: wire the
+  // grid/filters/search to real data + a lightweight name/genre info
+  // dialog on tap. The separately-tracked `CocoTenDetailPage`
+  // (photos/menu/guest-perks/invite-flow — IMPLEMENTATION_PLAN.md §3.4
+  // items 1-2, Phase 3) stays out of scope, untouched.
+  //
+  // Genre is free text (admin.ts just stores whatever string is entered,
+  // no enum/dropdown) and the 7 chip labels have decorative full-width
+  // spaces ('和　食') — the filter function normalizes (strips spaces) and
+  // uses substring containment, not `==`. Live document genre values were
+  // NOT inspectable in this environment (no Firestore read credentials
+  // available beyond the FlutterFlow-managed DSL/Cloud Functions path) —
+  // some chips may legitimately match 0 of today's 5 shops; that's a data
+  // question, not a wiring bug, disclosed rather than silently assumed
+  // correct.
+  final filterCocotenShopsFn = app.customFunction(
+    'filterCocotenShops',
+    args: {
+      'shops': listOf(ff.Collections.cocotenShops),
+      'genre': string,
+      'activeOnly': bool_,
+      'keyword': string,
+    },
+    returns: listOf(ff.Collections.cocotenShops),
+    description: 'cocoten_shops一覧をジャンル/オープン中/キーワードでクライアント側フィルタする（CocomisePage）。',
+    code: r'''
+final list = shops ?? const [];
+String strip(String s) => s.replaceAll(RegExp(r'[\s　]'), '');
+final normalizedGenre = strip(genre ?? '');
+final kw = (keyword ?? '').trim().toLowerCase();
+final onlyActive = activeOnly ?? false;
+return list.where((shop) {
+  if (onlyActive && shop.active != true) return false;
+  if (normalizedGenre.isNotEmpty) {
+    final shopGenre = strip(shop.genre ?? '');
+    if (!shopGenre.contains(normalizedGenre)) return false;
+  }
+  if (kw.isNotEmpty) {
+    if (!(shop.name ?? '').toLowerCase().contains(kw)) return false;
+  }
+  return true;
+}).toList();
+''',
+  );
+
+  app.editPageState(ff.Pages.cocomisePage, (state) {
+    state.ensureField('shops', listOf(ff.Collections.cocotenShops));
+    state.ensureField('selectedGenre', string.withDefault(''));
+    state.ensureField('activeOnly', bool_.withDefault(true)); // preserves the switch's current default-ON look
+  });
+
+  app.editPage(ff.Pages.cocomisePage, (page) {
+    // REMOVED (2026-08-13, PROJECT_KNOWLEDGE.md §71): `Image_t4egp1od`/
+    // `Image_ujc8z79s` no longer exist — confirmed via
+    // lib/flutterflow_project/pages/cocomise_page.dart (post-push) and via
+    // the CocotenShopGrid replace below, which removed the entire old
+    // hardcoded shop-card subtree (`Container_gjm7b6a0`/`Container_igip45cj`,
+    // the fake "焼鳥 一鳥"/"焼鳥 慶州園" cards) these two Image widgets lived
+    // inside. Same pattern as the earlier HomePage `Image_y1iahv8w`/
+    // `Image_12ktlryb` incident (see below in this file): a plain
+    // `page.update()` asset-wiring patch that predates the structural
+    // replace, now hard-failing `compileDslApp` since its targets are gone
+    // by design, not renamed. Removed rather than re-targeted — the new
+    // dynamic `CocotenShopGrid` cards have no per-shop static image slot
+    // (real `cocoten_shops` documents don't have populated `photos` data
+    // to bind to anyway, see the block below).
+    //   page.update(page.findByKey('Image_t4egp1od'), (patch) { // 焼鳥 一鳥
+    //     patch.imagePath('assets/images/cocomise_shop_image1.png', source: ImageSource.asset);
+    //   });
+    //   page.update(page.findByKey('Image_ujc8z79s'), (patch) { // 焼鳥 慶州園
+    //     patch.imagePath('assets/images/cocomise_shop_image2.png', source: ImageSource.asset);
+    //   });
+    // Ad carousel — previously network placeholder images on these same
+    // `Image` widgets; swapped to the client's real ad creatives in
+    // on-page swipe order.
+    page.update(page.findByKey('Image_dkzvgwre'), (patch) {
+      patch.imagePath('assets/images/cocomise_koukoku_image1.jpeg', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('Image_aoopy7b4'), (patch) {
+      patch.imagePath('assets/images/cocomise_koukoku_image2.jpeg', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('Image_hideg0h1'), (patch) {
+      patch.imagePath('assets/images/cocomise_koukoku_image3.jpeg', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('Image_9q3sv9ot'), (patch) {
+      patch.imagePath('assets/images/cocomise_koukoku_image4.jpeg', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('Image_tispo3jj'), (patch) {
+      patch.imagePath('assets/images/cocomise_koukoku_image5.jpeg', source: ImageSource.asset);
+    });
+
+    // Initial fetch — this page has never had DSL touch its ON_INIT_STATE
+    // before (native-only, sets FFAppState().navIndex = 1). Per this
+    // project's own hard-learned rule (a SECOND ensureActions call on the
+    // same root+ON_INIT_STATE trigger fails compileDslApp outright), this
+    // must stay the ONLY call on this trigger going forward — any future
+    // addition nests inside this same call.
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        UpdateAppState.set(ff.AppState.navIndex, 1),
+        FirestoreQuery(
+          ff.Collections.cocotenShops,
+          limit: 100,
+          singleTimeQuery: true,
+          outputAs: 'cocotenShopsResult',
+        ),
+        SetState('shops', ActionOutput('cocotenShopsResult')),
+      ],
+    );
+
+    // 7 genre chips — single-select toggle (tap again to clear). Container
+    // already supports onTap in its DSL constructor; asserting ON_TAP on
+    // these pre-existing instances directly (no structural replace needed).
+    page.ensureActions(
+      page.findByKey('Container_0wh21mpc'), // 和　食
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        If(
+          Equals(State('selectedGenre'), '和食'),
+          then: [SetState('selectedGenre', '')],
+          orElse: [SetState('selectedGenre', '和食')],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Container_woiyd378'), // 洋　食
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        If(
+          Equals(State('selectedGenre'), '洋食'),
+          then: [SetState('selectedGenre', '')],
+          orElse: [SetState('selectedGenre', '洋食')],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Container_i8nod4uz'), // 和洋食
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        If(
+          Equals(State('selectedGenre'), '和洋食'),
+          then: [SetState('selectedGenre', '')],
+          orElse: [SetState('selectedGenre', '和洋食')],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Container_z0t09uyq'), // イタ飯
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        If(
+          Equals(State('selectedGenre'), 'イタ飯'),
+          then: [SetState('selectedGenre', '')],
+          orElse: [SetState('selectedGenre', 'イタ飯')],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Container_40qrlyom'), // 韓　食
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        If(
+          Equals(State('selectedGenre'), '韓食'),
+          then: [SetState('selectedGenre', '')],
+          orElse: [SetState('selectedGenre', '韓食')],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Container_09intull'), // 中　華
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        If(
+          Equals(State('selectedGenre'), '中華'),
+          then: [SetState('selectedGenre', '')],
+          orElse: [SetState('selectedGenre', '中華')],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Container_2wq3wtxf'), // その他
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        If(
+          Equals(State('selectedGenre'), 'その他'),
+          then: [SetState('selectedGenre', '')],
+          orElse: [SetState('selectedGenre', 'その他')],
+        ),
+      ],
+    );
+
+    // オープン switch → activeOnly. SwitchListTile is a confirmed-invalid
+    // ON_TOGGLE_ON/OFF target in this SDK (compileDslApp rejected it
+    // elsewhere in this file with "requires a Switch or Checkbox target,
+    // got SwitchListTile" — no `Switch` DSL widget class exists at all).
+    // Reusing the same fix already landed for ResGroupInviteCheckbox:
+    // same boolean semantic, Checkbox instead of a Material Switch visual.
+    //
+    // FROZEN (2026-08-13, confirmed landed): verified via
+    // generated_code/lib/cocomise/cocomise_page/cocomise_page_widget.dart
+    // — a real `Checkbox(value: _model.cocomiseOpenOnlyCheckboxValue ??=
+    // _model.activeOnly!, onChanged: ... _model.activeOnly = ...)` renders
+    // in place of the old SwitchListTile. New key/name: `CocomiseOpenOnlyRow`
+    // / `CocomiseOpenOnlyCheckbox` (typed SDK). Any future change must
+    // target that name instead of re-inserting.
+    // page.ensureReplaced(
+    //   page.findByKey('SwitchListTile_zcyxh0t9'),
+    //   Row(
+    //     name: 'CocomiseOpenOnlyRow',
+    //     mainAxis: MainAxis.spaceBetween,
+    //     children: [
+    //       Column(
+    //         crossAxis: CrossAxis.start,
+    //         children: [
+    //           Text('オープン', style: Styles.titleLarge),
+    //           Text('開店中のお店表示', style: Styles.labelMedium),
+    //         ],
+    //       ),
+    //       Checkbox(
+    //         name: 'CocomiseOpenOnlyCheckbox',
+    //         value: State('activeOnly'),
+    //         onChanged: SetState('activeOnly', const WidgetValue()),
+    //       ),
+    //     ],
+    //   ),
+    // );
+
+    // Shop grid — bound to a LIVE CustomFunction expression (re-evaluated
+    // on every rebuild), not a second imperatively-populated state field.
+    // This is what makes the search dialog's keyword (which can only be
+    // reached through FFAppState().searchShopKeyword — CocomisePage's own
+    // build() already does context.watch<FFAppState>(), so it already
+    // rebuilds on that change) join the same reactive loop as the chips
+    // and the switch, with zero extra plumbing. GridView.source/itemBuilder
+    // are constructor-only (no patch method re-sources an existing
+    // GridView), so this is a structural replace, matching the precedent
+    // already used for HomePage's discovery-cast grid.
+    //
+    // FROZEN (2026-08-13, confirmed landed): verified via generated_code —
+    // a real `GridView.builder` reads `functions.filterCocotenShops(
+    // _model.shops.toList(), _model.selectedGenre, _model.activeOnly,
+    // FFAppState().searchShopKeyword)` inline per rebuild, each card shows
+    // `itemItem.name`/`itemItem.genre`/`if (itemItem.active)` dot, and tap
+    // opens a real AlertDialog with the shop's name/genre. New key/name:
+    // `CocotenShopGrid` (typed SDK). Any future change must target that
+    // name instead of re-inserting.
+    // page.ensureReplaced(
+    //   page.findByKey('GridView_3dnvgyi6'),
+    //   GridView(
+    //     name: 'CocotenShopGrid',
+    //     source: CustomFunction(
+    //       filterCocotenShopsFn,
+    //       args: {
+    //         'shops': State('shops'),
+    //         'genre': State('selectedGenre'),
+    //         'activeOnly': State('activeOnly'),
+    //         'keyword': AppState(ff.AppState.searchShopKeyword),
+    //       },
+    //     ),
+    //     columns: 2,
+    //     crossAxisSpacing: 10,
+    //     mainAxisSpacing: 10,
+    //     childAspectRatio: 1.0,
+    //     itemBuilder: (item) => Container(
+    //       name: 'CocotenShopCard',
+    //       padding: EdgeInsets.all(12),
+    //       borderRadius: 12,
+    //       borderColor: Colors.alternate,
+    //       borderWidth: 1,
+    //       color: Colors.secondaryBackground,
+    //       onTap: [
+    //         ShowDialog.message(title: item['name'], message: item['genre']),
+    //       ],
+    //       child: Column(
+    //         crossAxis: CrossAxis.start,
+    //         mainAxis: MainAxis.center,
+    //         spacing: 6,
+    //         children: [
+    //           Row(
+    //             mainAxis: MainAxis.spaceBetween,
+    //             children: [
+    //               Text(
+    //                 item['name'],
+    //                 style: Styles.bodyLarge,
+    //                 maxLines: 1,
+    //                 overflow: TextOverflow.ellipsis,
+    //               ),
+    //               Container(
+    //                 width: 10,
+    //                 height: 10,
+    //                 borderRadius: 5,
+    //                 color: Colors.success,
+    //                 visible: item['active'],
+    //                 name: 'CocotenShopActiveDot',
+    //               ),
+    //             ],
+    //           ),
+    //           Text(
+    //             item['genre'],
+    //             style: Styles.bodySmall,
+    //             color: Colors.secondaryText,
+    //             maxLines: 1,
+    //             overflow: TextOverflow.ellipsis,
+    //           ),
+    //         ],
+    //       ),
+    //     ),
+    //   ),
+    // );
+  });
+
+  // REMOVED (2026-08-13, PROJECT_KNOWLEDGE.md §71): `Image_y1iahv8w`/
+  // `Image_12ktlryb` no longer exist — confirmed via
+  // lib/flutterflow_project/pages/home_page.dart (only 4 Image widgets
+  // remain on HomePage, none matching either key) and via generated_code
+  // (neither `home_image3.jpeg` nor `home_image4.jpeg` appear anywhere).
+  // Root cause: these were almost certainly the 2 fake "cast card"
+  // background photos (`ゆずき`/`arika`) inside `GridView_2f71lsw8` —
+  // wired to real asset files in an earlier asset-wiring pass, before this
+  // session's comprehensive review (§70) found the whole card content
+  // (names/stats/text) was hardcoded fake data shown to real guests and
+  // removed the entire card structure via `ensureReplaced` (see that
+  // block, above `RemovedStaticFakeCastGrid`). This asset-wiring block —
+  // a plain `page.update()` property patch, not a one-shot creation call —
+  // re-executes on every push and was hard-failing `compileDslApp` for
+  // every push since, since the widgets it targeted are simply gone.
+  // Removed rather than re-targeted at a new key: there is no successor
+  // widget to wire these images onto, since the fake cards themselves are
+  // gone by design, not renamed.
+  //   app.editPage(ff.Pages.homePage, (page) {
+  //     page.update(page.findByKey('Image_y1iahv8w'), (patch) {
+  //       patch.imagePath('assets/images/home_image3.jpeg', source: ImageSource.asset);
+  //     });
+  //     page.update(page.findByKey('Image_12ktlryb'), (patch) {
+  //       patch.imagePath('assets/images/home_image4.jpeg', source: ImageSource.asset);
+  //     });
+  //   });
+
+  app.editPage(ff.Pages.myPage, (page) {
+    // Self-avatar placeholders. No dedicated "own profile photo" asset was
+    // delivered; the previous reference (bare `image1.jpeg`) is confirmed
+    // absent from Media Assets entirely (almost certainly one of the
+    // "insufficient storage" cleanup deletions) and was rendering broken
+    // regardless of this task. Reusing home_image3.jpeg as a generic
+    // placeholder — same treatment this project already gives every other
+    // not-yet-dynamically-bound avatar slot.
+    page.update(page.findByKey('CircleImage_t0zjz7xt'), (patch) {
+      patch.imagePath('assets/images/home_image3.jpeg', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('CircleImage_vgdabb78'), (patch) {
+      patch.imagePath('assets/images/home_image3.jpeg', source: ImageSource.asset);
+    });
+  });
+
+  app.editPage(ff.Pages.tutorialPage, (page) {
+    // Mapped by on-page swipe order (ascending widget-tree position), not
+    // by any resemblance between the old and new filenames — the two
+    // numbering schemes are unrelated.
+    page.update(page.findByKey('Image_xbm3nymy'), (patch) {
+      patch.imagePath('assets/images/tutorial_image1.png', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('Image_wd9qmfck'), (patch) {
+      patch.imagePath('assets/images/tutorial_image2.png', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('Image_h55bb8fx'), (patch) {
+      patch.imagePath('assets/images/tutorial_image3.png', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('Image_h1wcebh6'), (patch) {
+      patch.imagePath('assets/images/tutorial_image4.png', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('Image_93ij4zqz'), (patch) {
+      patch.imagePath('assets/images/tutorial_image5.png', source: ImageSource.asset);
+    });
+  });
+
+  app.editPage(ff.Pages.reservationDetail, (page) {
+    // Generic "no photo" fallback avatars — were `assets/images/icoccha_noimage.png`,
+    // which the user's bulk upload renamed to `macchaChatsimage.png`
+    // (confirmed: FlutterFlow AI's folder-derived rename of
+    // style/icoccha_app_image/macchaChatsimage/icoccha_noimage.png).
+    page.update(page.findByKey('CircleImage_wer97dj4'), (patch) {
+      patch.imagePath('assets/images/macchaChatsimage.png', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('CircleImage_3lveym1m'), (patch) {
+      patch.imagePath('assets/images/macchaChatsimage.png', source: ImageSource.asset);
+    });
+  });
+
+  app.editComponent(ff.Components.affiliateQrCodeBottomSheet, (component) {
+    component.update(component.findByKey('Image_57r9rbcw'), (patch) { // LINE
+      patch.imagePath('assets/images/qrcode_line_share_image.png', source: ImageSource.asset);
+    });
+    component.update(component.findByKey('Image_4jwu6oa2'), (patch) { // generic 'share' action — the client's own filename confirms Instagram
+      patch.imagePath('assets/images/qrcode_insta_share_image.png', source: ImageSource.asset);
+    });
+    component.update(component.findByKey('Image_kp4fv03o'), (patch) { // X (Twitter)
+      patch.imagePath('assets/images/qrcode_x_share_image.png', source: ImageSource.asset);
+    });
+    component.update(component.findByKey('Image_fi75lg5a'), (patch) { // Threads
+      patch.imagePath('assets/images/qrcode_threads_share_image.png', source: ImageSource.asset);
+    });
+  });
+
+  // WorkPage: 4 CircleImage recruitment-category placeholders. All 4 slots
+  // are structurally identical (CircleImage + generic "募集画像表示" Text
+  // overlaid in a Stack); the delivered SVGs self-label their category
+  // (送迎スタッフ/イコッチャガールズ/セキュリティスタッフ/イコッチャボーイズ募集中！),
+  // so left-to-right assignment order doesn't affect meaning.
+  app.editPage(ff.Pages.workPage, (page) {
+    page.update(page.findByKey('CircleImage_h9jv94gk'), (patch) {
+      patch.imagePath('assets/images/woorkpage-button-svg1.svg', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('CircleImage_r9m368f1'), (patch) {
+      patch.imagePath('assets/images/woorkpage-button-svg2.svg', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('CircleImage_4popyyr4'), (patch) {
+      patch.imagePath('assets/images/woorkpage-button-svg3.svg', source: ImageSource.asset);
+    });
+    page.update(page.findByKey('CircleImage_jtl07lrt'), (patch) {
+      patch.imagePath('assets/images/woorkpage-button-svg4.svg', source: ImageSource.asset);
+    });
+    // Blank the now-redundant placeholder text overlaid on each real image.
+    // Two different attempts to actually HIDE it (`patch.visible(false)`,
+    // then the raw `mutateNode` + `ensureVisibility()` escape hatch) both
+    // compiled and pushed with zero error but produced no visible change in
+    // `generated_code` and no `visibility` field in
+    // `flutterflow ai inspect --selector-key --dsl-json` either — a genuine
+    // SDK/codegen gap with static (non-dynamic) visibility on a `Text`
+    // nested in a `Stack`, not a scripting mistake (confirmed by trying two
+    // independent mechanisms). Blanking the text content instead — `.text()`
+    // is already proven reliable elsewhere in this file and achieves the
+    // same end-user-visible result (no leftover label) without depending on
+    // the broken field.
+    for (final key in [
+      'Text_ir4sljtu',
+      'Text_baieqvuy',
+      'Text_1spm8aa6',
+      'Text_kgnedru2',
+    ]) {
+      page.update(page.findByKey(key), (patch) {
+        patch.text('');
+      });
+    }
+  });
+
+  // MyPage: 3 of 4 legal/help image placeholders (Text -> Image). The 2nd
+  // ガイドライン placeholder (Text_sswmld4n) is intentionally left untouched —
+  // mypage-button-svg4.svg turned out to be an "お問い合わせメール" (inquiry)
+  // icon, not a second guideline image (confirmed by opening the file); no
+  // matching asset exists for this slot yet, and svg4 is being held for a
+  // follow-up wiring it to the SupportLegalHub/InquiryForm entry point
+  // instead.
+  //
+  // FROZEN (2026-08-13, immediately after this exact block landed): confirmed
+  // via lib/flutterflow_project/pages/my_page.dart — `Text_gpzkjpcj`,
+  // `Text_bhfsi6di`, `Text_xxauqlfi` no longer exist; ensureReplaced assigned
+  // fresh keys the moment this ran (Image_a2t7auha "TermsButtonImage",
+  // Image_g4f2674l "GuidelineButtonImage", Image_4pso7u43 "QaHelpButtonImage")
+  // — same one-shot behavior as every other ensureReplaced in this file. Any
+  // future change to these 3 nodes must target the new keys (or
+  // ff.Pages.myPage.widgets.byName('...')) instead of the stale Text keys.
+  // app.editPage(ff.Pages.myPage, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('Text_gpzkjpcj'), // ご利用規約
+  //     Image(
+  //       'assets/images/mypage-button-svg1.svg',
+  //       isNetwork: false,
+  //       name: 'TermsButtonImage',
+  //     ),
+  //   );
+  //   page.ensureReplaced(
+  //     page.findByKey('Text_bhfsi6di'), // ガイドライン (1st)
+  //     Image(
+  //       'assets/images/mypage-button-svg2.svg',
+  //       isNetwork: false,
+  //       name: 'GuidelineButtonImage',
+  //     ),
+  //   );
+  //   page.ensureReplaced(
+  //     page.findByKey('Text_xxauqlfi'), // Q&A・ヘルプ
+  //     Image(
+  //       'assets/images/mypage-button-svg3.svg',
+  //       isNetwork: false,
+  //       name: 'QaHelpButtonImage',
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // New UI for slots the delivered style/ assets unblock but that had no
+  // structure to receive them yet (2026-08-13). Scoped to what can be built
+  // without touching pre-existing dynamic list/filter logic this DSL script
+  // never authored (see MacchaPage note below) — safer, narrower changes
+  // over guessing at data bindings this session can't verify.
+  // ==========================================================================
+
+  // SupportLegalHub: the 3 rows shipped in Phase 11 slice 3 as plain,
+  // unstyled Buttons — functional but visually bare next to the rest of the
+  // app's card-based list rows (MyPage drawer, BlockList). Restyled to match:
+  // a Card per row, leading icon, trailing chevron for affordance. The 3rd
+  // row uses the real お問い合わせメール illustration (mypage-button-svg4.svg —
+  // confirmed by content, not filename, in PROJECT_KNOWLEDGE.md §61) instead
+  // of a generic icon, since that asset was delivered specifically for this
+  // slot. Each Card's onTap reproduces the exact Navigate target the
+  // replaced Button already had (confirmed via generated_code before
+  // touching anything).
+  // FROZEN (2026-08-13, comprehensive review pass — PROJECT_KNOWLEDGE.md
+  // §64): all 3 ensureReplaced calls below confirmed landed via
+  // lib/flutterflow_project/pages/support_legal_hub.dart — Button_rggeusvn/
+  // Button_794uur68/Button_5f50xmd2 no longer exist, replaced by
+  // Card_xz53b6hc "TermsOfServiceRow", Card_mzg1y0hj "PrivacyPolicyRow",
+  // Card_hcc8tp7x "InquiryFormRow" respectively. Left live, this block hard-
+  // failed the very next unrelated push with "findByKey(...) found no
+  // matches" (ensureReplaced has no dedup guard — confirmed the hard way).
+  // The Column padding/spacing patch above stays live (a simple repeatable
+  // property patch, not one-shot).
+  app.editPage(ff.Pages.supportLegalHub, (page) {
+    page.update(page.findByKey('Column_wutn42f4'), (patch) {
+      patch.padding(16);
+      patch.spacing(12);
+    });
+  });
+  // page.ensureReplaced(
+  //   page.findByKey('Button_rggeusvn'), // 利用規約
+  //   Card(
+  //     elevation: 1,
+  //     borderRadius: 12,
+  //     color: Colors.secondaryBackground,
+  //     onTap: [Navigate(ff.Pages.termsOfService)],
+  //     name: 'TermsOfServiceRow',
+  //     child: Row(
+  //       padding: 16,
+  //       spacing: 12,
+  //       children: [
+  //         Icon('description', size: 22, color: Colors.primary),
+  //         Expanded(
+  //           Text('利用規約', style: Styles.bodyLarge, color: Colors.primaryText),
+  //         ),
+  //         Icon('chevron_right', size: 20, color: Colors.secondaryText),
+  //       ],
+  //     ),
+  //   ),
+  // );
+  //
+  // page.ensureReplaced(
+  //   page.findByKey('Button_794uur68'), // プライバシーポリシー
+  //   Card(
+  //     elevation: 1,
+  //     borderRadius: 12,
+  //     color: Colors.secondaryBackground,
+  //     onTap: [Navigate(ff.Pages.privacyPolicy)],
+  //     name: 'PrivacyPolicyRow',
+  //     child: Row(
+  //       padding: 16,
+  //       spacing: 12,
+  //       children: [
+  //         Icon('privacy_tip', size: 22, color: Colors.primary),
+  //         Expanded(
+  //           Text('プライバシーポリシー', style: Styles.bodyLarge, color: Colors.primaryText),
+  //         ),
+  //         Icon('chevron_right', size: 20, color: Colors.secondaryText),
+  //       ],
+  //     ),
+  //   ),
+  // );
+  //
+  // page.ensureReplaced(
+  //   page.findByKey('Button_5f50xmd2'), // お問い合わせ
+  //   Card(
+  //     elevation: 1,
+  //     borderRadius: 12,
+  //     color: Colors.secondaryBackground,
+  //     onTap: [Navigate(ff.Pages.inquiryForm)],
+  //     name: 'InquiryFormRow',
+  //     child: Row(
+  //       padding: 16,
+  //       spacing: 12,
+  //       children: [
+  //         Image(
+  //           'assets/images/mypage-button-svg4.svg',
+  //           isNetwork: false,
+  //           width: 28,
+  //           height: 28,
+  //         ),
+  //         Expanded(
+  //           Text('お問い合わせ', style: Styles.bodyLarge, color: Colors.primaryText),
+  //         ),
+  //         Icon('chevron_right', size: 20, color: Colors.secondaryText),
+  //       ],
+  //     ),
+  //   ),
+  // );
+
+  // HomePage: promo banner section. Neither home_image1.png (unlabeled
+  // toast illustration) nor home_image2.png (same art WITH the "乾杯！
+  // icoccha OPENING EVENT" / "icoccha公主オープン" copy baked in) had any
+  // section to sit in — HomePage's body previously jumped straight from the
+  // AppBar into the recommended-cast grid. Using home_image2.png (the one
+  // with real event copy); home_image1.png stays unused pending client
+  // direction on what a 2nd banner slot is for. Inserted as a new first
+  // item in the body's scroll column, above the existing DiscoveryCastGrid.
+  // FROZEN (2026-08-13, comprehensive review pass — PROJECT_KNOWLEDGE.md
+  // §64): confirmed landed via generated_code (Image.asset('assets/images/
+  // home_image2.png') renders as the first body item, above the discovery
+  // grid) and via lib/flutterflow_project/pages/home_page.dart
+  // (Container_e8olbl7l, name "HomePromoBanner"). ensureInsertedBefore has
+  // no dedup guard — re-running it is a silent no-op (the anchor
+  // Column_yscjjvi7 persists, so it wouldn't hard-fail like a stale
+  // ensureReplaced key would, but any FUTURE edit to this banner authored
+  // in this same block would be silently dropped). Any future change must
+  // target Container_e8olbl7l / the "HomePromoBanner" name directly.
+  // app.editPage(ff.Pages.homePage, (page) {
+  //   page.ensureInsertedBefore(
+  //     page.findByKey('Column_yscjjvi7'),
+  //     Container(
+  //       name: 'HomePromoBanner',
+  //       margin: 16,
+  //       borderRadius: 16,
+  //       shadow: Shadow(blur: 8, dy: 2, color: Colors.hex(0x1A000000)),
+  //       child: Image(
+  //         'assets/images/home_image2.png',
+  //         isNetwork: false,
+  //         fit: ImageFit.cover,
+  //         width: double.infinity,
+  //         height: 140,
+  //         borderRadius: 16,
+  //       ),
+  //     ),
+  //   );
+  // });
+
+  // MacchaPage: empty state for "you have zero matches yet" — the
+  // macchapage_conditionalBuilder_else_image.png asset's obvious intent
+  // (a phone with chat-bubble hearts, matching this app's own "start
+  // matching" tone). Deliberately scoped to `myChatRoomsList` (set ONCE, at
+  // ON_INIT_STATE, by this DSL script itself) rather than the per-tab
+  // `visibleMatchaList` (recomputed by a `matchaFilterTab` helper that was
+  // authored directly in the FlutterFlow builder outside this DSL history —
+  // its implementation is gone from this file, only its frozen call sites
+  // remain, so its exact filtering expression can't be safely reconstructed
+  // here). This covers the real target case (a brand-new user with no
+  // matches at all) without touching working, unverifiable filter-tab logic;
+  // an empty FILTERED sub-view (e.g. zero "断られた" items while other
+  // matches exist) is a different, lower-stakes case not covered by this
+  // pass. No `Length`/`isEmpty` DSL expression exists in this SDK — added a
+  // small custom function instead, mirroring this file's own established
+  // pattern for small pure derivation helpers (e.g. kycReviewItemUid).
+  final stringListIsNotEmptyFn = app.customFunction(
+    'stringListIsNotEmpty',
+    args: {'list': listOf(string)},
+    returns: bool_,
+    description: '文字列リストが1件以上あるかを判定する（マッチャ一覧の空状態UI切替用）。',
+    code: r'''
+return (list ?? []).isNotEmpty;
+''',
+  );
+
+  app.editPageState(ff.Pages.macchaPage, (state) {
+    state.ensureField('hasMatches', bool_.withDefault(true));
+  });
+
+  app.editPage(ff.Pages.macchaPage, (page) {
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        CallCustomAction.named('fetchMyChatRooms', outputAs: 'myChatRoomsResult'),
+        SetState('myChatRoomsList', ActionOutput('myChatRoomsResult')),
+        SetState('visibleMatchaList', ActionOutput('myChatRoomsResult')),
+        SetState(
+          'hasMatches',
+          CustomFunction(stringListIsNotEmptyFn, args: {'list': ActionOutput('myChatRoomsResult')}),
+        ),
+      ],
+    );
+  });
+
+  // NOTE: `ensureEmptyState`'s own docstring says "content stays visible
+  // when [visibleWhen] is true; emptyState shows for the inverse" — but its
+  // actual implementation does the opposite (`bindVisible(emptyState,
+  // visibleWhen)`, `bindVisible(content, Not(visibleWhen))`). Confirmed via
+  // `generated_code` after the first push: with `visibleWhen: State(
+  // 'hasMatches')`, the empty-state graphic rendered for users WHO HAD
+  // matches, and the real list rendered only when they had none — exactly
+  // backwards. Passing `Not(...)` here to counteract the SDK's actual
+  // (docstring-contradicting) behavior, not the documented one.
+  app.ensureEmptyState(
+    page: ff.Pages.macchaPage,
+    content: EditPatternTarget.byKey('Column_8g095usw'),
+    visibleWhen: Not(State('hasMatches')),
+    emptyState: Container(
+      name: 'MacchaEmptyState',
+      padding: 32,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxis: MainAxis.center,
+        crossAxis: CrossAxis.center,
+        spacing: 16,
+        children: [
+          Image(
+            'assets/images/macchapage_conditionalBuilder_else_image.png',
+            isNetwork: false,
+            width: 180,
+            height: 180,
+            fit: ImageFit.contain,
+          ),
+          Text(
+            'まだマッチャがありません',
+            style: Styles.titleMedium,
+            color: Colors.primaryText,
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            '気になるキャストにリクエストを送って、マッチャを始めましょう！',
+            style: Styles.bodyMedium,
+            color: Colors.secondaryText,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // ==========================================================================
+  // Shared "no photo" fallback rollout (2026-08-13) — the 5 locations
+  // disclosed as deferred in §61/§62: MacchaChats, HomePage's discovery-cast
+  // grid, MacchaPage's match-list avatar, ProfileEdit, KycReviewPage. All 5
+  // use `CachedNetworkImage`/`Avatar.imageUrl` with no error/placeholder
+  // fallback — confirmed via `grep -rln "CachedNetworkImage" generated_code`
+  // (exactly these 5 files, matching the disclosed list precisely).
+  //
+  // No `errorWidget`/`placeholder` field exists anywhere on this DSL's
+  // `Image`/`Avatar`/`FFImage` proto surface that's actually wired by
+  // codegen (checked `FFImage`'s full field list — the one candidate,
+  // `showErrorImage`, has zero references anywhere in this SDK's compiler/
+  // codegen, so its runtime behavior can't be verified from source and
+  // wasn't gambled on). First attempt used `ConditionalBuilder` (two
+  // `Image`/`Avatar` children, opposite `visible:` conditions) — this
+  // FAILED FlutterFlow's own server-side validation with "Every condition
+  // in the conditional builder must have a child" on all 6 uses, even
+  // though each child clearly had both a widget and a `visible:` condition;
+  // `FFConditionalBuilder`'s own proto message carries zero fields of its
+  // own (confirmed), and no working example of this widget exists anywhere
+  // in this project's history or the reference set — treated as an
+  // unproven/broken DSL surface rather than iterated on further. Replaced
+  // with a plain `Stack` holding the same two children, each still with its
+  // own opposite `visible:` condition — the exact same underlying
+  // conditional-visibility mechanism already proven working elsewhere in
+  // this file (e.g. the frozen `Divider(visible: Not(Equals(...)))`
+  // example, and `ensureEmptyState`'s own `bindVisible`), just without the
+  // broken wrapper type. Validated clean and pushed successfully.
+  //
+  // ProfileEdit and MacchaChats bind a single page-level State field
+  // (`editProfileImageUrl`, `counterpartPhoto`) — simple `ensureReplaced` on
+  // just that one node. HomePage/MacchaPage/KycReviewPage bind a PER-ITEM
+  // photo URL inside a ListView/GridView `itemBuilder` — `item` there is an
+  // `ItemRef()` marker created fresh only when `itemBuilder` executes
+  // (confirmed via `GridView.buildItem() => itemBuilder(const ItemRef())`
+  // in the SDK source), so it cannot be referenced from outside a builder
+  // closure. This means the ENTIRE itemBuilder had to be reconstructed via
+  // `ensureReplaced` on the list/grid itself, not just the inner Image —
+  // done by copying the exact structure from this file's own already-landed
+  // (frozen) originals verbatim, changing only the image sub-widget, so
+  // nothing else about these 3 cards (onTap targets, button actions, text
+  // bindings) changes.
+  // ==========================================================================
+
+  const noPhotoFallback = 'assets/images/macchaChatsimage.png';
+
+  // FROZEN (2026-08-13, comprehensive review pass — PROJECT_KNOWLEDGE.md
+  // §64): both ensureReplaced calls below confirmed landed —
+  // CircleImage_fy6oz5ts / CircleImage_xctz3poq no longer exist, replaced by
+  // Stack_ozgvc82p "ProfileAvatarImage" (ProfileEdit) and Stack_z6woy5q0
+  // "ChatCounterpartAvatar" (MacchaChats) respectively. Same no-dedup-guard
+  // risk as every other ensureReplaced in this file.
+  // ProfileEdit — own profile photo, bound to page-level `editProfileImageUrl`.
+  // app.editPage(ff.Pages.profileEdit, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('CircleImage_fy6oz5ts'),
+  //     Stack(
+  //       name: 'ProfileAvatarImage',
+  //       children: [
+  //         Avatar(
+  //           imageUrl: State('editProfileImageUrl'),
+  //           size: 80,
+  //           name: 'ProfileAvatarImageReal',
+  //           visible: Not(Equals(State('editProfileImageUrl'), '')),
+  //         ),
+  //         Image(
+  //           noPhotoFallback,
+  //           isNetwork: false,
+  //           width: 80,
+  //           height: 80,
+  //           borderRadius: 40,
+  //           fit: ImageFit.cover,
+  //           name: 'ProfileAvatarImageFallback',
+  //           visible: Equals(State('editProfileImageUrl'), ''),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // });
+
+  // MacchaChats — chat counterpart's photo, bound to page-level `counterpartPhoto`.
+  // app.editPage(ff.Pages.macchaChats, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('CircleImage_xctz3poq'),
+  //     Stack(
+  //       name: 'ChatCounterpartAvatar',
+  //       children: [
+  //         Avatar(
+  //           imageUrl: State('counterpartPhoto'),
+  //           size: 40,
+  //           name: 'ChatCounterpartAvatarReal',
+  //           visible: Not(Equals(State('counterpartPhoto'), '')),
+  //         ),
+  //         Image(
+  //           noPhotoFallback,
+  //           isNetwork: false,
+  //           width: 40,
+  //           height: 40,
+  //           borderRadius: 20,
+  //           fit: ImageFit.cover,
+  //           name: 'ChatCounterpartAvatarFallback',
+  //           visible: Equals(State('counterpartPhoto'), ''),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // });
+
+  // HomePage — DiscoveryCastGrid, per-item photo. The 4
+  // CustomFunctionHandle reconstructions this block used (discoveryCastId/
+  // Nickname/PhotoUrl/IsOnline) were removed along with freezing the call
+  // below — nothing else in this file consumes them. Reconstruct them the
+  // same way (CustomFunctionHandle(name:, args: {'item': string},
+  // returnType: string|bool_)) if this block is ever revived.
+
+  // FROZEN (2026-08-13, comprehensive review pass — PROJECT_KNOWLEDGE.md
+  // §64): confirmed landed correctly via generated_code — childAspectRatio:
+  // 1.05 (not 0.75) is live, and lib/flutterflow_project/pages/home_page.dart
+  // confirms the current key is GridView_t0nvrf32, name "DiscoveryCastGrid".
+  //
+  // Notable: the immediately-prior push, using the SAME literal (1.05) but
+  // targeting the then-current key GridView_8292ke7j, compiled and pushed
+  // with ZERO error yet did NOT apply the new childAspectRatio value —
+  // generated_code still showed 0.75 afterward. That key turned out to
+  // already be stale (superseded by an earlier push in this same review
+  // round) — findByKey on a stale key did NOT throw for this SAME-TYPE
+  // (GridView→GridView) replacement, unlike KycReviewPage's ListView→ListView
+  // stale-key case a few lines above, which DID throw. Re-running with the
+  // corrected current key fixed it. Lesson: a same-type ensureReplaced with
+  // a stale key can silently succeed without applying new property values —
+  // don't trust "it compiled and pushed" as proof a property change landed;
+  // always verify the actual value in generated_code, not just presence/
+  // absence of an error.
+  // app.editPage(ff.Pages.homePage, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('GridView_lbj5x0bs'),
+  //     GridView(
+  //       name: 'DiscoveryCastGrid',
+  //       source: State('discoveryCasts'),
+  //       columns: 2,
+  //       crossAxisSpacing: 12,
+  //       mainAxisSpacing: 12,
+  //       childAspectRatio: 1.05,
+  //       itemBuilder: (item) => Container(
+  //         name: 'DiscoveryCastCard',
+  //         borderRadius: 12,
+  //         color: Colors.secondaryBackground,
+  //         onTap: [
+  //           Navigate(
+  //             ff.Pages.castProfile,
+  //             params: {
+  //               'castId': CustomFunction(discoveryCastIdFn2, args: {'item': item}),
+  //             },
+  //           ),
+  //         ],
+  //         child: Column(
+  //           crossAxis: CrossAxis.start,
+  //           children: [
+  //             Stack(
+  //               name: 'DiscoveryCastImage',
+  //               children: [
+  //                 Image(
+  //                   CustomFunction(discoveryCastPhotoUrlFn2, args: {'item': item}),
+  //                   height: 130,
+  //                   width: double.infinity,
+  //                   fit: ImageFit.cover,
+  //                   borderRadius: 12,
+  //                   name: 'DiscoveryCastImageReal',
+  //                   visible: Not(Equals(CustomFunction(discoveryCastPhotoUrlFn2, args: {'item': item}), '')),
+  //                 ),
+  //                 Image(
+  //                   noPhotoFallback,
+  //                   isNetwork: false,
+  //                   height: 130,
+  //                   width: double.infinity,
+  //                   fit: ImageFit.cover,
+  //                   borderRadius: 12,
+  //                   name: 'DiscoveryCastImageFallback',
+  //                   visible: Equals(CustomFunction(discoveryCastPhotoUrlFn2, args: {'item': item}), ''),
+  //                 ),
+  //                 Container(
+  //                   width: 12,
+  //                   height: 12,
+  //                   borderRadius: 6,
+  //                   color: Colors.success,
+  //                   margin: EdgeInsets.all(8),
+  //                   visible: CustomFunction(discoveryCastIsOnlineFn2, args: {'item': item}),
+  //                   name: 'DiscoveryCastOnlineDot',
+  //                 ),
+  //               ],
+  //             ),
+  //             Container(
+  //               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+  //               child: Text(
+  //                 CustomFunction(discoveryCastNicknameFn2, args: {'item': item}),
+  //                 style: Styles.bodyMedium,
+  //                 maxLines: 1,
+  //                 overflow: TextOverflow.ellipsis,
+  //                 name: 'DiscoveryCastNickname',
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // });
+
+  // FROZEN (2026-08-13, comprehensive review pass — PROJECT_KNOWLEDGE.md
+  // §64): confirmed landed via lib/flutterflow_project/pages/maccha_page.dart
+  // — ListView_moyozme3 no longer exists, replaced by ListView_9tfls25u
+  // "MatchaItemsListView". `splitFieldFn` stays live (captured earlier,
+  // still needed elsewhere in this file).
+  // MacchaPage — MatchaItemsListView, per-item avatar. Reuses `splitFieldFn`
+  // (captured earlier in this same function) rather than reconstructing —
+  // it's already a live local handle.
+  // app.editPage(ff.Pages.macchaPage, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('ListView_moyozme3'),
+  //     ListView(
+  //       name: 'MatchaItemsListView',
+  //       shrinkWrap: true,
+  //       spacing: 8,
+  //       source: State('visibleMatchaList'),
+  //       itemBuilder: (item) => Card(
+  //         name: 'MatchaItemCard',
+  //         onTap: [
+  //           Navigate(
+  //             ff.Pages.macchaChats,
+  //             params: {
+  //               'resId': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+  //             },
+  //           ),
+  //         ],
+  //         child: Container(
+  //           padding: 12,
+  //           child: Row(
+  //             spacing: 8,
+  //             children: [
+  //               Stack(
+  //                 name: 'MatchaItemAvatar',
+  //                 children: [
+  //                   Avatar(
+  //                     imageUrl: CustomFunction(splitFieldFn, args: {'data': item, 'index': 3}),
+  //                     size: 44,
+  //                     name: 'MatchaItemAvatarReal',
+  //                     visible: Not(Equals(CustomFunction(splitFieldFn, args: {'data': item, 'index': 3}), '')),
+  //                   ),
+  //                   Image(
+  //                     noPhotoFallback,
+  //                     isNetwork: false,
+  //                     width: 44,
+  //                     height: 44,
+  //                     borderRadius: 22,
+  //                     fit: ImageFit.cover,
+  //                     name: 'MatchaItemAvatarFallback',
+  //                     visible: Equals(CustomFunction(splitFieldFn, args: {'data': item, 'index': 3}), ''),
+  //                   ),
+  //                 ],
+  //               ),
+  //               Column(
+  //                 crossAxis: CrossAxis.start,
+  //                 children: [
+  //                   Text(
+  //                     CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
+  //                     style: Styles.titleSmall,
+  //                   ),
+  //                   Text(
+  //                     CustomFunction(splitFieldFn, args: {'data': item, 'index': 5}),
+  //                     style: Styles.bodySmall,
+  //                     maxLines: 1,
+  //                     overflow: TextOverflow.ellipsis,
+  //                   ),
+  //                 ],
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // });
+
+  // FROZEN (2026-08-13, comprehensive review pass — PROJECT_KNOWLEDGE.md
+  // §64): THIS is the block that hard-failed the review-pass push —
+  // ListView_ohcx81fg no longer exists (replaced by ListView_0fv0sxi8,
+  // name "ListView"), confirmed via lib/flutterflow_project/pages/
+  // kyc_review_page.dart. `flutterflow ai run` failed outright with
+  // `Bad state: page KycReviewPage findByKey("ListView_ohcx81fg") found no
+  // matches` — direct, reproduced confirmation that ensureReplaced has no
+  // dedup guard and leaving one live blocks ANY future unrelated push, not
+  // just a silent no-op. The 5 CustomFunctionHandle reconstructions above
+  // stay live only if referenced elsewhere; kept here since KycReviewPage
+  // has no other live consumer of them — harmless to leave declared.
+  // KycReviewPage — admin-only pending-KYC review queue, 2 images per item
+  // (ID document + selfie). Preserves the `shrinkWrap: true` +
+  // `visible: State('isAdminUser')` fixes already applied to this ListView
+  // in an earlier round (§26 addenda) — dropping either would reintroduce
+  // an already-fixed crash/usability bug.
+  //
+  // The 5 CustomFunctionHandle reconstructions this block used
+  // (kycReviewItemUid/Nickname/AccountType/DocUrl/SelfieUrl) were removed
+  // along with freezing the call below — nothing else in this file consumes
+  // them, and Dart flags unused locals. Reconstruct them the same way
+  // (CustomFunctionHandle(name:, args: {'item': string}, returnType: string))
+  // if this block is ever revived for a genuinely new change.
+  // app.editPage(ff.Pages.kycReviewPage, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('ListView_ohcx81fg'),
+  //     ListView(
+  //       name: 'ListView',
+  //       source: State('pendingKycList'),
+  //       visible: State('isAdminUser'),
+  //       shrinkWrap: true,
+  //       padding: 16,
+  //       spacing: 16,
+  //       itemBuilder: (item) => Card(
+  //         name: 'KycReviewItemCard',
+  //         child: Container(
+  //           padding: 12,
+  //           child: Column(
+  //             spacing: 8,
+  //             children: [
+  //               Text(
+  //                 CustomFunction(kycReviewItemNicknameFn2, args: {'item': item}),
+  //                 style: Styles.titleMedium,
+  //               ),
+  //               Text(
+  //                 CustomFunction(kycReviewItemAccountTypeFn2, args: {'item': item}),
+  //                 style: Styles.labelMedium,
+  //               ),
+  //               Row(
+  //                 spacing: 8,
+  //                 children: [
+  //                   Stack(
+  //                     name: 'KycReviewDocImage',
+  //                     children: [
+  //                       Image(
+  //                         CustomFunction(kycReviewItemDocUrlFn2, args: {'item': item}),
+  //                         width: 140,
+  //                         height: 140,
+  //                         fit: ImageFit.cover,
+  //                         name: 'KycReviewDocImageReal',
+  //                         visible: Not(Equals(CustomFunction(kycReviewItemDocUrlFn2, args: {'item': item}), '')),
+  //                       ),
+  //                       Image(
+  //                         noPhotoFallback,
+  //                         isNetwork: false,
+  //                         width: 140,
+  //                         height: 140,
+  //                         fit: ImageFit.cover,
+  //                         name: 'KycReviewDocImageFallback',
+  //                         visible: Equals(CustomFunction(kycReviewItemDocUrlFn2, args: {'item': item}), ''),
+  //                       ),
+  //                     ],
+  //                   ),
+  //                   Stack(
+  //                     name: 'KycReviewSelfieImage',
+  //                     children: [
+  //                       Image(
+  //                         CustomFunction(kycReviewItemSelfieUrlFn2, args: {'item': item}),
+  //                         width: 140,
+  //                         height: 140,
+  //                         fit: ImageFit.cover,
+  //                         name: 'KycReviewSelfieImageReal',
+  //                         visible: Not(Equals(CustomFunction(kycReviewItemSelfieUrlFn2, args: {'item': item}), '')),
+  //                       ),
+  //                       Image(
+  //                         noPhotoFallback,
+  //                         isNetwork: false,
+  //                         width: 140,
+  //                         height: 140,
+  //                         fit: ImageFit.cover,
+  //                         name: 'KycReviewSelfieImageFallback',
+  //                         visible: Equals(CustomFunction(kycReviewItemSelfieUrlFn2, args: {'item': item}), ''),
+  //                       ),
+  //                     ],
+  //                   ),
+  //                 ],
+  //               ),
+  //               Row(
+  //                 spacing: 8,
+  //                 children: [
+  //                   Button(
+  //                     '承認する',
+  //                     color: Colors.success,
+  //                     textColor: Colors.primaryBackground,
+  //                     name: 'KycApproveButton',
+  //                     onTap: [
+  //                       CallCustomAction.named(
+  //                         'callAdminApproveKyc',
+  //                         arguments: {
+  //                           'userId': CustomFunction(kycReviewItemUidFn2, args: {'item': item}),
+  //                           'approved': true,
+  //                         },
+  //                         outputAs: 'approveResult',
+  //                       ),
+  //                       If(
+  //                         ActionOutput('approveResult'),
+  //                         then: [
+  //                           CallCustomAction.named(
+  //                             'callAdminGetPendingKyc',
+  //                             outputAs: 'refreshedKycResult',
+  //                           ),
+  //                           SetState('pendingKycList', ActionOutput('refreshedKycResult')),
+  //                           Snackbar('承認しました。'),
+  //                         ],
+  //                         orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+  //                       ),
+  //                     ],
+  //                   ),
+  //                   Button(
+  //                     '却下する',
+  //                     color: Colors.error,
+  //                     textColor: Colors.primaryBackground,
+  //                     name: 'KycRejectButton',
+  //                     onTap: [
+  //                       CallCustomAction.named(
+  //                         'callAdminApproveKyc',
+  //                         arguments: {
+  //                           'userId': CustomFunction(kycReviewItemUidFn2, args: {'item': item}),
+  //                           'approved': false,
+  //                         },
+  //                         outputAs: 'rejectResult',
+  //                       ),
+  //                       If(
+  //                         ActionOutput('rejectResult'),
+  //                         then: [
+  //                           CallCustomAction.named(
+  //                             'callAdminGetPendingKyc',
+  //                             outputAs: 'refreshedKycResult2',
+  //                           ),
+  //                           SetState('pendingKycList', ActionOutput('refreshedKycResult2')),
+  //                           Snackbar('却下しました。'),
+  //                         ],
+  //                         orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+  //                       ),
+  //                     ],
+  //                   ),
+  //                 ],
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // Comprehensive review pass (2026-08-13) — 2 findings from a fresh-eyes
+  // multi-agent audit, both fixed here. §64 in PROJECT_KNOWLEDGE.md has the
+  // full writeup.
+  // ==========================================================================
+
+  // TutorialPage (5-slide onboarding carousel) has been unreachable since
+  // BEFORE this session even started — PROJECT_ANALYSIS.md's own original
+  // as-is audit already flagged it "Orphaned: no other page links to
+  // TutorialPage; only reachable via direct route." §61 wired real client
+  // assets into its 5 slides without anyone noticing the reachability gap
+  // predates that work. Not fixing the deeper question of exactly when a
+  // tutorial should auto-trigger (first launch only? every launch? — no
+  // persisted "hasSeenTutorial"-style flag exists anywhere in the schema,
+  // and inventing one here would be a product decision, not a bug fix — same
+  // caution already applied to RegistrationPopupComp/WorkFilterSelectComp).
+  // Instead: a minimal, low-risk, genuinely-common pattern — a "使い方を見る"
+  // link on LoginPage, matching its 2 existing sibling Text-links (forgot
+  // password, new registration) exactly in structure. This makes the page
+  // discoverable without touching the app's initial-route logic at all.
+  app.editPage(ff.Pages.loginPage, (page) {
+    page.ensureInsertedAfter(
+      page.findByKey('Text_6cnwm6bc'), // "新規登録の方はこちらからどうぞ"
+      Text(
+        '使い方を見る',
+        style: Styles.bodyMedium,
+        color: Colors.primary,
+        name: 'TutorialLinkText',
+      ),
+    );
+    page.ensureActions(
+      page.findByName('TutorialLinkText'),
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [Navigate(ff.Pages.tutorialPage)],
+    );
+  });
+
+  // ==========================================================================
+  // Cast work-calendar (§3.7.2, Phase 11's single largest remaining item) —
+  // Push 1: cast-side (MyPage). See PROJECT_KNOWLEDGE.md for the full
+  // design writeup (backend already deployed: getMySchedule/
+  // toggleScheduleSlot/getCastScheduleForGuest in schedule.ts).
+  //
+  // "Subtractive": default state is available; a slot only gets a real
+  // Firestore document when it's been blocked (×) or booked (reserved).
+  // Deliberately out of scope this pass (disclosed, not silently dropped):
+  // Authorize-time slot locking and guest-side booking validation against
+  // availability — both require touching the live Stripe booking flow,
+  // a separate, larger task. `toggleScheduleSlot` already refuses to touch
+  // a "reserved" slot; nothing in this pass ever creates one.
+  // ==========================================================================
+
+  // Shared helpers — reused verbatim by CastProfile (guest side) below, not
+  // redeclared there.
+  final weekDayDateFn = app.customFunction(
+    'weekDayDate',
+    args: {'weekIndex': int_, 'dayIndex': int_},
+    returns: string,
+    description: '週(0-3)+曜日(0-6)からその日の日付(YYYY-MM-DD)を計算する。週1=今日始まり。',
+    code: r'''
+final base = DateTime.now();
+final offset = (weekIndex ?? 0) * 7 + (dayIndex ?? 0);
+final t = DateTime(base.year, base.month, base.day).add(Duration(days: offset));
+return '${t.year.toString().padLeft(4, '0')}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
+''',
+  );
+
+  final weekDayLabelFn = app.customFunction(
+    'weekDayLabel',
+    args: {'weekIndex': int_, 'dayIndex': int_},
+    returns: string,
+    description: '週(0-3)+曜日(0-6)から表示ラベル(M/D(曜))を計算する。',
+    code: r'''
+final base = DateTime.now();
+final offset = (weekIndex ?? 0) * 7 + (dayIndex ?? 0);
+final t = DateTime(base.year, base.month, base.day).add(Duration(days: offset));
+const w = ['月', '火', '水', '木', '金', '土', '日'];
+return '${t.month}/${t.day}(${w[(t.weekday - 1) % 7]})';
+''',
+  );
+
+  final slotTimeLabelFn = app.customFunction(
+    'slotTimeLabel',
+    args: {'index': int_},
+    returns: string,
+    description: '48枠インデックス(0-47)からHH:MM表示を計算する。',
+    code: r'''
+final i = index ?? 0;
+final h = (i * 30) ~/ 60;
+final m = (i * 30) % 60;
+return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+''',
+  );
+
+  final slotGlyphFn = app.customFunction(
+    'slotGlyph',
+    args: {'status': string},
+    returns: string,
+    description: 'スロット状態(available/unavailable/reserved)から表示グリフを計算する。',
+    code: r'''
+switch (status) {
+  case 'available':
+    return '○';
+  case 'reserved':
+    return '－';
+  default:
+    return '×';
+}
+''',
+  );
+
+  final callGetMySchedule = app.customAction(
+    'callGetMySchedule',
+    args: {'date': string},
+    returns: listOf(string),
+    description: 'getMySchedule Cloud Functionを呼び出し、指定日の48枠status配列を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> callGetMySchedule(String? date) async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('getMySchedule');
+    final result = await callable.call({'date': date ?? ''});
+    if (result.data is Map && result.data['items'] is List) {
+      return List<String>.from(result.data['items']);
+    }
+    return List<String>.filled(48, 'available');
+  } catch (e) {
+    return List<String>.filled(48, 'available');
+  }
+}
+''',
+  );
+
+  final callToggleScheduleSlot = app.customAction(
+    'callToggleScheduleSlot',
+    args: {'date': string, 'slotIndex': int_},
+    returns: bool_,
+    description: 'toggleScheduleSlot Cloud Functionを呼び出し、1枠の空き状態を切り替える。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callToggleScheduleSlot(String? date, int? slotIndex) async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('toggleScheduleSlot');
+    await callable.call({'date': date ?? '', 'slot_index': slotIndex ?? 0});
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  // Reusable action-sequence for "select this day" — used by both the
+  // week-selector and the day-of-week row. Takes `Object` (not `int`) for
+  // both indices so the SAME function works whether one side is a literal
+  // (the tapped button) and the other is the currently-selected value read
+  // back via `State(...)` (both flow through `normalizeExpression` inside
+  // `SetState`/`CustomFunction` identically).
+  //
+  // `tag` makes each call site's `outputAs` name unique — FlutterFlow's
+  // validator rejects two different WIDGETS sharing the same action output
+  // variable name ("Action in Button has an output variable with the same
+  // name as that of another widget", confirmed by compile error on the
+  // first attempt with a single shared 'scheduleFetchResult' name reused
+  // across all 11 week/day buttons).
+  List<DslAction> selectScheduleDay(Object weekIdx, Object dayIdx, String tag) => [
+    SetState('scheduleWeekIndex', weekIdx),
+    SetState('scheduleDayIndex', dayIdx),
+    SetState(
+      'scheduleSelectedDate',
+      CustomFunction(weekDayDateFn, args: {'weekIndex': weekIdx, 'dayIndex': dayIdx}),
+    ),
+    CallCustomAction(
+      callGetMySchedule,
+      args: {'date': State('scheduleSelectedDate')},
+      outputAs: 'scheduleFetchResult_$tag',
+    ),
+    SetState('scheduleDaySlots', ActionOutput('scheduleFetchResult_$tag')),
+  ];
+
+  app.editPageState(ff.Pages.myPage, (state) {
+    state.ensureField('scheduleWeekIndex', int_.withDefault(0));
+    state.ensureField('scheduleDayIndex', int_.withDefault(0));
+    state.ensureField('scheduleSelectedDate', string.withDefault(''));
+    state.ensureField('scheduleDaySlots', listOf(string));
+  });
+
+  app.editPage(ff.Pages.myPage, (page) {
+    // Extending the SAME ON_INIT_STATE chain already established at
+    // dsl/edit.dart:8567 (reproduced verbatim, per this file's own
+    // "single source of truth per trigger" rule) — appending the initial
+    // date computation + first day's fetch, not a second call on this
+    // trigger.
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        UpdateAppState.set(ff.AppState.navIndex, 4),
+        CallCustomAction.named(
+          'fetchCastReviews',
+          arguments: {'castId': AuthUser(AuthUserField.userId)},
+          outputAs: 'myReviewsResult',
+        ),
+        SetState('myReviewsList', ActionOutput('myReviewsResult')),
+        SetState(
+          'scheduleSelectedDate',
+          CustomFunction(weekDayDateFn, args: {'weekIndex': 0, 'dayIndex': 0}),
+        ),
+        CallCustomAction(
+          callGetMySchedule,
+          args: {'date': State('scheduleSelectedDate')},
+          outputAs: 'scheduleInitResult',
+        ),
+        SetState('scheduleDaySlots', ActionOutput('scheduleInitResult')),
+      ],
+    );
+
+    // FROZEN (2026-08-13, immediately after this exact block landed):
+    // confirmed via generated_code/lib/mypage/my_page/my_page_widget.dart —
+    // GridView.builder, the toggle→refetch chain, the week/day buttons all
+    // wired correctly (spot-checked exact match against the design). Also
+    // confirmed via lib/flutterflow_project/pages/my_page.dart —
+    // `Calendar_5lwqxdoh` no longer exists, replaced by `Column_ac9vequn`,
+    // name "WorkCalendarSection". Any future change to this section must
+    // target that key/name instead of the stale one below.
+    // page.ensureReplaced(
+    //   page.findByKey('Calendar_5lwqxdoh'),
+    //   Column(
+    //     name: 'WorkCalendarSection',
+    //     crossAxis: CrossAxis.start,
+    //     spacing: 12,
+    //     children: [
+    //       Row(
+    //         spacing: 8,
+    //         children: [
+    //           for (var w = 0; w < 4; w++)
+    //             Button(
+    //               '週${w + 1}',
+    //               variant: ButtonVariant.outlined,
+    //               onTap: selectScheduleDay(w, State('scheduleDayIndex'), 'week$w'),
+    //             ),
+    //         ],
+    //       ),
+    //       Row(
+    //         spacing: 6,
+    //         children: [
+    //           for (var d = 0; d < 7; d++)
+    //             Button(
+    //               CustomFunction(weekDayLabelFn, args: {'weekIndex': State('scheduleWeekIndex'), 'dayIndex': d}),
+    //               variant: ButtonVariant.text,
+    //               onTap: selectScheduleDay(State('scheduleWeekIndex'), d, 'day$d'),
+    //             ),
+    //         ],
+    //       ),
+    //       Text(
+    //         CustomFunction(
+    //           weekDayLabelFn,
+    //           args: {'weekIndex': State('scheduleWeekIndex'), 'dayIndex': State('scheduleDayIndex')},
+    //         ),
+    //         style: Styles.titleSmall,
+    //       ),
+    //       GridView(
+    //         name: 'ScheduleGrid',
+    //         source: State('scheduleDaySlots'),
+    //         columns: 6,
+    //         crossAxisSpacing: 6,
+    //         mainAxisSpacing: 6,
+    //         childAspectRatio: 0.9,
+    //         itemBuilder: (item) => Container(
+    //           color: Colors.secondaryBackground,
+    //           borderRadius: 8,
+    //           onTap: [
+    //             If(
+    //               Not(Equals(item, 'reserved')),
+    //               then: [
+    //                 CallCustomAction(
+    //                   callToggleScheduleSlot,
+    //                   args: {'date': State('scheduleSelectedDate'), 'slotIndex': item.index},
+    //                   outputAs: 'toggleResult',
+    //                 ),
+    //                 CallCustomAction(
+    //                   callGetMySchedule,
+    //                   args: {'date': State('scheduleSelectedDate')},
+    //                   outputAs: 'scheduleRefetch',
+    //                 ),
+    //                 SetState('scheduleDaySlots', ActionOutput('scheduleRefetch')),
+    //               ],
+    //               orElse: [Snackbar('この時間帯は予約済みのため変更できません。')],
+    //             ),
+    //           ],
+    //           child: Column(
+    //             crossAxis: CrossAxis.center,
+    //             children: [
+    //               Text(CustomFunction(slotTimeLabelFn, args: {'index': item.index}), style: Styles.bodySmall),
+    //               Text(CustomFunction(slotGlyphFn, args: {'status': item}), style: Styles.titleMedium),
+    //             ],
+    //           ),
+    //         ),
+    //       ),
+    //     ],
+    //   ),
+    // );
+  });
+
+  // ==========================================================================
+  // Cast work-calendar (§3.7.2) — Push 2: guest-side view (CastProfile) +
+  // the ReservationForm deep-link. Reuses Push 1's shared customFunctions
+  // (weekDayDateFn/weekDayLabelFn/slotTimeLabelFn/slotGlyphFn) verbatim —
+  // no redeclaration.
+  // ==========================================================================
+
+  // Declared BEFORE the CastProfile block below, since that block's
+  // Navigate call references these 2 new params — the compiler validates a
+  // Navigate call against the target page's CURRENTLY-declared params at
+  // the point it's processed (the same param-declaration-ordering
+  // constraint already documented elsewhere in this file for MacchaChats'
+  // `resId`). The 2 existing invite buttons ("誘う"/"ココ店で誘う",
+  // CastProfile) already navigate here with just `castId` — these 2 new
+  // params default to empty, so that path is unaffected.
+  app.editPageParams(ff.Pages.reservationForm, (params) {
+    params.ensureParam('prefillDate', string.withDefault(''));
+    params.ensureParam('prefillStartTime', string.withDefault(''));
+  });
+
+  final callGetCastSchedule = app.customAction(
+    'callGetCastSchedule',
+    args: {'castId': string, 'date': string},
+    returns: listOf(string),
+    description: 'getCastScheduleForGuest Cloud Functionを呼び出し、指定キャストの指定日の48枠status配列を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> callGetCastSchedule(String? castId, String? date) async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('getCastScheduleForGuest');
+    final result = await callable.call({'cast_id': castId ?? '', 'date': date ?? ''});
+    if (result.data is Map && result.data['items'] is List) {
+      return List<String>.from(result.data['items']);
+    }
+    return List<String>.filled(48, 'available');
+  } catch (e) {
+    return List<String>.filled(48, 'available');
+  }
+}
+''',
+  );
+
+  // Same shape as Push 1's `selectScheduleDay`, but fetching a SPECIFIC
+  // cast's schedule (via `PageParam('castId')`, already available on
+  // CastProfile) instead of the signed-in user's own.
+  List<DslAction> selectGuestScheduleDay(Object weekIdx, Object dayIdx, String tag) => [
+    SetState('scheduleWeekIndex', weekIdx),
+    SetState('scheduleDayIndex', dayIdx),
+    SetState(
+      'scheduleSelectedDate',
+      CustomFunction(weekDayDateFn, args: {'weekIndex': weekIdx, 'dayIndex': dayIdx}),
+    ),
+    CallCustomAction(
+      callGetCastSchedule,
+      args: {'castId': PageParam('castId'), 'date': State('scheduleSelectedDate')},
+      outputAs: 'scheduleGuestFetchResult_$tag',
+    ),
+    SetState('scheduleDaySlots', ActionOutput('scheduleGuestFetchResult_$tag')),
+  ];
+
+  app.editPageState(ff.Pages.castProfile, (state) {
+    state.ensureField('scheduleWeekIndex', int_.withDefault(0));
+    state.ensureField('scheduleDayIndex', int_.withDefault(0));
+    state.ensureField('scheduleSelectedDate', string.withDefault(''));
+    state.ensureField('scheduleDaySlots', listOf(string));
+  });
+
+  app.editPage(ff.Pages.castProfile, (page) {
+    // Extending the SAME ON_INIT_STATE chain already established at
+    // dsl/edit.dart:7299 (reproduced verbatim) — appending the initial
+    // date computation + first day's fetch, not a second call on this
+    // trigger.
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        CallCustomAction.named(
+          'fetchCastReviews',
+          arguments: {'castId': PageParam('castId')},
+          outputAs: 'castReviewsResult',
+        ),
+        SetState('castReviewsList', ActionOutput('castReviewsResult')),
+        SetState(
+          'scheduleSelectedDate',
+          CustomFunction(weekDayDateFn, args: {'weekIndex': 0, 'dayIndex': 0}),
+        ),
+        CallCustomAction(
+          callGetCastSchedule,
+          args: {'castId': PageParam('castId'), 'date': State('scheduleSelectedDate')},
+          outputAs: 'scheduleGuestInitResult',
+        ),
+        SetState('scheduleDaySlots', ActionOutput('scheduleGuestInitResult')),
+      ],
+    );
+
+    // FROZEN (2026-08-13, immediately after this exact block landed):
+    // confirmed via generated_code/lib/home/cast_profile/cast_profile_widget.dart
+    // — the read-only GridView, callGetCastSchedule wiring, and the ○-tap
+    // Navigate with prefillDate/prefillStartTime params all correct. Also
+    // confirmed via lib/flutterflow_project/pages/cast_profile.dart —
+    // `Calendar_pgw6bzqc` no longer exists, replaced by `Column_ikjwl87l`,
+    // name "WorkCalendarViewSection". Any future change must target that
+    // key/name instead of the stale one below.
+    // page.ensureReplaced(
+    //   page.findByKey('Calendar_pgw6bzqc'),
+    //   Column(
+    //     name: 'WorkCalendarViewSection',
+    //     crossAxis: CrossAxis.start,
+    //     spacing: 12,
+    //     children: [
+    //       Row(
+    //         spacing: 8,
+    //         children: [
+    //           for (var w = 0; w < 4; w++)
+    //             Button(
+    //               '週${w + 1}',
+    //               variant: ButtonVariant.outlined,
+    //               onTap: selectGuestScheduleDay(w, State('scheduleDayIndex'), 'week$w'),
+    //             ),
+    //         ],
+    //       ),
+    //       Row(
+    //         spacing: 6,
+    //         children: [
+    //           for (var d = 0; d < 7; d++)
+    //             Button(
+    //               CustomFunction(weekDayLabelFn, args: {'weekIndex': State('scheduleWeekIndex'), 'dayIndex': d}),
+    //               variant: ButtonVariant.text,
+    //               onTap: selectGuestScheduleDay(State('scheduleWeekIndex'), d, 'day$d'),
+    //             ),
+    //         ],
+    //       ),
+    //       Text(
+    //         CustomFunction(
+    //           weekDayLabelFn,
+    //           args: {'weekIndex': State('scheduleWeekIndex'), 'dayIndex': State('scheduleDayIndex')},
+    //         ),
+    //         style: Styles.titleSmall,
+    //       ),
+    //       GridView(
+    //         name: 'ScheduleGridReadOnly',
+    //         source: State('scheduleDaySlots'),
+    //         columns: 6,
+    //         crossAxisSpacing: 6,
+    //         mainAxisSpacing: 6,
+    //         childAspectRatio: 0.9,
+    //         itemBuilder: (item) => Container(
+    //           color: Colors.secondaryBackground,
+    //           borderRadius: 8,
+    //           onTap: [
+    //             If(
+    //               Equals(item, 'available'),
+    //               then: [
+    //                 Navigate(
+    //                   ff.Pages.reservationForm,
+    //                   params: {
+    //                     'castId': PageParam('castId'),
+    //                     'prefillDate': State('scheduleSelectedDate'),
+    //                     'prefillStartTime': CustomFunction(slotTimeLabelFn, args: {'index': item.index}),
+    //                   },
+    //                 ),
+    //               ],
+    //               orElse: [Snackbar('この時間帯は予約できません。')],
+    //             ),
+    //           ],
+    //           child: Column(
+    //             crossAxis: CrossAxis.center,
+    //             children: [
+    //               Text(CustomFunction(slotTimeLabelFn, args: {'index': item.index}), style: Styles.bodySmall),
+    //               Text(CustomFunction(slotGlyphFn, args: {'status': item}), style: Styles.titleMedium),
+    //             ],
+    //           ),
+    //         ),
+    //       ),
+    //     ],
+    //   ),
+    // );
+  });
+
+  // ==========================================================================
+  // Cast work-calendar review fix (PROJECT_KNOWLEDGE.md §67): the deep-link
+  // prefill below (SetState('resDate'/'resStartTime', PageParam(...))) was
+  // already correct for the SUBMITTED value — `_model.resDate`/
+  // `_model.resStartTime` end up right regardless. What was broken is the
+  // DISPLAY: both widgets capture their on-screen initial value via a
+  // `??=` chain (TextField's own controller-text binding, Dropdown's
+  // `FormFieldController`) that locks in on the WIDGET'S OWN first build,
+  // which runs before ON_INIT_STATE's `addPostFrameCallback` resolves the
+  // prefill — a guest tapping a ○ slot on CastProfile lands here with the
+  // correct date/time already staged for submission but a BLANK date field
+  // and a "19:00" dropdown on screen, and might "correct" what looks wrong
+  // (this exact bug class — `??=`-captured-before-load — is already
+  // documented in .cursor/rules/project_rules.md, inherited from the
+  // sister admin-dashboard project, with an established `isConfigLoaded`
+  // -style visibility-gate fix).
+  //
+  // Deliberately NOT using that gate here: both widgets' initial values
+  // can instead bind directly to the PAGE PARAMS (`prefillDate`/
+  // `prefillStartTime`), which are constructor-level fields available
+  // synchronously from the very first frame — no async dependency, so no
+  // `??=`-before-load race is possible regardless of whether codegen
+  // evaluates the binding in `initState()` or lazily in `build()`. Simpler
+  // and strictly safer than adding a new page-state flag + gating 2
+  // widgets' visibility (and it avoids a visible flash-of-empty-form on
+  // every page open, which the gate approach would introduce).
+  final resolveInitialStartTimeFn = app.customFunction(
+    'resolveInitialStartTime',
+    args: {'prefillStartTime': string},
+    returns: string,
+    description:
+        'ディープリンクの開始時刻(prefillStartTime)があればそれを、なければ既定値(19:00, resStartTimeの'
+        '既定値と同一)を返す。開始時刻ドロップダウンの初期表示値に使用。',
+    code: r'''
+final p = prefillStartTime ?? '';
+return p.isNotEmpty ? p : '19:00';
+''',
+  );
+
+  app.editPage(ff.Pages.reservationForm, (page) {
+    // No existing ON_INIT_STATE trigger on this page's root (confirmed via
+    // the typed SDK — Scaffold_zxpwg49d carries no `triggers:` at all) —
+    // safe to add fresh, not a second chain on an already-wired trigger.
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        If(
+          Not(Equals(PageParam('prefillDate'), '')),
+          then: [SetState('resDate', PageParam('prefillDate'))],
+        ),
+        If(
+          Not(Equals(PageParam('prefillStartTime'), '')),
+          then: [SetState('resStartTime', PageParam('prefillStartTime'))],
+        ),
+      ],
+    );
+
+    // Widened from the original 5 hardcoded hourly values (18:00-22:00,
+    // still a subset of this list) to all 48 half-hour values — the only
+    // way a tapped calendar slot's exact time survives into a valid
+    // pre-selected dropdown value; without it, 43 of the 48 possible taps
+    // would prefill a value with no matching option.
+    //
+    // NOTE: `patch.dropdownOptions([...])` compiled and pushed with zero
+    // error, but rendered every option as an empty string in
+    // generated_code (`FlutterFlowDropDown<String>(options: ['', '', ...])`)
+    // — confirmed via `_applyDropdownOptionsPatch`'s source
+    // (edit.dart:8279-8297): it only sets `FFParameterValue.serializedValue`,
+    // never `FFParameterValue.translatableText`, and `FFText`'s own sibling
+    // patch (`_applyDropdownInitialOptionPatch`, right below it) uses
+    // `FFText(textValue: ...)` for a single value — suggesting codegen
+    // actually reads `translatableText`, not `serializedValue`, for option
+    // labels. Same class of gap as `ConditionalBuilder`/`ensureEmptyState`
+    // found earlier this session: a typed patch method whose write doesn't
+    // match what codegen reads. Using the raw `mutateNode` escape hatch
+    // instead, setting the field the constructor-level `Dropdown` widget's
+    // OWN compilation path is confirmed to use.
+    final startTimeOptions = [
+      for (var i = 0; i < 48; i++)
+        '${(i * 30 ~/ 60).toString().padLeft(2, '0')}:${(i * 30 % 60).toString().padLeft(2, '0')}',
+    ];
+    page.mutateNode(page.findByKey('DropDown_ggrglg4w'), (node) {
+      final labels = FFFormOptionsValue();
+      final values = FFFormOptionsValue();
+      for (final label in startTimeOptions) {
+        labels.values.add(
+          FFParameterValue(
+            serializedValue: label,
+            translatableText: FFText(textValue: FFStringValue(inputValue: label)),
+          ),
+        );
+        values.values.add(
+          FFParameterValue(
+            serializedValue: label,
+            translatableText: FFText(textValue: FFStringValue(inputValue: label)),
+          ),
+        );
+      }
+      node.props.dropDown.optionsLabels = labels;
+      node.props.dropDown.optionsValues = values;
+    });
+
+    // Fix (PROJECT_KNOWLEDGE.md §67): date field's `TextEditingController`
+    // had NO initial-value binding at all (confirmed via generated_code —
+    // a bare `TextEditingController()`), so it always rendered blank
+    // regardless of `_model.resDate`. `TextField`'s DSL constructor has no
+    // value/initialValue param (confirmed by reading widgets.dart), and
+    // `EditWidgetPatch.initialValue` only supports bool/num (Switch/
+    // Slider) — the only way to bind a TextField's dynamic initial text is
+    // the raw proto field `FFTextField.initialText` (NOT the deprecated
+    // `legacyInitialText`), same shape already proven in the sister
+    // project (.cursor/rules/project_rules.md:113). Binding straight to
+    // `PageParam('prefillDate')` rather than `State('resDate')` for the
+    // same synchronous-availability reason as the dropdown above — no
+    // fallback needed here since blank is ALREADY `resDate`'s own default
+    // when there's no deep link, so this can't regress the 2 existing
+    // "誘う" invite-button flows. The FFVariable shape below replicates
+    // the SDK's own internal (non-exported) `varFromPageParam` helper
+    // (variable_helpers.dart) using only public proto types.
+    page.mutateNode(page.findByKey('TextField_amemivlw'), (node) {
+      node.props.textField.initialText = FFText(
+        textValue: FFStringValue(
+          variable: FFVariable(
+            source: FFVariableSource.WIDGET_CLASS_PARAMETER,
+            baseVariable: FFBaseVariable(
+              widgetClass: FFWidgetClassVariable(
+                paramIdentifier: FFIdentifier(
+                  name: 'prefillDate',
+                  key: 'wydl79qw',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  });
+
+  // Fix (PROJECT_KNOWLEDGE.md §67), continued: start-time dropdown's
+  // on-screen initial value. Tried `page.bindValue(DropDown_ggrglg4w,
+  // CustomFunction(...))` first (the public, typed API for a Dropdown's
+  // initial option) — it compiled and pushed with NO error, but
+  // `generated_code` and a follow-up `flutterflow ai inspect --tree` both
+  // showed the SERVER-SIDE proto completely unchanged (still the original
+  // `State('resStartTime')` binding). Root cause, found by reading the SDK
+  // source: `_BindStringValueOp.apply` short-circuits via
+  // `_nodeSemanticallyEqualsAfterMutation`, which compares
+  // `buildDslNodeSnapshot(...)` before/after the mutation and skips writing
+  // if they're "semantically equal" — but `_snapshotWidgetDetails`'s
+  // per-type switch (snapshot.dart) has NO case for `FFWidgetType.DropDown`
+  // at all (Container/Card/Column/Row/Stack/Text/TextField/Button/Icon/
+  // IconButton/ListView/ProgressBar/Switch/Divider/Spacer only), so a
+  // DropDown's `initialOption` is invisible to the snapshot and EVERY
+  // mutation looks like a no-op and gets silently dropped. A real SDK gap,
+  // not a codegen blind spot (unlike the `dropdownOptions`/`component.root`
+  // cases found earlier) — the write never even reaches the real node.
+  //
+  // Fix: bypass `bindValue`'s operation pipeline entirely by compiling the
+  // same expression with the lower-level (but still public)
+  // `compileDslStringValueForExistingWidgetClass` and writing the result
+  // directly onto the node via a plain `project` mutation inside
+  // `app.raw(...)` — the same raw-mutation shape already used throughout
+  // this file, just reached through `findPage`/`findByKey` instead of
+  // `page.mutateNode`'s selection API (needed here because the compiler
+  // call itself requires direct access to `project`, which `page`'s
+  // narrower closure doesn't expose).
+  app.raw((project) {
+    final widgetClass = findPage(project, name: 'ReservationForm')!;
+    final targetNode = findByKey(widgetClass.node, 'DropDown_ggrglg4w')!;
+    final compiledValue = compileDslStringValueForExistingWidgetClass(
+      project,
+      widgetClassName: 'ReservationForm',
+      targetNodeKey: 'DropDown_ggrglg4w',
+      expression: CustomFunction(
+        resolveInitialStartTimeFn,
+        args: {'prefillStartTime': PageParam('prefillStartTime')},
+      ),
+      app: app,
+    );
+    targetNode.props.dropDown.initialOption = FFText(textValue: compiledValue);
+  });
+
+  // ==========================================================================
+  // Comprehensive project-wide review (PROJECT_KNOWLEDGE.md §70): HomePage
+  // had a SECOND, fully static, non-interactive fake "cast card" grid
+  // (`GridView_2f71lsw8`, wrapped in `Container_xbbolkl3`) sitting directly
+  // below the real, correctly-wired `DiscoveryCastGrid`
+  // (`GridView_t0nvrf32`) in the same scrollable Column — two hardcoded
+  // cards ('ゆずき'/'arika' + Japanese lorem-ipsum filler text + fake '123'
+  // like counts), neither with any onTap. Pre-existing since before this
+  // session (confirmed via git-blame-equivalent: PROJECT_ANALYSIS.md's own
+  // original as-is walkthrough already documented HomePage as having a
+  // GridView of cast cards in addition to the banner carousel; Phase 3's
+  // fix — §65-adjacent — replaced a DIFFERENT node, `Container_z3poslih`,
+  // never touching this one). Every real guest scrolling HomePage — the
+  // app's most-trafficked screen — saw two obviously-fake "cast" cards
+  // right below real listings. No spec evidence anywhere for a second
+  // "featured casts" section, so removal (not building it out) is the
+  // correct minimal fix — this DSL has no dedicated "delete a widget"
+  // primitive, only `ensureReplaced`, so replaced with an invisible,
+  // zero-size `Container` rather than attempting to delete the node
+  // outright.
+  // FROZEN (2026-08-13, immediately after this exact block landed):
+  // confirmed via generated_code/lib/home/home_page/home_page_widget.dart —
+  // neither the fake 'ゆずき'/'arika' content nor the replacement node's own
+  // key/name appear anywhere (a `visible: false` Container compiles out of
+  // the render tree entirely, not just hidden). Also confirmed the real
+  // DiscoveryCastGrid (fetchDiscoveryCasts/_model.discoveryCasts) is fully
+  // intact and unaffected. Confirmed via lib/flutterflow_project/pages/
+  // home_page.dart — `Container_xbbolkl3` no longer exists, replaced by
+  // `Container_giskyopo`, name "RemovedStaticFakeCastGrid". Any future
+  // change must target that key instead of the stale one below.
+  // app.editPage(ff.Pages.homePage, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('Container_xbbolkl3'),
+  //     Container(
+  //       name: 'RemovedStaticFakeCastGrid',
+  //       width: 0,
+  //       height: 0,
+  //       visible: false,
+  //     ),
+  //   );
+  // });
 }

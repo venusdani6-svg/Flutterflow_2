@@ -14,11 +14,15 @@ import { setGlobalOptions } from "firebase-functions/v2";
 // firebase-functions/v2/*) functions, leaving the "few" 1st-gen functions
 // unaffected. That assumption was wrong on two counts, confirmed by
 // tracing the actual failure into firebase-tools' own source
-// (deploy/functions/validate.js's cpuConfigIsValid): (1) there are 8
-// gen-1 functions affected, not the 3 named in the old comment
-// (adminGetUsers, adminGetReservations, adminGetAffiliateOverview,
+// (deploy/functions/validate.js's cpuConfigIsValid): (1) there are 10
+// gen-1 functions affected, not the 3 named in the old comment, and not
+// even the 8 this comment itself said until this correction (2026-08-12,
+// comprehensive review — the list below undercounted by 2, confirmed via
+// `firebase functions:list --json`'s own `platform: "gcfv1"` field):
+// adminGetUsers, adminGetReservations, adminGetAffiliateOverview,
 // adminGetLedger, adminGetStripeLogs, adminUpsertBanner,
-// adminApprovePayout, adminGetDashboardStats — all genuinely written with
+// adminApprovePayout, adminGetDashboardStats, adminGetPayoutRequests (all
+// in admin.ts) plus onUserCreated (auth.ts) — all genuinely written with
 // the v1 SDK, confirmed via grep, not a declaration mistake); (2) despite
 // being v1-declared with no `cpu` option of their own to override,
 // firebase-tools' own endpoint-extraction step was applying
@@ -44,9 +48,13 @@ export {
   getConnectAccountStatus,
   submitKYC,
   updateProfile,
+  syncVerifiedPhone,
   updateLastLogin,
   blockUser,
+  unblockUser,
+  getBlockedUsersDetails,
   reportUser,
+  submitInquiry,
   requestWithdrawal,
   getServiceAreas,
   getDiscoveryCasts,
@@ -61,6 +69,7 @@ export {
   capturePayment,
   cancelPayment,
   createExtensionPayment,
+  cancelExtensionPayment,
   processTip,
   createSetupIntent,
   requestPayout,
@@ -106,6 +115,16 @@ export {
   getWorkPostDetail,
   fetchMyWorkPosts,
 } from "./work-posts";
+
+// ============================================
+// Cast Work-Calendar (§3.7.2)
+// ============================================
+export {
+  getMySchedule,
+  toggleScheduleSlot,
+  getCastScheduleForGuest,
+  autoReleaseOrphanedSlots,
+} from "./schedule";
 
 // ============================================
 // Admin Panel

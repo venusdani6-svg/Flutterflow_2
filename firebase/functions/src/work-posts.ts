@@ -16,7 +16,7 @@
  * that missing client-facing half.
  */
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { db, Timestamp } from "./config";
+import { db, Timestamp, FieldValue } from "./config";
 
 /**
  * Callable: apply to an open work post
@@ -53,6 +53,22 @@ export const applyToWorkPost = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "自分の投稿には応募できません。");
   }
 
+  // FIX (PROJECT_KNOWLEDGE.md §70, MEDIUM — comprehensive project-wide
+  // review): `blocked_users` was checked at booking time
+  // (createReservation, reservations.ts) but never anywhere in this file —
+  // a cast/staff member who had blocked a specific poster (or been blocked
+  // by them) could still apply to that poster's job, and the poster could
+  // still select them, spinning up a coordination chat room pairing the
+  // two together despite an active block. Checked both directions, same
+  // as `getDiscoveryCasts`'s own convention.
+  if (userData.blocked_users?.includes(postData.poster_id)) {
+    throw new HttpsError("permission-denied", "この投稿には応募できません。");
+  }
+  const posterDoc = await db.collection("users").doc(postData.poster_id).get();
+  if (posterDoc.data()?.blocked_users?.includes(uid)) {
+    throw new HttpsError("permission-denied", "この投稿には応募できません。");
+  }
+
   // Type-specific eligibility: "security"/"transport" job posts require
   // the applicant to actually hold that staff role; "partner_recruit"
   // (group-invite) posts are open to any approved cast, same as the
@@ -73,7 +89,15 @@ export const applyToWorkPost = onCall(async (request) => {
     throw new HttpsError("already-exists", "すでに応募済みです。");
   }
 
-  await postRef.update({ applicants: [...applicants, uid] });
+  // FIX (confirmed live bug, comprehensive review): was a non-atomic
+  // read-modify-write (`applicants: [...applicants, uid]`) — two casts
+  // applying within the same read window both pass the not-already-applied
+  // check above, then whichever `update()` lands second silently overwrites
+  // the first's write, so one cast gets `{success:true}` but never actually
+  // appears in `applicants`. `FieldValue.arrayUnion` is atomic server-side
+  // and already the established pattern for this exact array-membership
+  // shape elsewhere in this codebase (auth.ts's blockUser/unblockUser).
+  await postRef.update({ applicants: FieldValue.arrayUnion(uid) });
 
   await db.collection("users").doc(postData.poster_id).collection("notifications").add({
     type: "work",
@@ -103,43 +127,66 @@ export const selectWorkApplicant = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "post_idとapplicant_idが必要です。");
   }
 
+  // FIX (PROJECT_KNOWLEDGE.md §70, HIGH — comprehensive project-wide
+  // review): this used to be a plain, non-transactional read-check-write —
+  // two near-simultaneous selectWorkApplicant calls for the same post
+  // (poster double-taps "select" for two different applicants) could both
+  // pass the `status === "open"` guard before either write landed. Both
+  // would then send the "あなたの応募が選定されました" (you're selected)
+  // notification to their respective applicant — a false "you got the job"
+  // notification for whichever one ISN'T the eventual (last-write-wins)
+  // `selected_id`. Worse, for security/transport posts, the OLD
+  // `[...existingStaffIds, applicant_id]` staff_ids mutation below was a
+  // plain read-modify-write, not `arrayUnion` — a genuine lost-update: if
+  // two concurrent calls both read staff_ids before either writes, the
+  // second write can overwrite the first's addition, so a staff member can
+  // be marked `selected_id` and notified "selected" yet never actually
+  // land in `reservations.staff_ids` — meaning
+  // `recordCastRewardsAndProcessOthers` never pays them their share of the
+  // already-authorized `staff_fee`. Same bug class `applyToWorkPost` was
+  // already fixed for via `arrayUnion` (above) — never carried into this
+  // function. Fixed with a transaction (only one caller can win the
+  // status transition, matching `respondToReservation`'s identical fix)
+  // plus `arrayUnion` for the staff_ids append.
   const postRef = db.collection("work_posts").doc(post_id);
-  const postSnap = await postRef.get();
-  if (!postSnap.exists) {
-    throw new HttpsError("not-found", "投稿が見つかりません。");
-  }
-  const postData = postSnap.data()!;
+  const postData = await db.runTransaction(async (tx) => {
+    const postSnap = await tx.get(postRef);
+    if (!postSnap.exists) {
+      throw new HttpsError("not-found", "投稿が見つかりません。");
+    }
+    const data = postSnap.data()!;
 
-  if (postData.poster_id !== uid) {
-    throw new HttpsError("permission-denied", "自分の投稿のみ操作できます。");
-  }
-  if (postData.status !== "open") {
-    throw new HttpsError("failed-precondition", "この投稿はすでに処理済みです。");
-  }
-  const applicants: string[] = postData.applicants || [];
-  if (!applicants.includes(applicant_id)) {
-    throw new HttpsError("failed-precondition", "指定された応募者はこの投稿に応募していません。");
-  }
+    if (data.poster_id !== uid) {
+      throw new HttpsError("permission-denied", "自分の投稿のみ操作できます。");
+    }
+    if (data.status !== "open") {
+      throw new HttpsError("failed-precondition", "この投稿はすでに処理済みです。");
+    }
+    const applicants: string[] = data.applicants || [];
+    if (!applicants.includes(applicant_id)) {
+      throw new HttpsError("failed-precondition", "指定された応募者はこの投稿に応募していません。");
+    }
 
-  await postRef.update({ status: "filled", selected_id: applicant_id });
-
-  // For security/transport posts auto-created off a reservation
-  // (needs_security/needs_transport, reservations.ts), append the
-  // selected staff member to that reservation's own staff_ids so
-  // recordCastRewardsAndProcessOthers (stripe-payments.ts) actually pays
-  // them their share of the staff_fee already authorized at booking time
-  // — the fee amount itself was fixed at booking (flat, role-level), this
-  // only resolves WHO receives it.
-  if ((postData.type === "security" || postData.type === "transport") && postData.res_id) {
-    const resRef = db.collection("reservations").doc(postData.res_id);
-    const resSnap = await resRef.get();
-    if (resSnap.exists) {
-      const existingStaffIds: string[] = resSnap.data()?.staff_ids || [];
-      if (!existingStaffIds.includes(applicant_id)) {
-        await resRef.update({ staff_ids: [...existingStaffIds, applicant_id] });
+    // Firestore transactions require every read before every write — the
+    // reservation existence check (mirroring the original code's own
+    // `if (resSnap.exists)` guard) must happen here, before either
+    // tx.update() below, not interleaved with them.
+    let resRef: FirebaseFirestore.DocumentReference | null = null;
+    if ((data.type === "security" || data.type === "transport") && data.res_id) {
+      const candidateRef = db.collection("reservations").doc(data.res_id);
+      const resSnap = await tx.get(candidateRef);
+      if (resSnap.exists) {
+        resRef = candidateRef;
       }
     }
-  }
+
+    tx.update(postRef, { status: "filled", selected_id: applicant_id });
+    if (resRef) {
+      tx.update(resRef, { staff_ids: FieldValue.arrayUnion(applicant_id) });
+    }
+
+    return data;
+  });
 
   await db.collection("users").doc(applicant_id).collection("notifications").add({
     type: "work",
