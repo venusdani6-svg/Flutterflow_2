@@ -19,6 +19,12 @@ final class WalletPageParams {
 
 final class WalletPageState {
   const WalletPageState();
+  ffai.ProjectStateFieldHandle get debtHistoryList =>
+      const ffai.ProjectStateFieldHandle(
+        name: "debtHistoryList",
+        key: "hwifv1sa",
+        typeName: "List<String>",
+      );
   ffai.ProjectStateFieldHandle get hasStripeAccountStr =>
       const ffai.ProjectStateFieldHandle(
         name: "hasStripeAccountStr",
@@ -219,6 +225,41 @@ abstract final class WalletPageWidgets {
                         key: "Text_n70h09k1",
                         type: "Text",
                         path: "WalletPage.body[0].children[9].children[0].children[1]",
+                        name: "Text",
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Column_kalwkfi1",
+                type: "Column",
+                path: "WalletPage.body[0].children[10]",
+                name: "DebtHistorySection",
+                children: <ffai.ProjectWidgetHandle>[
+                  ffai.ProjectWidgetHandle(
+                    key: "Divider_a5jze88s",
+                    type: "Divider",
+                    path: "WalletPage.body[0].children[10].children[0]",
+                    name: "Divider",
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Text_todysbss",
+                    type: "Text",
+                    path: "WalletPage.body[0].children[10].children[1]",
+                    name: "Text",
+                    text: "負債履歴",
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "ListView_auzpz59h",
+                    type: "ListView",
+                    path: "WalletPage.body[0].children[10].children[2]",
+                    name: "DebtHistoryListView",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_mu6m87tc",
+                        type: "Text",
+                        path: "WalletPage.body[0].children[10].children[2].children[0]",
                         name: "Text",
                       ),
                     ],

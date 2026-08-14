@@ -3,134 +3,221 @@
 library;
 
 import 'package:flutterflow_ai/flutterflow_ai.dart' as ffai;
+import 'pages/account_deletion_monitor_page.dart' show accountDeletionMonitorPageHandle;
+import 'pages/activity_report_page.dart' show activityReportPageHandle;
 import 'pages/admin_affiliate_management.dart' show adminAffiliateManagementHandle;
+import 'pages/admin_dashboard_page.dart' show adminDashboardPageHandle;
+import 'pages/admin_recruitment_chat_page.dart' show adminRecruitmentChatPageHandle;
 import 'pages/admin_report_review_page.dart' show adminReportReviewPageHandle;
 import 'pages/affiliate.dart' show affiliateHandle;
+import 'pages/audit_log_page.dart' show auditLogPageHandle;
 import 'pages/auth_complete.dart' show authCompleteHandle;
+import 'pages/banner_management_page.dart' show bannerManagementPageHandle;
 import 'pages/basic_info_registration.dart' show basicInfoRegistrationHandle;
 import 'pages/block_list.dart' show blockListHandle;
+import 'pages/business_commission_agreement.dart' show businessCommissionAgreementHandle;
 import 'pages/cast_profile.dart' show castProfileHandle;
+import 'pages/chat_oversight_page.dart' show chatOversightPageHandle;
+import 'pages/coco_ten_detail_page.dart' show cocoTenDetailPageHandle;
 import 'pages/cocomise_page.dart' show cocomisePageHandle;
+import 'pages/cocoten_genre_master_page.dart' show cocotenGenreMasterPageHandle;
+import 'pages/cocoten_management_page.dart' show cocotenManagementPageHandle;
 import 'pages/connect_onboarding.dart' show connectOnboardingHandle;
+import 'pages/consent_record_page.dart' show consentRecordPageHandle;
 import 'pages/email_verification.dart' show emailVerificationHandle;
+import 'pages/extension_oversight_page.dart' show extensionOversightPageHandle;
 import 'pages/extension_payment.dart' show extensionPaymentHandle;
+import 'pages/favorites_page.dart' show favoritesPageHandle;
 import 'pages/home_page.dart' show homePageHandle;
 import 'pages/home_page_basic.dart' show homePageBasicHandle;
+import 'pages/home_ranking_diagnostics_page.dart' show homeRankingDiagnosticsPageHandle;
 import 'pages/inquiry_form.dart' show inquiryFormHandle;
 import 'pages/kyc.dart' show kycHandle;
 import 'pages/kyc_review_page.dart' show kycReviewPageHandle;
+import 'pages/ledger_oversight_page.dart' show ledgerOversightPageHandle;
 import 'pages/login_page.dart' show loginPageHandle;
 import 'pages/maccha_chats.dart' show macchaChatsHandle;
 import 'pages/maccha_page.dart' show macchaPageHandle;
 import 'pages/my_page.dart' show myPageHandle;
 import 'pages/my_work_content.dart' show myWorkContentHandle;
+import 'pages/notification_center_page.dart' show notificationCenterPageHandle;
+import 'pages/notification_moderation_center_page.dart' show notificationModerationCenterPageHandle;
 import 'pages/notifications_page.dart' show notificationsPageHandle;
 import 'pages/outside_page_basic.dart' show outsidePageBasicHandle;
 import 'pages/payment_confirm.dart' show paymentConfirmHandle;
+import 'pages/personal_data_handling.dart' show personalDataHandlingHandle;
 import 'pages/phone_varification.dart' show phoneVarificationHandle;
 import 'pages/privacy_policy.dart' show privacyPolicyHandle;
+import 'pages/processed_events_page.dart' show processedEventsPageHandle;
 import 'pages/profile_edit.dart' show profileEditHandle;
 import 'pages/reservation_confirmed.dart' show reservationConfirmedHandle;
 import 'pages/reservation_detail.dart' show reservationDetailHandle;
 import 'pages/reservation_form.dart' show reservationFormHandle;
 import 'pages/reservation_list_page.dart' show reservationListPageHandle;
+import 'pages/reservation_oversight_page.dart' show reservationOversightPageHandle;
 import 'pages/review_pending.dart' show reviewPendingHandle;
+import 'pages/service_area_municipalities_page.dart' show serviceAreaMunicipalitiesPageHandle;
+import 'pages/service_area_page.dart' show serviceAreaPageHandle;
 import 'pages/settings_page.dart' show settingsPageHandle;
 import 'pages/signup_page.dart' show signupPageHandle;
 import 'pages/sms_code.dart' show smsCodeHandle;
+import 'pages/stripe_logs_page.dart' show stripeLogsPageHandle;
 import 'pages/support_legal_hub.dart' show supportLegalHubHandle;
+import 'pages/system_config_page.dart' show systemConfigPageHandle;
 import 'pages/system_info.dart' show systemInfoHandle;
 import 'pages/terms_of_service.dart' show termsOfServiceHandle;
 import 'pages/tutorial_page.dart' show tutorialPageHandle;
+import 'pages/user_content_moderation_page.dart' show userContentModerationPageHandle;
+import 'pages/user_management_page.dart' show userManagementPageHandle;
 import 'pages/wallet_page.dart' show walletPageHandle;
+import 'pages/withdrawal_queue_page.dart' show withdrawalQueuePageHandle;
 import 'pages/work_page.dart' show workPageHandle;
 import 'pages/work_post_detail_page.dart' show workPostDetailPageHandle;
+import 'pages/work_post_management_page.dart' show workPostManagementPageHandle;
 
 abstract final class Pages {
+  static final accountDeletionMonitorPage = accountDeletionMonitorPageHandle;
+  static final activityReportPage = activityReportPageHandle;
   static final adminAffiliateManagement = adminAffiliateManagementHandle;
+  static final adminDashboardPage = adminDashboardPageHandle;
+  static final adminRecruitmentChatPage = adminRecruitmentChatPageHandle;
   static final adminReportReviewPage = adminReportReviewPageHandle;
   static final affiliate = affiliateHandle;
+  static final auditLogPage = auditLogPageHandle;
   static final authComplete = authCompleteHandle;
+  static final bannerManagementPage = bannerManagementPageHandle;
   static final basicInfoRegistration = basicInfoRegistrationHandle;
   static final blockList = blockListHandle;
+  static final businessCommissionAgreement = businessCommissionAgreementHandle;
   static final castProfile = castProfileHandle;
+  static final chatOversightPage = chatOversightPageHandle;
+  static final cocoTenDetailPage = cocoTenDetailPageHandle;
   static final cocomisePage = cocomisePageHandle;
+  static final cocotenGenreMasterPage = cocotenGenreMasterPageHandle;
+  static final cocotenManagementPage = cocotenManagementPageHandle;
   static final connectOnboarding = connectOnboardingHandle;
+  static final consentRecordPage = consentRecordPageHandle;
   static final emailVerification = emailVerificationHandle;
+  static final extensionOversightPage = extensionOversightPageHandle;
   static final extensionPayment = extensionPaymentHandle;
+  static final favoritesPage = favoritesPageHandle;
   static final homePage = homePageHandle;
   static final homePageBasic = homePageBasicHandle;
+  static final homeRankingDiagnosticsPage = homeRankingDiagnosticsPageHandle;
   static final inquiryForm = inquiryFormHandle;
   static final kyc = kycHandle;
   static final kycReviewPage = kycReviewPageHandle;
+  static final ledgerOversightPage = ledgerOversightPageHandle;
   static final loginPage = loginPageHandle;
   static final macchaChats = macchaChatsHandle;
   static final macchaPage = macchaPageHandle;
   static final myPage = myPageHandle;
   static final myWorkContent = myWorkContentHandle;
+  static final notificationCenterPage = notificationCenterPageHandle;
+  static final notificationModerationCenterPage = notificationModerationCenterPageHandle;
   static final notificationsPage = notificationsPageHandle;
   static final outsidePageBasic = outsidePageBasicHandle;
   static final paymentConfirm = paymentConfirmHandle;
+  static final personalDataHandling = personalDataHandlingHandle;
   static final phoneVarification = phoneVarificationHandle;
   static final privacyPolicy = privacyPolicyHandle;
+  static final processedEventsPage = processedEventsPageHandle;
   static final profileEdit = profileEditHandle;
   static final reservationConfirmed = reservationConfirmedHandle;
   static final reservationDetail = reservationDetailHandle;
   static final reservationForm = reservationFormHandle;
   static final reservationListPage = reservationListPageHandle;
+  static final reservationOversightPage = reservationOversightPageHandle;
   static final reviewPending = reviewPendingHandle;
+  static final serviceAreaMunicipalitiesPage = serviceAreaMunicipalitiesPageHandle;
+  static final serviceAreaPage = serviceAreaPageHandle;
   static final settingsPage = settingsPageHandle;
   static final signupPage = signupPageHandle;
   static final smsCode = smsCodeHandle;
+  static final stripeLogsPage = stripeLogsPageHandle;
   static final supportLegalHub = supportLegalHubHandle;
+  static final systemConfigPage = systemConfigPageHandle;
   static final systemInfo = systemInfoHandle;
   static final termsOfService = termsOfServiceHandle;
   static final tutorialPage = tutorialPageHandle;
+  static final userContentModerationPage = userContentModerationPageHandle;
+  static final userManagementPage = userManagementPageHandle;
   static final walletPage = walletPageHandle;
+  static final withdrawalQueuePage = withdrawalQueuePageHandle;
   static final workPage = workPageHandle;
   static final workPostDetailPage = workPostDetailPageHandle;
+  static final workPostManagementPage = workPostManagementPageHandle;
   static final all = <ffai.ProjectPageHandle>[
+    accountDeletionMonitorPage,
+    activityReportPage,
     adminAffiliateManagement,
+    adminDashboardPage,
+    adminRecruitmentChatPage,
     adminReportReviewPage,
     affiliate,
+    auditLogPage,
     authComplete,
+    bannerManagementPage,
     basicInfoRegistration,
     blockList,
+    businessCommissionAgreement,
     castProfile,
+    chatOversightPage,
+    cocoTenDetailPage,
     cocomisePage,
+    cocotenGenreMasterPage,
+    cocotenManagementPage,
     connectOnboarding,
+    consentRecordPage,
     emailVerification,
+    extensionOversightPage,
     extensionPayment,
+    favoritesPage,
     homePage,
     homePageBasic,
+    homeRankingDiagnosticsPage,
     inquiryForm,
     kyc,
     kycReviewPage,
+    ledgerOversightPage,
     loginPage,
     macchaChats,
     macchaPage,
     myPage,
     myWorkContent,
+    notificationCenterPage,
+    notificationModerationCenterPage,
     notificationsPage,
     outsidePageBasic,
     paymentConfirm,
+    personalDataHandling,
     phoneVarification,
     privacyPolicy,
+    processedEventsPage,
     profileEdit,
     reservationConfirmed,
     reservationDetail,
     reservationForm,
     reservationListPage,
+    reservationOversightPage,
     reviewPending,
+    serviceAreaMunicipalitiesPage,
+    serviceAreaPage,
     settingsPage,
     signupPage,
     smsCode,
+    stripeLogsPage,
     supportLegalHub,
+    systemConfigPage,
     systemInfo,
     termsOfService,
     tutorialPage,
+    userContentModerationPage,
+    userManagementPage,
     walletPage,
+    withdrawalQueuePage,
     workPage,
     workPostDetailPage,
+    workPostManagementPage,
   ];
 }

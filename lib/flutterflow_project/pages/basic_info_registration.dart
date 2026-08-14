@@ -37,6 +37,30 @@ final class BasicInfoRegistrationState {
         key: "ghodu6y6",
         typeName: "String",
       );
+  ffai.ProjectStateFieldHandle get agreedBusinessCommission =>
+      const ffai.ProjectStateFieldHandle(
+        name: "agreedBusinessCommission",
+        key: "n2fseec4",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get agreedPersonalData =>
+      const ffai.ProjectStateFieldHandle(
+        name: "agreedPersonalData",
+        key: "l2laimxn",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get agreedPrivacyPolicy =>
+      const ffai.ProjectStateFieldHandle(
+        name: "agreedPrivacyPolicy",
+        key: "k3ln8gga",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get agreedTos =>
+      const ffai.ProjectStateFieldHandle(
+        name: "agreedTos",
+        key: "mq6s7b5h",
+        typeName: "Boolean",
+      );
   ffai.ProjectStateFieldHandle get birthDate =>
       const ffai.ProjectStateFieldHandle(
         name: "birthDate",
@@ -88,6 +112,9 @@ abstract final class BasicInfoRegistrationWidgets {
       type: "Scaffold",
       path: "BasicInfoRegistration",
       name: "BasicInfoRegistration",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
@@ -151,12 +178,34 @@ abstract final class BasicInfoRegistrationWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "DropDown_5m4nqpk3",
-                type: "DropDown",
+                key: "Container_ihp57ua1",
+                type: "Container",
                 path: "BasicInfoRegistration.body[0].children[4]",
-                name: "PrefectureDropdown",
+                name: "PrefecturePickerTrigger",
                 triggers: const <String>[
-                  "ON_FORM_WIDGET_SELECTED",
+                  "ON_TAP",
+                ],
+                children: <ffai.ProjectWidgetHandle>[
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_y35l2xup",
+                    type: "Row",
+                    path: "BasicInfoRegistration.body[0].children[4].children[0]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_oayvv1sc",
+                        type: "Text",
+                        path: "BasicInfoRegistration.body[0].children[4].children[0].children[0]",
+                        name: "Text",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Icon_lymnbu7i",
+                        type: "Icon",
+                        path: "BasicInfoRegistration.body[0].children[4].children[0].children[1]",
+                        name: "Icon",
+                      ),
+                    ],
+                  ),
                 ],
               ),
               ffai.ProjectWidgetHandle(
@@ -170,12 +219,34 @@ abstract final class BasicInfoRegistrationWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "DropDown_0n1wfyru",
-                type: "DropDown",
+                key: "Container_359wt0ke",
+                type: "Container",
                 path: "BasicInfoRegistration.body[0].children[6]",
-                name: "ActivityPrefectureDropdown",
+                name: "ActivityPrefecturePickerTrigger",
                 triggers: const <String>[
-                  "ON_FORM_WIDGET_SELECTED",
+                  "ON_TAP",
+                ],
+                children: <ffai.ProjectWidgetHandle>[
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_d6db763f",
+                    type: "Row",
+                    path: "BasicInfoRegistration.body[0].children[6].children[0]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_txiftnl9",
+                        type: "Text",
+                        path: "BasicInfoRegistration.body[0].children[6].children[0].children[0]",
+                        name: "Text",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Icon_w1afw97h",
+                        type: "Icon",
+                        path: "BasicInfoRegistration.body[0].children[6].children[0].children[1]",
+                        name: "Icon",
+                      ),
+                    ],
+                  ),
                 ],
               ),
               ffai.ProjectWidgetHandle(
@@ -208,27 +279,206 @@ abstract final class BasicInfoRegistrationWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Row_0u3ys8k0",
-                type: "Row",
+                key: "Column_xnu43izn",
+                type: "Column",
                 path: "BasicInfoRegistration.body[0].children[10]",
-                name: "Row",
+                name: "ConsentCheckboxColumn",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Checkbox_wbyxab6y",
-                    type: "Checkbox",
+                    key: "Row_a5gdhm5y",
+                    type: "Row",
                     path: "BasicInfoRegistration.body[0].children[10].children[0]",
-                    name: "ConsentCheckbox",
-                    triggers: const <String>[
-                      "ON_TOGGLE_ON",
-                      "ON_TOGGLE_OFF",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Row_j0e7hf8n",
+                        type: "Row",
+                        path: "BasicInfoRegistration.body[0].children[10].children[0].children[0]",
+                        name: "AgreedTosCheckbox",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Checkbox_yo2wgalz",
+                            type: "Checkbox",
+                            path: "BasicInfoRegistration.body[0].children[10].children[0].children[0].children[0]",
+                            name: "AgreedTosCheckbox",
+                            triggers: const <String>[
+                              "ON_TOGGLE_ON",
+                              "ON_TOGGLE_OFF",
+                            ],
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Container_kjrunbwp",
+                            type: "Container",
+                            path: "BasicInfoRegistration.body[0].children[10].children[0].children[0].children[1]",
+                            name: "Label Spacer",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_ku3udvqq",
+                            type: "Text",
+                            path: "BasicInfoRegistration.body[0].children[10].children[0].children[0].children[2]",
+                            name: "Label Text",
+                            text: "利用規約に同意します",
+                          ),
+                        ],
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Button_5trpf0wl",
+                        type: "Button",
+                        path: "BasicInfoRegistration.body[0].children[10].children[0].children[1]",
+                        name: "Button",
+                        text: "詳細",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
+                      ),
                     ],
                   ),
                   ffai.ProjectWidgetHandle(
-                    key: "Text_kb456xk7",
-                    type: "Text",
+                    key: "Row_zh6lgpo1",
+                    type: "Row",
                     path: "BasicInfoRegistration.body[0].children[10].children[1]",
-                    name: "Text",
-                    text: "利用規約・個人情報の取り扱いに同意します",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Row_6rhy33lt",
+                        type: "Row",
+                        path: "BasicInfoRegistration.body[0].children[10].children[1].children[0]",
+                        name: "AgreedBusinessCommissionCheckbox",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Checkbox_ga9ldetv",
+                            type: "Checkbox",
+                            path: "BasicInfoRegistration.body[0].children[10].children[1].children[0].children[0]",
+                            name: "AgreedBusinessCommissionCheckbox",
+                            triggers: const <String>[
+                              "ON_TOGGLE_ON",
+                              "ON_TOGGLE_OFF",
+                            ],
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Container_o9mfycdh",
+                            type: "Container",
+                            path: "BasicInfoRegistration.body[0].children[10].children[1].children[0].children[1]",
+                            name: "Label Spacer",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_g7zuakyr",
+                            type: "Text",
+                            path: "BasicInfoRegistration.body[0].children[10].children[1].children[0].children[2]",
+                            name: "Label Text",
+                            text: "業務委託契約に同意します",
+                          ),
+                        ],
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Button_g3wkr3bv",
+                        type: "Button",
+                        path: "BasicInfoRegistration.body[0].children[10].children[1].children[1]",
+                        name: "Button",
+                        text: "詳細",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_n5k331b0",
+                    type: "Row",
+                    path: "BasicInfoRegistration.body[0].children[10].children[2]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Row_laoycc8a",
+                        type: "Row",
+                        path: "BasicInfoRegistration.body[0].children[10].children[2].children[0]",
+                        name: "AgreedPersonalDataCheckbox",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Checkbox_r3znasq5",
+                            type: "Checkbox",
+                            path: "BasicInfoRegistration.body[0].children[10].children[2].children[0].children[0]",
+                            name: "AgreedPersonalDataCheckbox",
+                            triggers: const <String>[
+                              "ON_TOGGLE_ON",
+                              "ON_TOGGLE_OFF",
+                            ],
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Container_6uitib2u",
+                            type: "Container",
+                            path: "BasicInfoRegistration.body[0].children[10].children[2].children[0].children[1]",
+                            name: "Label Spacer",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_xfi6nkxl",
+                            type: "Text",
+                            path: "BasicInfoRegistration.body[0].children[10].children[2].children[0].children[2]",
+                            name: "Label Text",
+                            text: "個人情報の取り扱いに同意します",
+                          ),
+                        ],
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Button_67k73bkq",
+                        type: "Button",
+                        path: "BasicInfoRegistration.body[0].children[10].children[2].children[1]",
+                        name: "Button",
+                        text: "詳細",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_tnzqb25l",
+                    type: "Row",
+                    path: "BasicInfoRegistration.body[0].children[10].children[3]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Row_a4ydytjp",
+                        type: "Row",
+                        path: "BasicInfoRegistration.body[0].children[10].children[3].children[0]",
+                        name: "AgreedPrivacyPolicyCheckbox",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Checkbox_qu6d9394",
+                            type: "Checkbox",
+                            path: "BasicInfoRegistration.body[0].children[10].children[3].children[0].children[0]",
+                            name: "AgreedPrivacyPolicyCheckbox",
+                            triggers: const <String>[
+                              "ON_TOGGLE_ON",
+                              "ON_TOGGLE_OFF",
+                            ],
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Container_8xedp6e4",
+                            type: "Container",
+                            path: "BasicInfoRegistration.body[0].children[10].children[3].children[0].children[1]",
+                            name: "Label Spacer",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_jx2dx08r",
+                            type: "Text",
+                            path: "BasicInfoRegistration.body[0].children[10].children[3].children[0].children[2]",
+                            name: "Label Text",
+                            text: "プライバシーポリシーに同意します",
+                          ),
+                        ],
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Button_azb5lwlg",
+                        type: "Button",
+                        path: "BasicInfoRegistration.body[0].children[10].children[3].children[1]",
+                        name: "Button",
+                        text: "詳細",
+                        triggers: const <String>[
+                          "ON_TAP",
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),

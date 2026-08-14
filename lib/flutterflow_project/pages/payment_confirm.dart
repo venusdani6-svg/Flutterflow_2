@@ -65,6 +65,9 @@ abstract final class PaymentConfirmWidgets {
                           key: "Icon_shry4uqy",
                           type: "Icon",
                           path: "PaymentConfirm.appBar[0].title[0].children[0].children[0]",
+                          triggers: const <String>[
+                            "ON_TAP",
+                          ],
                         ),
                         ffai.ProjectWidgetHandle(
                           key: "Image_0wjcegmu",
@@ -256,55 +259,91 @@ abstract final class PaymentConfirmWidgets {
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Row_xz7f911n",
+                                key: "Row_1hbd1e85",
                                 type: "Row",
                                 path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7]",
+                                name: "PaymentConfirmStaffFeeRow",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Text_bshnfdwo",
+                                    type: "Text",
+                                    path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7].children[0]",
+                                    name: "Text",
+                                    text: "スタッフ費用",
+                                  ),
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Row_4svk3z9g",
+                                    type: "Row",
+                                    path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7].children[1]",
+                                    name: "Row",
+                                    children: <ffai.ProjectWidgetHandle>[
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Text_vmwfisbq",
+                                        type: "Text",
+                                        path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7].children[1].children[0]",
+                                        name: "PaymentConfirmStaffFeeValue",
+                                      ),
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Text_hrkgpdwp",
+                                        type: "Text",
+                                        path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7].children[1].children[1]",
+                                        name: "Text",
+                                        text: "円",
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Row_xz7f911n",
+                                type: "Row",
+                                path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[8]",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_nkw21qit",
                                     type: "Text",
-                                    path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7].children[0]",
+                                    path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[8].children[0]",
                                     text: "30分ルール適用",
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_37e9ta7k",
+                                    key: "Text_5arzqart",
                                     type: "Text",
-                                    path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7].children[1]",
-                                    text: "適用済み",
+                                    path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[8].children[1]",
+                                    name: "PaymentConfirmThirtyMinRuleValue",
                                   ),
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
                                 key: "Divider_xg8em49h",
                                 type: "Divider",
-                                path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[8]",
+                                path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[9]",
                               ),
                               ffai.ProjectWidgetHandle(
                                 key: "Row_dg485t39",
                                 type: "Row",
-                                path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[9]",
+                                path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[10]",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_gy2ng25t",
                                     type: "Text",
-                                    path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[9].children[0]",
+                                    path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[10].children[0]",
                                     text: "合　計",
                                   ),
                                   ffai.ProjectWidgetHandle(
                                     key: "Row_mjx4r0n1",
                                     type: "Row",
-                                    path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[9].children[1]",
+                                    path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[10].children[1]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
                                         key: "Text_ytmu38hj",
                                         type: "Text",
-                                        path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[9].children[1].children[0]",
+                                        path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[10].children[1].children[0]",
                                         name: "PaymentConfirmTotalAmountValue",
                                       ),
                                       ffai.ProjectWidgetHandle(
                                         key: "Text_xzvg7qn1",
                                         type: "Text",
-                                        path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[9].children[1].children[1]",
+                                        path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[10].children[1].children[1]",
                                         text: "円",
                                       ),
                                     ],
@@ -365,6 +404,9 @@ abstract final class PaymentConfirmWidgets {
                                     type: "Button",
                                     path: "PaymentConfirm.body[0].children[0].children[1].children[0].children[0].children[2].children[0]",
                                     text: "カードを登録する",
+                                    triggers: const <String>[
+                                      "ON_TAP",
+                                    ],
                                   ),
                                 ],
                               ),
@@ -428,6 +470,9 @@ abstract final class PaymentConfirmWidgets {
                                     type: "Button",
                                     path: "PaymentConfirm.body[0].children[0].children[1].children[0].children[0].children[3].children[2]",
                                     text: "変更する",
+                                    triggers: const <String>[
+                                      "ON_TAP",
+                                    ],
                                   ),
                                 ],
                               ),

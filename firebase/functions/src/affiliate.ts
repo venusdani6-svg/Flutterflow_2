@@ -57,6 +57,23 @@ export const processMonthlyAffiliatePayments = onSchedule(
       const data = doc.data();
       const affiliatorUid = data.affiliator_uid;
       const month = data.month;
+      // FIX (comprehensive project-wide review round 2, SUSPECTED risk):
+      // a doc with a missing/malformed `month` (e.g. a stray placeholder
+      // doc of the same class already documented elsewhere in this
+      // codebase) used to group under the literal string "undefined".
+      // `countUniqueWorkDays("undefined")` then does `"undefined".split(
+      // "-")` -> NaN -> `Timestamp.fromDate(new Date(NaN))`, which throws —
+      // caught only by the per-(affiliator,month) try/catch below, so it
+      // aborts just that group but reruns and fails identically every day,
+      // permanently wedging that reward as "pending" with no way to
+      // recover. Skip and log instead so one malformed doc can't do that
+      // while every other affiliator's payment keeps processing normally.
+      if (!affiliatorUid || typeof month !== "string" || !/^\d{4}-\d{2}$/.test(month)) {
+        console.error(
+          `Skipping malformed affiliate_rewards doc ${doc.id}: affiliator_uid=${affiliatorUid}, month=${month}`
+        );
+        continue;
+      }
       grouped[affiliatorUid] = grouped[affiliatorUid] || {};
       grouped[affiliatorUid][month] = grouped[affiliatorUid][month] || [];
       grouped[affiliatorUid][month].push(doc);

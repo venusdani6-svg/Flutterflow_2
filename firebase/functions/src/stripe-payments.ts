@@ -3,8 +3,9 @@
  * Stripe決済管理 (Authorize → Capture → Transfer)
  */
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { db, stripe, FieldValue, Timestamp, getSystemConfig } from "./config";
-import { reservedSlotsQuery } from "./schedule";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import { db, stripe, FieldValue, Timestamp, getSystemConfig, STRIPE_API_VERSION } from "./config";
+import { reservedSlotsQuery, extensionSlotsQuery, findUnavailableCastId } from "./schedule";
 
 /**
  * Callable: Create PaymentIntent with manual capture (与信確保)
@@ -525,40 +526,60 @@ export async function recordCastRewardsAndProcessOthers(
 
       const perStaffFee = Math.floor(staffFee / resData.staff_ids.length);
 
-      try {
-        const transfer = await stripe.transfers.create({
-          amount: perStaffFee,
-          currency: "jpy",
-          destination: staffData.stripe_account_id,
-          transfer_group: resData.transfer_group,
-          metadata: {
-            res_id: resId,
-            staff_uid: staffId,
-            type: "staff_fee",
-          },
-        });
+      // FIX (comprehensive project-wide review round 2): the ledger entry
+      // used to be written only AFTER a successful transfer, so a failed
+      // transfer left no record at all and nothing ever retried it — the
+      // same silent, untracked money loss shape as the tip-transfer bug
+      // fixed above. Pre-allocate the ledger doc, write it "pending" before
+      // calling Stripe, and fold this into the same retry queue via
+      // `status: "retrying"` (retryFailedCastTransfers now also sweeps
+      // type "staff_fee").
+      const ledgerRef = db.collection("ledger").doc();
+      await ledgerRef.set({
+        ledger_id: ledgerRef.id,
+        res_id: resId,
+        user_id: staffId,
+        type: "staff_fee",
+        gross_amount: staffFee,
+        cast_reward: 0,
+        staff_fee: perStaffFee,
+        stripe_fee: 0,
+        platform_profit: 0,
+        tax_amount: 0,
+        net_transfer: perStaffFee,
+        amount: perStaffFee,
+        stripe_event_id: "",
+        stripe_object_id: "",
+        status: "pending",
+        processed: false,
+        created_at: Timestamp.now(),
+      });
 
-        await db.collection("ledger").add({
-          ledger_id: "",
-          res_id: resId,
-          user_id: staffId,
-          type: "staff_fee",
-          gross_amount: staffFee,
-          cast_reward: 0,
-          staff_fee: perStaffFee,
-          stripe_fee: 0,
-          platform_profit: 0,
-          tax_amount: 0,
-          net_transfer: perStaffFee,
-          amount: perStaffFee,
-          stripe_event_id: "",
+      try {
+        const transfer = await stripe.transfers.create(
+          {
+            amount: perStaffFee,
+            currency: "jpy",
+            destination: staffData.stripe_account_id,
+            transfer_group: resData.transfer_group,
+            metadata: {
+              res_id: resId,
+              staff_uid: staffId,
+              type: "staff_fee",
+              ledger_id: ledgerRef.id,
+            },
+          },
+          { idempotencyKey: `transfer_${ledgerRef.id}` }
+        );
+
+        await ledgerRef.update({
           stripe_object_id: transfer.id,
           status: "confirmed",
           processed: true,
-          created_at: Timestamp.now(),
         });
       } catch (err) {
         console.error(`Staff transfer failed for ${staffId}:`, err);
+        await ledgerRef.update({ status: "retrying" });
       }
     }
   }
@@ -778,17 +799,29 @@ export async function transferPendingCastRewards(resId: string): Promise<void> {
     }
 
     try {
-      const transfer = await stripe.transfers.create({
-        amount: netTransfer,
-        currency: "jpy",
-        destination: castData.stripe_account_id,
-        transfer_group: transferGroup,
-        metadata: {
-          res_id: resId,
-          cast_uid: castId,
-          ledger_id: entryDoc.id,
+      // FIX (comprehensive project-wide review round 2): no idempotencyKey
+      // was ever passed here, so a transfer that actually succeeded on
+      // Stripe's side but timed out/errored on our side before the
+      // `entryDoc.ref.update` below could commit would fall to `retrying`
+      // and be retried by retryFailedCastTransfers with the same
+      // amount/destination — a genuine double-transfer. Keyed on the
+      // ledger doc's own stable id, which is identical across every retry
+      // attempt for this same entry (see retryFailedCastTransfers below),
+      // so Stripe itself now dedupes a duplicate call.
+      const transfer = await stripe.transfers.create(
+        {
+          amount: netTransfer,
+          currency: "jpy",
+          destination: castData.stripe_account_id,
+          transfer_group: transferGroup,
+          metadata: {
+            res_id: resId,
+            cast_uid: castId,
+            ledger_id: entryDoc.id,
+          },
         },
-      });
+        { idempotencyKey: `transfer_${entryDoc.id}` }
+      );
 
       await entryDoc.ref.update({
         stripe_object_id: transfer.id,
@@ -815,6 +848,116 @@ export async function transferPendingCastRewards(resId: string): Promise<void> {
     }
   }
 }
+
+// FIX (confirmed live bug, found while tracing IMPLEMENTATION_PLAN.md §9
+// scenario 14 against actual code): `transferPendingCastRewards` flips a
+// failed transfer's `ledger` entry to `status: "retrying"` — but nothing
+// anywhere ever queried that status back out again. Grepped every
+// `.where(` across this whole backend before writing this: only `pending`
+// is ever read for a reward-transfer attempt. A cast whose Stripe Transfer
+// failed once (a transient API error, a momentarily-restricted account,
+// etc.) had their reward permanently stranded — the money was correctly
+// NOT lost (the ledger entry stays as an accurate record, and any prior
+// `logical_debt` offset already applied is real and correct), but nothing
+// would ever re-attempt paying it out. This is the actual retry-queue
+// mechanism the test scenario expected to already exist. Scoped to a
+// bounded page per run (50) and a low hourly cadence, matching this
+// backend's other `onSchedule` sweeps (`autoCancelExpiredAuth`,
+// `autoCompleteReviews`) — retried transfers are rare by construction
+// (only entries that already failed once), so this is not a hot path.
+export const retryFailedCastTransfers = onSchedule("every 1 hours", async () => {
+  // FIX (comprehensive project-wide review round 2): broadened from
+  // `type == "reward"` to also cover "staff_fee" and "tip" — both now use
+  // the identical pending -> transferring -> confirmed/retrying shape (see
+  // the fixes in processTip and the staff-fee transfer loop above), and
+  // both need this same recovery sweep. All three entry shapes carry the
+  // same `user_id`/`net_transfer`/`res_id` fields the loop below reads, so
+  // no other change to the retry body is needed.
+  const retryingSnap = await db
+    .collection("ledger")
+    .where("type", "in", ["reward", "staff_fee", "tip"])
+    .where("status", "==", "retrying")
+    .limit(50)
+    .get();
+
+  for (const entryDoc of retryingSnap.docs) {
+    const entry = entryDoc.data();
+    const castId = entry.user_id;
+    const resId = entry.res_id;
+    const netTransfer = entry.net_transfer || 0;
+
+    // Same transactional claim as transferPendingCastRewards above — only
+    // one concurrent sweep (or an in-flight res-scoped call racing this
+    // one) wins the right to retry this specific entry.
+    const claimed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(entryDoc.ref);
+      if (!snap.exists || snap.data()?.status !== "retrying") {
+        return false;
+      }
+      tx.update(entryDoc.ref, { status: "transferring" });
+      return true;
+    });
+    if (!claimed) continue;
+
+    if (netTransfer <= 0) {
+      await entryDoc.ref.update({ status: "confirmed", processed: true });
+      continue;
+    }
+
+    const [castDoc, resDoc] = await Promise.all([
+      db.collection("users").doc(castId).get(),
+      db.collection("reservations").doc(resId).get(),
+    ]);
+    const castData = castDoc.data();
+    if (!castData?.stripe_account_id) {
+      console.error(`Cast ${castId} still has no Stripe account (retry, res ${resId})`);
+      await entryDoc.ref.update({ status: "retrying" });
+      continue;
+    }
+
+    try {
+      // Same idempotencyKey basis as the original attempt (entryDoc.id is
+      // the same ledger doc every time this entry is retried), so a Stripe
+      // transfer that actually succeeded on a prior attempt but was
+      // recorded as "retrying" due to a network error on our side cannot
+      // be double-sent here.
+      const transfer = await stripe.transfers.create(
+        {
+          amount: netTransfer,
+          currency: "jpy",
+          destination: castData.stripe_account_id,
+          transfer_group: resDoc.data()?.transfer_group,
+          metadata: { res_id: resId, cast_uid: castId, ledger_id: entryDoc.id },
+        },
+        { idempotencyKey: `transfer_${entryDoc.id}` }
+      );
+
+      await entryDoc.ref.update({
+        stripe_object_id: transfer.id,
+        status: "confirmed",
+        processed: true,
+      });
+
+      const typeLabel =
+        entry.type === "staff_fee" ? "スタッフ報酬" : entry.type === "tip" ? "チップ" : "報酬";
+      await db
+        .collection("users")
+        .doc(castId)
+        .collection("notifications")
+        .add({
+          type: "stripe",
+          title: `${typeLabel}が確定しました`,
+          body: `¥${netTransfer.toLocaleString()} が送金されました。`,
+          data: { res_id: resId, amount: netTransfer },
+          read: false,
+          created_at: Timestamp.now(),
+        });
+    } catch (err: any) {
+      console.error(`Retry transfer failed again for ${castId} (res ${resId}):`, err);
+      await entryDoc.ref.update({ status: "retrying" });
+    }
+  }
+});
 
 /**
  * Internal: Process affiliate rewards for this reservation
@@ -1049,6 +1192,71 @@ export const cancelPayment = onCall(async (request) => {
     // bookkeeping below.
     const hasPaymentIntent = !!resData.payment_intent_id;
 
+    // FIX (confirmed live bug, found while tracing IMPLEMENTATION_PLAN.md
+    // §9 scenario 11 against actual code, CORRECTED after a fresh-eyes
+    // re-review found the first version of this fix was itself wrong):
+    // this function has only ever touched the reservation's OWN
+    // `payment_intent_id` — any still-`authorized` (not yet captured)
+    // extension PaymentIntent was left dangling on a whole-reservation
+    // cancel, an orphaned Stripe hold with no release path.
+    //
+    // The first version of this fix ALSO refunded already-`captured`
+    // extensions, which is wrong: `reportCompletion` (reservations.ts)
+    // writes `status: "completion_pending"` BEFORE it ever calls
+    // `captureAuthorizedExtensions` — confirmed by reading that function's
+    // actual write order, not assumed — so an extension can only ever
+    // reach `captured` once the reservation has ALREADY progressed past
+    // `in_progress`. A captured extension therefore always represents
+    // genuinely delivered service, by construction, exactly the same
+    // condition the base payment's own `castHasArrived` check below
+    // already uses to decide "no refund, service was rendered." Blindly
+    // refunding a captured extension here would refund real, already-paid-
+    // for time with no ledger entry and no clawback of any reward already
+    // transferred to the cast for it — a real money-safety regression the
+    // first fix attempt introduced. A captured extension that genuinely
+    // needs to be refunded (e.g. a service dispute) should go through
+    // `adminManualRefund` — a deliberate, reasoned admin action — not an
+    // automatic side effect of cancelling the parent reservation.
+    //
+    // Scope, corrected: only sweep `authorized` extensions (never-captured
+    // holds), releasing each via `paymentIntents.cancel` — the same
+    // release path the base PI itself uses. Each extension's own locked
+    // `schedule_slots` row is released via the same `extensionSlotsQuery`
+    // helper `cancelExtensionPayment` already uses, so no slot is left
+    // orphaned either.
+    const extensionsSnap = await db
+      .collection("reservations")
+      .doc(res_id)
+      .collection("extensions")
+      .where("status", "==", "authorized")
+      .get();
+
+    for (const extDoc of extensionsSnap.docs) {
+      const extData = extDoc.data();
+      const extPaymentIntentId: string | undefined = extData.payment_intent_id;
+      if (extPaymentIntentId) {
+        try {
+          await stripe.paymentIntents.cancel(extPaymentIntentId);
+        } catch (err) {
+          console.error(
+            `Failed to release extension ${extDoc.id} during reservation cancel:`,
+            err
+          );
+          // Don't let one extension's Stripe error abort the whole
+          // reservation cancellation — surfaced via the console log above
+          // for manual admin follow-up, same failure-isolation philosophy
+          // already used elsewhere in this function for the staff-fee/chat
+          // cleanup steps below.
+        }
+      }
+
+      await db.runTransaction(async (tx) => {
+        const slotsSnap = await tx.get(extensionSlotsQuery(extDoc.id));
+        tx.update(extDoc.ref, { status: "cancelled", updated_at: Timestamp.now() });
+        slotsSnap.forEach((slot) => tx.delete(slot.ref));
+      });
+    }
+
     // Nothing was ever authorized (payment_intent_id is empty) — cancel is
     // purely local, skip Stripe entirely rather than call it with an empty
     // ID (below).
@@ -1262,7 +1470,7 @@ export const createExtensionPayment = onCall(async (request) => {
   // then fails, the claim is explicitly reverted below so a failed
   // extension attempt never leaves extension_count/duration_minutes
   // inflated with nothing behind it.
-  const { newTotalMinutes, extensionNumber } = await db.runTransaction(async (tx) => {
+  const { newTotalMinutes, extensionNumber, priorDurationMinutes } = await db.runTransaction(async (tx) => {
     const freshSnap = await tx.get(db.collection("reservations").doc(res_id));
     if (!freshSnap.exists) {
       throw new HttpsError("not-found", "予約が見つかりません。");
@@ -1275,7 +1483,8 @@ export const createExtensionPayment = onCall(async (request) => {
     if (currentExtensionCount >= extensionLimit) {
       throw new HttpsError("failed-precondition", `延長は最大${extensionLimit}回までです。`);
     }
-    const freshNewTotalMinutes = (freshData.duration_minutes || 0) + duration_minutes;
+    const freshPriorDurationMinutes = freshData.duration_minutes || 0;
+    const freshNewTotalMinutes = freshPriorDurationMinutes + duration_minutes;
     if (freshNewTotalMinutes > maxTotalHours * 60) {
       throw new HttpsError("failed-precondition", `総時間は最大${maxTotalHours}時間までです。`);
     }
@@ -1284,11 +1493,64 @@ export const createExtensionPayment = onCall(async (request) => {
       duration_minutes: freshNewTotalMinutes,
       updated_at: Timestamp.now(),
     });
-    return { newTotalMinutes: freshNewTotalMinutes, extensionNumber: currentExtensionCount + 1 };
+    return {
+      newTotalMinutes: freshNewTotalMinutes,
+      extensionNumber: currentExtensionCount + 1,
+      priorDurationMinutes: freshPriorDurationMinutes,
+    };
   });
+
+  // FIX (PROJECT_KNOWLEDGE.md §71/§72: extension schedule_slots locking —
+  // the one gap the project's own last comprehensive review named as still
+  // open). The base reservation's booked window is [resData.date,
+  // +duration_minutes) and gets locked at Authorize-time in
+  // stripe-webhooks.ts's handleAmountCapturableUpdated; an extension grows
+  // that window by `duration_minutes` starting exactly where the
+  // PRE-increment total left off, so `slot_start` here is computed from
+  // `priorDurationMinutes` (captured inside the transaction above, before
+  // the increment) — never from the now-already-incremented
+  // `newTotalMinutes`, which would double-count and point the window past
+  // where the extension actually starts.
+  const reservationStart: Date = resData.date.toDate();
+  const slotStart = new Date(reservationStart.getTime() + priorDurationMinutes * 60_000);
+
+  // Advisory guest-side availability check (mirrors createReservation's own
+  // use of findUnavailableCastId, reservations.ts) — not the authoritative
+  // enforcement, that's the transactional lock in stripe-webhooks.ts's new
+  // handleExtensionAmountCapturableUpdated, which runs once funds are
+  // actually held. This exists purely to give a guest fast, friendly
+  // feedback and avoid an unnecessary Stripe PaymentIntent for the common
+  // case where the extended window is already known to conflict, instead of
+  // letting the guest reach the payment sheet only to have the webhook
+  // silently cancel the hold afterward. Runs AFTER the capacity claim above
+  // (mirrors the existing Stripe-failure catch block's own revert), so a
+  // rejection here reverts the same way a Stripe failure does.
+  const unavailableCastId = await findUnavailableCastId(resData.cast_ids || [], slotStart, duration_minutes);
+  if (unavailableCastId) {
+    await db.collection("reservations").doc(res_id).update({
+      extension_count: FieldValue.increment(-1),
+      duration_minutes: FieldValue.increment(-duration_minutes),
+      updated_at: Timestamp.now(),
+    });
+    throw new HttpsError(
+      "failed-precondition",
+      "選択した延長時間はご利用いただけません。別の時間をお選びください。"
+    );
+  }
 
   const userDoc = await db.collection("users").doc(request.auth.uid).get();
   const userData = userDoc.data();
+
+  // Allocated before the Stripe call (rather than after, as this used to be)
+  // so its ID can ride along in the PaymentIntent's own metadata —
+  // `handleExtensionAmountCapturableUpdated` (stripe-webhooks.ts) needs a
+  // way to find this exact extension doc from the webhook payload alone to
+  // read back `slot_start`/`duration_minutes` and lock the right window.
+  const extRef = db
+    .collection("reservations")
+    .doc(res_id)
+    .collection("extensions")
+    .doc();
 
   try {
     const paymentIntent = await stripe.paymentIntents.create({
@@ -1300,22 +1562,18 @@ export const createExtensionPayment = onCall(async (request) => {
       metadata: {
         res_id,
         type: "extension",
+        extension_id: extRef.id,
         extension_number: extensionNumber.toString(),
         guest_uid: request.auth.uid,
       },
     });
-
-    const extRef = db
-      .collection("reservations")
-      .doc(res_id)
-      .collection("extensions")
-      .doc();
 
     await extRef.set({
       ext_id: extRef.id,
       payment_intent_id: paymentIntent.id,
       amount,
       duration_minutes,
+      slot_start: Timestamp.fromDate(slotStart),
       status: "authorized",
       created_at: Timestamp.now(),
     });
@@ -1398,6 +1656,19 @@ export const cancelExtensionPayment = onCall(async (request) => {
     if (extData.status !== "authorized") return;
 
     const freshResDoc = await tx.get(resRef);
+    // FIX (PROJECT_KNOWLEDGE.md §71/§72): a real race exists between this
+    // client-reported "payment failed" path and Stripe's own
+    // `amount_capturable_updated` webhook, which can land the extension's
+    // schedule_slots lock (stripe-webhooks.ts's
+    // handleExtensionAmountCapturableUpdated) concurrently with — or even
+    // before — this call runs. Reading extensionSlotsQuery here, inside the
+    // SAME transaction as the status flip to "cancelled", means whichever of
+    // the two writers commits last always sees a consistent picture: if the
+    // lock already landed, it's released in the same atomic step as the
+    // cancellation; if it hasn't landed yet, this is an empty read and a
+    // no-op delete loop. Never a separate, observable "cancelled but still
+    // locked" state.
+    const slotsSnap = await tx.get(extensionSlotsQuery(extension_id));
     const currentDuration = freshResDoc.data()?.duration_minutes || 0;
     const currentCount = freshResDoc.data()?.extension_count || 0;
 
@@ -1407,6 +1678,7 @@ export const cancelExtensionPayment = onCall(async (request) => {
       updated_at: Timestamp.now(),
     });
     tx.update(extRef, { status: "cancelled", updated_at: Timestamp.now() });
+    slotsSnap.forEach((slot) => tx.delete(slot.ref));
 
     paymentIntentToCancelId = extData.payment_intent_id || null;
   });
@@ -1510,19 +1782,21 @@ export const processTip = onCall(async (request) => {
     });
 
     if (paymentIntent.status === "succeeded") {
-      const transfer = await stripe.transfers.create({
-        amount,
-        currency: "jpy",
-        destination: castDoc.data()!.stripe_account_id,
-        metadata: {
-          res_id: res_id || "",
-          type: "tip",
-          cast_uid: cast_id,
-        },
-      });
-
-      await db.collection("ledger").add({
-        ledger_id: "",
+      // FIX (comprehensive project-wide review round 2): the transfer used
+      // to run inline with no ledger record until AFTER it succeeded — a
+      // transfer failure (restricted Connect account, transient network
+      // error) fell into the outer catch below, which threw an error back
+      // to the guest even though their card was already charged, with no
+      // ledger entry and no way to ever recover or retry the payout. Fixed
+      // by writing the ledger entry "pending" BEFORE calling Stripe (so the
+      // charge is durably tracked no matter what happens next), and by
+      // never letting a transfer failure surface as an error to the guest —
+      // mirrors transferPendingCastRewards's pending -> transferring ->
+      // confirmed/retrying pattern so retryFailedCastTransfers (broadened
+      // below to also sweep type "tip") can recover it later.
+      const ledgerRef = db.collection("ledger").doc();
+      await ledgerRef.set({
+        ledger_id: ledgerRef.id,
         res_id: res_id || "",
         user_id: cast_id,
         type: "tip",
@@ -1535,11 +1809,37 @@ export const processTip = onCall(async (request) => {
         net_transfer: amount,
         amount,
         stripe_event_id: "",
-        stripe_object_id: transfer.id,
-        status: "confirmed",
-        processed: true,
+        stripe_object_id: "",
+        status: "pending",
+        processed: false,
         created_at: Timestamp.now(),
       });
+
+      try {
+        const transfer = await stripe.transfers.create(
+          {
+            amount,
+            currency: "jpy",
+            destination: castDoc.data()!.stripe_account_id,
+            metadata: {
+              res_id: res_id || "",
+              type: "tip",
+              cast_uid: cast_id,
+              ledger_id: ledgerRef.id,
+            },
+          },
+          { idempotencyKey: `transfer_${ledgerRef.id}` }
+        );
+
+        await ledgerRef.update({
+          stripe_object_id: transfer.id,
+          status: "confirmed",
+          processed: true,
+        });
+      } catch (transferErr) {
+        console.error(`Tip transfer failed for ${cast_id} (res ${res_id}):`, transferErr);
+        await ledgerRef.update({ status: "retrying" });
+      }
     }
 
     return { success: true, message: "チップが送られました。" };
@@ -1557,6 +1857,18 @@ export const processTip = onCall(async (request) => {
 
 /**
  * Callable: Add payment method (支払い方法の登録)
+ *
+ * FIX (PROJECT_KNOWLEDGE.md §71/§72): this used to return only the
+ * SetupIntent's own `client_secret` — enough to CREATE a PaymentSheet, but
+ * not enough to open it in the "returning customer" shape flutter_stripe
+ * requires (`customerId` + `customerEphemeralKeySecret` alongside the
+ * intent's client_secret; omitting them still opens a sheet, but as an
+ * anonymous one-off card entry with no link back to this customer's Stripe
+ * record, defeating the entire point of a saved-card registration flow).
+ * Now also mints a matching ephemeral key, scoped to this customer, pinned
+ * to the SAME Stripe API version this backend's own `stripe` client already
+ * uses (`STRIPE_API_VERSION`, config.ts — not a second hardcoded literal
+ * that could silently drift from it over time).
  */
 export const createSetupIntent = onCall(async (request) => {
   if (!request.auth) {
@@ -1570,14 +1882,22 @@ export const createSetupIntent = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "Stripeカスタマーが未作成です。");
   }
 
-  const setupIntent = await stripe.setupIntents.create({
-    customer: customerId,
-    payment_method_types: ["card"],
-  });
+  const [setupIntent, ephemeralKey] = await Promise.all([
+    stripe.setupIntents.create({
+      customer: customerId,
+      payment_method_types: ["card"],
+    }),
+    stripe.ephemeralKeys.create(
+      { customer: customerId },
+      { apiVersion: STRIPE_API_VERSION }
+    ),
+  ]);
 
   return {
     success: true,
     client_secret: setupIntent.client_secret,
+    customer_id: customerId,
+    ephemeral_key_secret: ephemeralKey.secret,
   };
 });
 

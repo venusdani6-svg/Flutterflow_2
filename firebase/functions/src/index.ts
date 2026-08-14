@@ -53,10 +53,15 @@ export {
   blockUser,
   unblockUser,
   getBlockedUsersDetails,
+  addFavorite,
+  removeFavorite,
+  getFavoriteCasts,
+  isCastFavorited,
   reportUser,
   submitInquiry,
   requestWithdrawal,
   getServiceAreas,
+  getServiceAreaCoordinates,
   getDiscoveryCasts,
 } from "./auth";
 
@@ -74,6 +79,7 @@ export {
   createSetupIntent,
   requestPayout,
   getWalletBalance,
+  retryFailedCastTransfers,
 } from "./stripe-payments";
 
 // ============================================
@@ -94,6 +100,7 @@ export {
   autoCompleteReviews,
   sendChatMessage,
   getChatRoomInfo,
+  getReservationDetailInfo,
   getMyMatchaList,
 } from "./reservations";
 
@@ -152,16 +159,27 @@ export {
   adminGetReports,
   adminResolveReport,
   adminGetReportChatLog,
+  adminGetRecruitmentChatLog,
   adminApprovePayout,
   adminGetPayoutRequests,
   adminGetDashboardStats,
+  adminGetActivityReport,
   adminGetAuditLogs,
   adminGetProcessedEvents,
   adminGetCocotenShops,
   adminUpsertCocotenShop,
   adminDeleteCocotenShop,
+  adminGetCocotenGenres,
+  adminUpdateCocotenGenres,
+  adminAddServiceAreaMunicipality,
+  adminRemoveServiceAreaMunicipality,
   adminGetWorkPosts,
   adminCloseWorkPost,
   adminCreateWorkPost,
   adminHireWorkPostApplicant,
+  adminGetChatRooms,
+  adminCloseChat,
+  adminGetAccountDeletionStatus,
+  adminSendNotification,
+  adminGetHomeRankingDiagnostics,
 } from "./admin";

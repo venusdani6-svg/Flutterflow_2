@@ -19,6 +19,12 @@ final class MyPageParams {
 
 final class MyPageState {
   const MyPageState();
+  ffai.ProjectStateFieldHandle get isAdminUser =>
+      const ffai.ProjectStateFieldHandle(
+        name: "isAdminUser",
+        key: "oz6w5xfz",
+        typeName: "Boolean",
+      );
   ffai.ProjectStateFieldHandle get myReviewsList =>
       const ffai.ProjectStateFieldHandle(
         name: "myReviewsList",
@@ -1470,6 +1476,38 @@ abstract final class MyPageWidgets {
                         type: "Text",
                         path: "MyPage.drawer[0].children[0].children[8].children[1]",
                         text: "システム・情報",
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Container_208aleb0",
+                    type: "Container",
+                    path: "MyPage.drawer[0].children[0].children[9]",
+                    name: "AdminMenuRow",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Row_4oymcm6z",
+                        type: "Row",
+                        path: "MyPage.drawer[0].children[0].children[9].children[0]",
+                        name: "Row",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Icon_m776qmgg",
+                            type: "Icon",
+                            path: "MyPage.drawer[0].children[0].children[9].children[0].children[0]",
+                            name: "Icon",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_a2cubp45",
+                            type: "Text",
+                            path: "MyPage.drawer[0].children[0].children[9].children[0].children[1]",
+                            name: "Text",
+                            text: "管理者メニュー",
+                          ),
+                        ],
                       ),
                     ],
                   ),

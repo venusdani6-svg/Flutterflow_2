@@ -19,6 +19,12 @@ final class EmailVerificationParams {
 
 final class EmailVerificationState {
   const EmailVerificationState();
+  ffai.ProjectStateFieldHandle get verificationMessageLabel =>
+      const ffai.ProjectStateFieldHandle(
+        name: "verificationMessageLabel",
+        key: "eh9110ms",
+        typeName: "String",
+      );
 }
 
 abstract final class EmailVerificationWidgets {
@@ -88,10 +94,10 @@ abstract final class EmailVerificationWidgets {
                     text: "メールを確認してください",
                   ),
                   ffai.ProjectWidgetHandle(
-                    key: "Text_akk82e0o",
+                    key: "Text_gr3iubvo",
                     type: "Text",
                     path: "EmailVerification.body[0].children[0].children[2]",
-                    text: "example@email.comに認証メールを送信しました！\nメール内のリンクをタップして認証を完了してください",
+                    name: "EmailVerificationMessage",
                   ),
                   ffai.ProjectWidgetHandle(
                     key: "Button_1cqh1sb0",

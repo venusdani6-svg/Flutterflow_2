@@ -89,6 +89,9 @@ abstract final class MacchaChatsWidgets {
                           key: "Icon_rtfa55ss",
                           type: "Icon",
                           path: "MacchaChats.appBar[0].title[0].children[0].children[0]",
+                          triggers: const <String>[
+                            "ON_TAP",
+                          ],
                         ),
                         ffai.ProjectWidgetHandle(
                           key: "Image_wwzammb9",

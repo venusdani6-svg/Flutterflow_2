@@ -316,19 +316,28 @@ async function handleAmountCapturableUpdated(paymentIntent: any): Promise<void> 
   // FIX (confirmed live bug): extension (`type: "extension"`) and tip
   // (`type: "tip"`) PaymentIntents share the parent reservation's `res_id`
   // metadata. Without this guard, authorizing an extension mid-session
-  // (reservation already `in_progress`/`completion_pending`/etc.) silently
-  // stamped the PARENT reservation back to `status: "authorized"` - which
-  // then made `reportCompletion` reject the cast's completion report
-  // (`status !== "in_progress"`) and made the reservation eligible for
-  // `autoCancelExpiredAuth`'s 24h-stale sweep again, risking an auto-cancel
-  // of an active, already-in-progress paid booking. Mirrors the same guard
-  // `handlePaymentIntentSucceeded`/`handlePaymentIntentFailed` already use.
-  // It also means extensions never go through slot-locking below — a real,
-  // disclosed (not silently dropped) gap: `createExtensionPayment` grows
-  // `duration_minutes` without ever locking the extended window, so that
-  // window can still be double-booked by someone else today. Out of scope
-  // for this pass, same reasoning as deferring this whole feature once
-  // already (a materially separate, riskier task) — not asserted as safe.
+  // (reservation already `in_progress`/`completion_pending`/etc.) would
+  // silently stamp the PARENT reservation back to `status: "authorized"` -
+  // which would then make `reportCompletion` reject the cast's completion
+  // report (`status !== "in_progress"`) and make the reservation eligible
+  // for `autoCancelExpiredAuth`'s 24h-stale sweep again, risking an
+  // auto-cancel of an active, already-in-progress paid booking. Mirrors the
+  // same guard `handlePaymentIntentSucceeded`/`handlePaymentIntentFailed`
+  // already use.
+  //
+  // FIX (PROJECT_KNOWLEDGE.md §71/§72 — closes the extension schedule_slots
+  // locking gap, the one item the project's own last comprehensive review
+  // named as still open): extensions now get their OWN slot-locking path,
+  // `handleExtensionAmountCapturableUpdated` below, scoped to just the
+  // extension's own window and reservation-preserving on conflict (unlike
+  // the base flow, a conflicting extension must never cancel an already
+  // in-progress reservation — only the extension itself is rolled back).
+  // `type: "tip"` (and any other future type) still has no slot-locking
+  // concept and correctly falls through to the plain `return` below.
+  if (paymentIntent.metadata?.type === "extension") {
+    await handleExtensionAmountCapturableUpdated(paymentIntent);
+    return;
+  }
   if (paymentIntent.metadata?.type) return;
 
   if (paymentIntent.amount_capturable <= 0) return;
@@ -440,6 +449,144 @@ async function handleAmountCapturableUpdated(paymentIntent: any): Promise<void> 
       title: "ご予約を確定できませんでした",
       body: "選択した時間帯は他のご予約で埋まってしまいました。お手数ですが別の日時をお選びください。",
       data: { res_id: resId },
+      read: false,
+      created_at: Timestamp.now(),
+    });
+}
+
+/**
+ * Extension-window slot locking (PROJECT_KNOWLEDGE.md §71/§72). The sibling
+ * to `handleAmountCapturableUpdated` above, applied to just the newly
+ * extended time range instead of the whole booking — split into its own
+ * function rather than folded into the base flow because a conflict here
+ * must NOT cancel the parent reservation (which is, by construction, always
+ * already `in_progress` — an active, already-paid booking) the way a
+ * conflict on the base window correctly cancels a still-`request_pending`
+ * one. Only this specific extension is rolled back on conflict: its
+ * capacity claim (`extension_count`/`duration_minutes`, claimed optimistically
+ * in `createExtensionPayment`) is reverted, its own PaymentIntent hold is
+ * released, and the reservation itself is left completely untouched.
+ *
+ * Reads `slot_start`/`duration_minutes` back from the extension doc
+ * (`reservations/{res_id}/extensions/{extension_id}`, found via
+ * `metadata.extension_id` — allocated before the Stripe call specifically so
+ * it could ride along in the PaymentIntent's metadata for this lookup)
+ * rather than recomputing the window from the reservation's CURRENT
+ * `duration_minutes`, which by the time this webhook fires may already
+ * reflect additional, later extensions stacked on top.
+ */
+async function handleExtensionAmountCapturableUpdated(paymentIntent: any): Promise<void> {
+  const resId = paymentIntent.metadata?.res_id;
+  const extId = paymentIntent.metadata?.extension_id;
+  if (!resId || !extId) {
+    console.error(
+      `Extension amount_capturable_updated missing res_id/extension_id in metadata (PaymentIntent ${paymentIntent.id}) — no slot lock attempted.`
+    );
+    return;
+  }
+  if (paymentIntent.amount_capturable <= 0) return;
+
+  const resRef = db.collection("reservations").doc(resId);
+  const extRef = resRef.collection("extensions").doc(extId);
+
+  const outcome = await db.runTransaction(async (tx) => {
+    const [resSnap, extSnap] = await Promise.all([tx.get(resRef), tx.get(extRef)]);
+    if (!resSnap.exists || !extSnap.exists) {
+      return { result: "not_found" as const };
+    }
+    const extData = extSnap.data()!;
+    if (extData.status !== "authorized") {
+      // Already resolved by the time this webhook landed — either
+      // `cancelExtensionPayment` already flipped it to "cancelled" (guest's
+      // Payment Sheet failed/was dismissed client-side), or
+      // `captureAuthorizedExtensions` already captured it. Covers webhook
+      // redelivery too (defense-in-depth on top of the outer
+      // processed_events idempotency guard).
+      return { result: "skip" as const };
+    }
+    if (!extData.slot_start) {
+      // Defensive only: every extension created after this fix ships always
+      // sets `slot_start` in the same write that sets `status: "authorized"`
+      // — this branch exists purely so a malformed/pre-fix doc can't crash
+      // this handler.
+      console.error(`Extension ${extId} on ${resId} has status "authorized" but no slot_start — skipping lock.`);
+      return { result: "skip" as const };
+    }
+
+    const resData = resSnap.data()!;
+    const castIds: string[] = resData.cast_ids || [];
+    const windowStart: Date = extData.slot_start.toDate();
+    const durationMinutes: number = extData.duration_minutes || 0;
+    const slots = buildReservationSlotRefs(castIds, windowStart, durationMinutes);
+
+    // Reads before writes — a hard Firestore transaction requirement.
+    const slotSnaps = await tx.getAll(...slots.map((s) => s.ref));
+
+    const hasConflict = slotSnaps.some((snap) => {
+      const status = snap.exists ? snap.data()?.status || "available" : "available";
+      return status !== "available";
+    });
+
+    if (hasConflict) {
+      const currentDuration = resData.duration_minutes || 0;
+      const currentCount = resData.extension_count || 0;
+      tx.update(resRef, {
+        duration_minutes: Math.max(0, currentDuration - durationMinutes),
+        extension_count: Math.max(0, currentCount - 1),
+        updated_at: Timestamp.now(),
+      });
+      tx.update(extRef, { status: "cancelled", updated_at: Timestamp.now() });
+      return { result: "conflict" as const, guestId: resData.guest_id as string };
+    }
+
+    slots.forEach((slot) => {
+      tx.set(slot.ref, { ...slot.baseFields, status: "reserved", res_id: resId, ext_id: extId }, { merge: true });
+    });
+    return { result: "locked" as const };
+  });
+
+  if (outcome.result === "not_found" || outcome.result === "skip") {
+    return;
+  }
+  if (outcome.result === "locked") {
+    console.log(`Extension slot lock succeeded for extension ${extId} on reservation ${resId}.`);
+    return;
+  }
+
+  console.log(`Extension ${extId} on reservation ${resId} lost the slot-lock race — releasing its authorization hold.`);
+  try {
+    await stripe.paymentIntents.cancel(paymentIntent.id);
+  } catch (err) {
+    // Same reasoning as handleAmountCapturableUpdated's own equivalent
+    // catch above: a failure here leaves the extension marked cancelled
+    // while the guest's card may still hold a real authorization for up to
+    // ~7 days. Surface to admins rather than log-and-forget.
+    console.error(`Failed to cancel extension PaymentIntent ${paymentIntent.id} after slot conflict on ${resId}:`, err);
+    const admins = await db.collection("users").where("role", "==", "admin").get();
+    const batch = db.batch();
+    admins.forEach((adminDoc) => {
+      const notifRef = db.collection("users").doc(adminDoc.id).collection("notifications").doc();
+      batch.set(notifRef, {
+        type: "admin",
+        title: "延長決済保留の解放に失敗しました",
+        body: `予約 ${resId} の延長 ${extId} は時間帯の競合によりキャンセルされましたが、PaymentIntent ${paymentIntent.id} の解放に失敗しました。手動確認が必要です。`,
+        data: { res_id: resId, extension_id: extId, payment_intent_id: paymentIntent.id },
+        read: false,
+        created_at: Timestamp.now(),
+      });
+    });
+    await batch.commit();
+  }
+
+  await db
+    .collection("users")
+    .doc(outcome.guestId)
+    .collection("notifications")
+    .add({
+      type: "matching",
+      title: "延長をご利用いただけませんでした",
+      body: "選択した延長時間は他のご予約で埋まってしまったため、延長を確定できませんでした。決済は行われません。",
+      data: { res_id: resId, extension_id: extId },
       read: false,
       created_at: Timestamp.now(),
     });

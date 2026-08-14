@@ -678,11 +678,54 @@ void buildStarterEditFlow(App app) {
   // .call({})) — there is no native typed-DSL action for calling a Cloud
   // Function directly (confirmed — actions.dart has no Callable/
   // CloudFunction class).
-  app.customAction(
-    'sendFirebaseEmailVerification',
-    returns: bool_,
-    description: 'Firebase Authの確認メールを送信する。',
-    code: r'''
+  // FROZEN (2026-08-13, fresh-eyes re-review pass): both already exist
+  // live with the SAME real, confirmed bug — `dart analyze` on the actual
+  // generated project found `FirebaseAuth`/etc. used with no
+  // `import 'package:firebase_auth/firebase_auth.dart';` anywhere in
+  // either file, a genuine compile error (not caught by `compileDslApp`,
+  // which does not fully type-check custom-action Dart bodies against the
+  // rest of the project — same class of gap CLAUDE.md's own custom-code
+  // docs already disclose). Re-declaring with the fixed code throws
+  // "different payload" (create-if-missing only) — fixed via
+  // `updateCustomAction`, this file's own established pattern.
+  // app.customAction(
+  //   'sendFirebaseEmailVerification',
+  //   returns: bool_,
+  //   description: 'Firebase Authの確認メールを送信する。',
+  //   code: r'''
+  // Future<bool> sendFirebaseEmailVerification() async {
+  //   try {
+  //     final user = FirebaseAuth.instance.currentUser;
+  //     if (user == null) return false;
+  //     await user.sendEmailVerification();
+  //     return true;
+  //   } catch (e) {
+  //     return false;
+  //   }
+  // }
+  // ''',
+  // );
+  //
+  // app.customAction(
+  //   'checkEmailVerified',
+  //   returns: bool_,
+  //   description: '現在のユーザーのメール認証状態を再読み込みして確認する。',
+  //   code: r'''
+  // Future<bool> checkEmailVerified() async {
+  //   final user = FirebaseAuth.instance.currentUser;
+  //   if (user == null) return false;
+  //   await user.reload();
+  //   return FirebaseAuth.instance.currentUser?.emailVerified ?? false;
+  // }
+  // ''',
+  // );
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'sendFirebaseEmailVerification',
+      code: r'''
+import 'package:firebase_auth/firebase_auth.dart';
+
 Future<bool> sendFirebaseEmailVerification() async {
   try {
     final user = FirebaseAuth.instance.currentUser;
@@ -694,13 +737,13 @@ Future<bool> sendFirebaseEmailVerification() async {
   }
 }
 ''',
-  );
+    );
+    updateCustomAction(
+      project,
+      name: 'checkEmailVerified',
+      code: r'''
+import 'package:firebase_auth/firebase_auth.dart';
 
-  app.customAction(
-    'checkEmailVerified',
-    returns: bool_,
-    description: '現在のユーザーのメール認証状態を再読み込みして確認する。',
-    code: r'''
 Future<bool> checkEmailVerified() async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return false;
@@ -708,7 +751,8 @@ Future<bool> checkEmailVerified() async {
   return FirebaseAuth.instance.currentUser?.emailVerified ?? false;
 }
 ''',
-  );
+    );
+  });
 
   // Reuses this project's own already-generated `authManager.beginPhoneAuth`
   // (lib/auth/firebase_auth/firebase_auth_manager.dart) for the SEND step —
@@ -792,6 +836,7 @@ Future<bool> sendPhoneVerificationCode(
       name: 'verifyPhoneCodeAndLink',
       code: r'''
 import '/auth/firebase_auth/auth_util.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 Future<bool> verifyPhoneCodeAndLink(String? smsCode) async {
@@ -868,22 +913,90 @@ Future<bool> callSyncVerifiedPhone() async {
   // couldn't be a 3rd nested `If` — this DSL's confirmed 2-level nesting
   // ceiling — so field-completeness and consent were combined into one
   // gate instead of adding a second, separately-nested one).
-  app.customAction(
-    'callCompleteOnboarding',
-    args: {
-      'accountType': string,
-      'gender': string,
-      'birthDate': string,
-      'prefecture': string,
-      'city': string,
-      'activityPrefecture': string,
-      'activityCity': string,
-      'staffType': string,
-      'referralCode': string,
-    },
-    returns: bool_,
-    description: 'completeOnboarding Cloud Functionを呼び出し、基本情報を登録する。',
-    code: r'''
+  // Original declaration frozen (feature build, unimplemented-features
+  // pass) — `callCompleteOnboarding` already exists live; re-declaring it
+  // via `app.customAction` fails once its payload changes. The 4 discrete
+  // consent args (replacing the old hardcoded `'consent_agreed': true` —
+  // this action used to send that unconditionally, trusting the CLIENT-side
+  // gate alone; the backend now independently requires and validates all 4
+  // real flags) land via `updateCustomAction` inside `app.raw(...)` below.
+  //   app.customAction(
+  //     'callCompleteOnboarding',
+  //     args: {
+  //       'accountType': string,
+  //       'gender': string,
+  //       'birthDate': string,
+  //       'prefecture': string,
+  //       'city': string,
+  //       'activityPrefecture': string,
+  //       'activityCity': string,
+  //       'staffType': string,
+  //       'referralCode': string,
+  //     },
+  //     returns: bool_,
+  //     description: 'completeOnboarding Cloud Functionを呼び出し、基本情報を登録する。',
+  //     code: r'''
+  //   import 'package:cloud_functions/cloud_functions.dart';
+  //
+  //   Future<bool> callCompleteOnboarding(
+  //     String? accountType,
+  //     String? gender,
+  //     String? birthDate,
+  //     String? prefecture,
+  //     String? city,
+  //     String? activityPrefecture,
+  //     String? activityCity,
+  //     String? staffType,
+  //     String? referralCode,
+  //   ) async {
+  //     try {
+  //       final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+  //           .httpsCallable('completeOnboarding');
+  //       final result = await callable.call({
+  //         'account_type': accountType ?? '',
+  //         'gender': gender ?? '',
+  //         'birth_date': birthDate ?? '',
+  //         'prefecture': prefecture ?? '',
+  //         'city': city ?? '',
+  //         'activity_prefecture': activityPrefecture ?? '',
+  //         'activity_city': activityCity ?? '',
+  //         'staff_type': staffType ?? 'none',
+  //         'referral_code': referralCode ?? '',
+  //         'consent_agreed': true,
+  //       });
+  //       return result.data is Map && result.data['success'] == true;
+  //     } catch (e) {
+  //       return false;
+  //     }
+  //   }
+  //   ''',
+  //   );
+
+  // FIX (feature build, unimplemented-features pass): an earlier push
+  // attempt added 4 new named parameters to this already-live action via a
+  // raw `arguments:` `FFParameter` list on `updateCustomAction`, in the
+  // SAME push as rewiring the calling button — that push reported FAILED
+  // server-side `compileDslApp` validation ("Custom action argument ... is
+  // not specified"), but a LATER push proved the 13-arg version had
+  // actually persisted server-side anyway (a follow-up attempt to revert
+  // this action back to its ORIGINAL single-`consentAgreed` signature
+  // failed with "Unknown argument(s)... Declared args: [the 13-arg list]"
+  // — undeniable proof the argument-list mutation succeeded despite the
+  // reported failure). Root cause: most likely `compileDslApp` resolves a
+  // button's argument-name-to-parameter-key mapping against a snapshot
+  // taken before same-run `app.raw(...)` mutations apply, so a button
+  // referencing brand-new arg names in the SAME push can never resolve —
+  // not a signal that the argument-list change itself failed. This
+  // `updateCustomAction` call keeps the CODE in sync with the confirmed-
+  // live 13-arg signature (code-only changes to an unchanged arg list are
+  // the pattern proven reliable dozens of times this session) — the
+  // calling button (below) was fixed in a SEPARATE push from the one that
+  // changed this argument list, closing the same-push race entirely.
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'callCompleteOnboarding',
+      code: r'''
 import 'package:cloud_functions/cloud_functions.dart';
 
 Future<bool> callCompleteOnboarding(
@@ -896,6 +1009,10 @@ Future<bool> callCompleteOnboarding(
   String? activityCity,
   String? staffType,
   String? referralCode,
+  bool? agreedTos,
+  bool? agreedBusinessCommission,
+  bool? agreedPersonalData,
+  bool? agreedPrivacyPolicy,
 ) async {
   try {
     final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
@@ -910,7 +1027,10 @@ Future<bool> callCompleteOnboarding(
       'activity_city': activityCity ?? '',
       'staff_type': staffType ?? 'none',
       'referral_code': referralCode ?? '',
-      'consent_agreed': true,
+      'agreed_tos': agreedTos ?? false,
+      'agreed_business_commission': agreedBusinessCommission ?? false,
+      'agreed_personal_data': agreedPersonalData ?? false,
+      'agreed_privacy_policy': agreedPrivacyPolicy ?? false,
     });
     return result.data is Map && result.data['success'] == true;
   } catch (e) {
@@ -918,7 +1038,8 @@ Future<bool> callCompleteOnboarding(
   }
 }
 ''',
-  );
+    );
+  });
 
   // Real, confirmed gap found 2026-08-10, during a full re-analysis pass:
   // BasicInfoRegistration's submit button had NO field-completeness check
@@ -949,19 +1070,65 @@ Future<bool> callCompleteOnboarding(
   // `staffType`/`referralCode` as required — the page's own native field
   // labels mark them "（任意）" (optional), and `callCompleteOnboarding`
   // already defaults each to '' / 'none' if absent.
-  app.customAction(
-    'checkBasicInfoFieldsComplete',
-    args: {
-      'accountType': string,
-      'gender': string,
-      'birthDate': string,
-      'prefecture': string,
-      'city': string,
-      'consentAgreed': bool_,
-    },
-    returns: bool_,
-    description: '基本情報登録に必要な必須項目の入力済みと利用規約への同意を確認する。',
-    code: r'''
+  // Original declaration frozen (feature build, unimplemented-features
+  // pass) — already exists live; re-declaring via `app.customAction` fails
+  // once its payload changes. Replaced the single `consentAgreed` bool
+  // with the same 4 discrete consent flags now required server-side.
+  //   app.customAction(
+  //     'checkBasicInfoFieldsComplete',
+  //     args: {
+  //       'accountType': string,
+  //       'gender': string,
+  //       'birthDate': string,
+  //       'prefecture': string,
+  //       'city': string,
+  //       'consentAgreed': bool_,
+  //     },
+  //     returns: bool_,
+  //     description: '基本情報登録に必要な必須項目の入力済みと利用規約への同意を確認する。',
+  //     code: r'''
+  //   bool _isValidIsoDate(String? value) {
+  //     if (value == null) return false;
+  //     final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value);
+  //     if (m == null) return false;
+  //     final y = int.parse(m.group(1)!);
+  //     final mo = int.parse(m.group(2)!);
+  //     final d = int.parse(m.group(3)!);
+  //     if (mo < 1 || mo > 12) return false;
+  //     final dt = DateTime(y, mo, d);
+  //     return dt.year == y && dt.month == mo && dt.day == d;
+  //   }
+  //
+  //   Future<bool> checkBasicInfoFieldsComplete(
+  //     String? accountType,
+  //     String? gender,
+  //     String? birthDate,
+  //     String? prefecture,
+  //     String? city,
+  //     bool? consentAgreed,
+  //   ) async {
+  //     if (consentAgreed != true) return false;
+  //     if (accountType == null || accountType.isEmpty) return false;
+  //     if (gender == null || gender.isEmpty) return false;
+  //     if (prefecture == null || prefecture.isEmpty) return false;
+  //     if (city == null || city.isEmpty) return false;
+  //     return _isValidIsoDate(birthDate);
+  //   }
+  //   ''',
+  //   );
+
+  // FIX (feature build, unimplemented-features pass): confirmed live with
+  // the 9-arg signature (accountType/gender/birthDate/prefecture/city +
+  // the 4 discrete `agreed*` bools) — see `callCompleteOnboarding`'s own
+  // comment above for the full account of how this was confirmed despite
+  // the push that changed it having reported failure. This call keeps the
+  // CODE in sync with that confirmed-live signature; the calling button
+  // (below) was fixed in a separate push, closing the same-push race.
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'checkBasicInfoFieldsComplete',
+      code: r'''
 bool _isValidIsoDate(String? value) {
   if (value == null) return false;
   final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value);
@@ -980,9 +1147,15 @@ Future<bool> checkBasicInfoFieldsComplete(
   String? birthDate,
   String? prefecture,
   String? city,
-  bool? consentAgreed,
+  bool? agreedTos,
+  bool? agreedBusinessCommission,
+  bool? agreedPersonalData,
+  bool? agreedPrivacyPolicy,
 ) async {
-  if (consentAgreed != true) return false;
+  if (agreedTos != true) return false;
+  if (agreedBusinessCommission != true) return false;
+  if (agreedPersonalData != true) return false;
+  if (agreedPrivacyPolicy != true) return false;
   if (accountType == null || accountType.isEmpty) return false;
   if (gender == null || gender.isEmpty) return false;
   if (prefecture == null || prefecture.isEmpty) return false;
@@ -990,7 +1163,8 @@ Future<bool> checkBasicInfoFieldsComplete(
   return _isValidIsoDate(birthDate);
 }
 ''',
-  );
+    );
+  });
 
   // -- New App State field carrying the phone number across the
   // PhoneVarification -> SmsCode page navigation (page-local State does
@@ -1025,6 +1199,61 @@ Future<bool> checkBasicInfoFieldsComplete(
     });
   });
 
+  // NOT FIXED, disclosed (comprehensive project-wide review round 2): the
+  // password-mismatch Snackbar on this same native chain shows the
+  // hardcoded English literal "Passwords don't match!" — confirmed via
+  // generated_code/lib/auth/signup_page/signup_page_widget.dart:656, the
+  // only non-Japanese user-facing string found anywhere on this page.
+  // Attempted the same `_retargetNavigate`-style raw walk/patch used above
+  // (recursing `followUpAction`/`conditionActions.trueActions`/
+  // `.falseAction` to find the `FFAction.snackBar.textMessage` node and
+  // rewrite its literal) — it silently found no match and left the string
+  // unchanged (confirmed by re-reading generated_code/ after a real push,
+  // not assumed). The password-mismatch branch is very likely represented
+  // as a native FlutterFlow conditional predating any DSL involvement,
+  // and per this project's own standing rule, `FFConditionActions`'
+  // DEPRECATED `legacy_condition`/`legacy_true_action` fields are off
+  // limits to read OR write — if that's where this Snackbar actually
+  // lives, walking the modern `true_actions`/`false_action` shape alone
+  // (as done here) cannot reach it, and reaching for the legacy fields to
+  // confirm/fix it would violate that rule. Reproducing the whole chain
+  // via `ensureActions` was already rejected as the wrong tool by this
+  // block's own original comment (real risk of silently dropping the
+  // password check / createAccountWithEmail / Firestore write logic).
+  // Left as a disclosed, low-severity (i18n-only) known gap rather than
+  // forced through a path this project has explicitly ruled out.
+
+  // FIX (comprehensive project-wide review round 2): `Text_akk82e0o`
+  // (confirmed via lib/flutterflow_project/pages/email_verification.dart)
+  // showed the static literal "example@email.comに認証メールを送信しました！"
+  // — every user, regardless of their real signup email, saw this exact
+  // placeholder address. Confusing and looks broken/untrustworthy at the
+  // exact moment users need to trust the verification flow. `auth_util.dart`
+  // already exposes `currentUserEmail` (used elsewhere in this codebase) —
+  // fetched once on page load and formatted into the full message string,
+  // same established action-then-state-then-ensureReplaced pattern as
+  // every other dynamic-text fix in this file.
+  app.editPageState(ff.Pages.emailVerification, (state) {
+    state.ensureField('verificationMessageLabel', string.withDefault('認証メールを送信しました！\nメール内のリンクをタップして認証を完了してください'));
+  });
+
+  app.customAction(
+    'fetchVerificationEmailMessage',
+    returns: string,
+    description: 'ログイン中ユーザーの実際のメールアドレスを含む認証案内メッセージを組み立てる。',
+    code: r'''
+import '/auth/firebase_auth/auth_util.dart';
+
+Future<String?> fetchVerificationEmailMessage() async {
+  final email = currentUserEmail;
+  if (email.isEmpty) {
+    return '認証メールを送信しました！\nメール内のリンクをタップして認証を完了してください';
+  }
+  return '$emailに認証メールを送信しました！\nメール内のリンクをタップして認証を完了してください';
+}
+''',
+  );
+
   // -- 2. Email verification: send on page load, real verified-check on
   // "次へ". Both triggers had zero existing triggerActions (confirmed via
   // the typed SDK — no `triggers` entry at all on either the page root or
@@ -1038,6 +1267,11 @@ Future<bool> checkBasicInfoFieldsComplete(
           'sendFirebaseEmailVerification',
           outputAs: 'sendVerificationResult',
         ),
+        CallCustomAction.named(
+          'fetchVerificationEmailMessage',
+          outputAs: 'verificationMessageResult',
+        ),
+        SetState('verificationMessageLabel', ActionOutput('verificationMessageResult')),
       ],
     );
     page.ensureActions(
@@ -1056,6 +1290,14 @@ Future<bool> checkBasicInfoFieldsComplete(
           ],
         ),
       ],
+    );
+    page.ensureReplaced(
+      page.findByKey('Text_akk82e0o'),
+      Text(
+        State('verificationMessageLabel'),
+        style: Styles.bodyMedium,
+        name: 'EmailVerificationMessage',
+      ),
     );
   });
 
@@ -2415,25 +2657,91 @@ Future<bool> checkReservationFieldsComplete(
   // ReservationConfirmed and branch success/failure via the already-
   // declared `isNonEmptyString` (KYC section, reused here rather than
   // duplicated).
-  app.customAction(
-    'callCreateReservation',
-    args: {
-      'castId': string,
-      'date': string,
-      'startTime': string,
-      'timeSlot': string,
-      'durationLabel': string,
-      'meetingAddress': string,
-      'meetingPoint': string,
-      'groupInvite': bool_,
-      'groupSizeLabel': string,
-      'purpose': string,
-      'details': string,
-      'baseAmount': string,
-    },
-    returns: string,
-    description: 'createReservation Cloud Functionを呼び出し、新しい予約を作成する。res_idを返す。',
-    code: r'''
+  // Original declaration frozen (comprehensive project-wide review round
+  // 2) — `callCreateReservation` already exists live, so re-declaring it
+  // via `app.customAction` (compiles to `ensureCustomAction`, create-if-
+  // missing only) fails with "found an existing custom action ... with a
+  // different payload" the moment its payload changes. Payload changes
+  // (the unguarded `date` null/empty guard) now land via
+  // `updateCustomAction` inside `app.raw(...)` below instead, same
+  // established pattern as every other already-live action this file
+  // mutates in place.
+  //   app.customAction(
+  //     'callCreateReservation',
+  //     args: {
+  //       'castId': string,
+  //       'date': string,
+  //       'startTime': string,
+  //       'timeSlot': string,
+  //       'durationLabel': string,
+  //       'meetingAddress': string,
+  //       'meetingPoint': string,
+  //       'groupInvite': bool_,
+  //       'groupSizeLabel': string,
+  //       'purpose': string,
+  //       'details': string,
+  //       'baseAmount': string,
+  //     },
+  //     returns: string,
+  //     description: 'createReservation Cloud Functionを呼び出し、新しい予約を作成する。res_idを返す。',
+  //     code: r'''
+  //   import 'package:cloud_functions/cloud_functions.dart';
+  //
+  //   Future<String?> callCreateReservation(
+  //     String? castId,
+  //     String? date,
+  //     String? startTime,
+  //     String? timeSlot,
+  //     String? durationLabel,
+  //     String? meetingAddress,
+  //     String? meetingPoint,
+  //     bool? groupInvite,
+  //     String? groupSizeLabel,
+  //     String? purpose,
+  //     String? details,
+  //     String? baseAmount,
+  //   ) async {
+  //     try {
+  //       if (castId == null || castId.isEmpty) return null;
+  //       final durationMinutes =
+  //           int.tryParse(RegExp(r'\d+').firstMatch(durationLabel ?? '')?.group(0) ?? '') ?? 60;
+  //       final groupSize = int.tryParse(groupSizeLabel ?? '') ?? 0;
+  //       final amount = int.tryParse(baseAmount ?? '') ?? 0;
+  //       final isoDateTime = '${date}T${(startTime == null || startTime.isEmpty) ? '19:00' : startTime}:00';
+  //       final fullDetails = (purpose == null || purpose.isEmpty)
+  //           ? (details ?? '')
+  //           : '【目的：$purpose】\n${details ?? ''}';
+  //
+  //       final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+  //           .httpsCallable('createReservation');
+  //       final result = await callable.call({
+  //         'cast_ids': [castId],
+  //         'date': isoDateTime,
+  //         'time_slot': timeSlot ?? '',
+  //         'duration_minutes': durationMinutes,
+  //         'location': meetingAddress ?? '',
+  //         'meeting_point': meetingPoint ?? '',
+  //         'group_invite': groupInvite ?? false,
+  //         'group_size': groupSize,
+  //         'details': fullDetails,
+  //         'base_amount': amount,
+  //       });
+  //       if (result.data is Map && result.data['res_id'] != null) {
+  //         return result.data['res_id'] as String;
+  //       }
+  //       return null;
+  //     } catch (e) {
+  //       return null;
+  //     }
+  //   }
+  //   ''',
+  //   );
+
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'callCreateReservation',
+      code: r'''
 import 'package:cloud_functions/cloud_functions.dart';
 
 Future<String?> callCreateReservation(
@@ -2452,6 +2760,16 @@ Future<String?> callCreateReservation(
 ) async {
   try {
     if (castId == null || castId.isEmpty) return null;
+    // FIX (comprehensive project-wide review round 2): `date` was
+    // interpolated directly with no null/empty guard, unlike every other
+    // field on this same line (`startTime` right next to it IS guarded).
+    // A null `date` doesn't throw here — Dart interpolates it as the
+    // literal string "null" (e.g. "nullT19:00:00"), which then reaches
+    // `createReservation`'s `new Date(date)` parse on the backend as an
+    // Invalid Date rather than failing loudly at the source. Treated the
+    // same as the already-guarded `castId` above: no real date, no
+    // reservation.
+    if (date == null || date.isEmpty) return null;
     final durationMinutes =
         int.tryParse(RegExp(r'\d+').firstMatch(durationLabel ?? '')?.group(0) ?? '') ?? 60;
     final groupSize = int.tryParse(groupSizeLabel ?? '') ?? 0;
@@ -2484,7 +2802,8 @@ Future<String?> callCreateReservation(
   }
 }
 ''',
-  );
+    );
+  });
 
   app.editPageParams(ff.Pages.reservationConfirmed, (params) {
     params.ensureParam('resId', string.withDefault(''));
@@ -2851,6 +3170,51 @@ Future<bool> callRespondToReservation(String? resId, bool? accept) async {
     return result.data is Map && result.data['success'] == true;
   } catch (e) {
     return false;
+  }
+}
+''',
+  );
+
+  // FIX (feature build, unimplemented-features pass): `callRespondToReservation`
+  // above only ever returned a bare success bool — the cast always saw the
+  // SAME generic "承諾しました"/"辞退しました" Snackbar regardless of the
+  // real outcome. `respondToReservation` (reservations.ts) already tracks
+  // per-cast responses correctly and only finalizes once every invited
+  // cast has accepted (§3.5.9/§3.6.7, PROJECT_KNOWLEDGE.md §71/§72) — a
+  // group invite's accepting cast could be told "confirmed!" when really
+  // they were just the first of several still-pending casts. Reads the
+  // reservation fresh AFTER the respond call (rather than changing
+  // `callRespondToReservation`'s own already-live return type, which would
+  // need the freeze+`updateCustomAction`+raw-`returnParameter` dance for a
+  // benefit this simpler additive action already gets) and returns the
+  // outcome-accurate message. Kept as a separate action deliberately —
+  // `callRespondToReservation` is now only called from EXACTLY the button
+  // this section wires, so no other call site loses anything.
+  app.customAction(
+    'fetchRespondOutcomeMessage',
+    args: {'resId': string, 'accept': bool_},
+    returns: string,
+    description: 'respondToReservation呼び出し後、実際の結果（確定/他キャスト待ち/辞退）に応じたメッセージを取得する。',
+    code: r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+Future<String> fetchRespondOutcomeMessage(String? resId, bool? accept) async {
+  const fallback = 'リクエストを承諾しました。';
+  try {
+    if (accept == false) return 'リクエストを辞退しました。';
+    if (resId == null || resId.isEmpty) return fallback;
+    final doc = await FirebaseFirestore.instance
+        .collection('reservations')
+        .doc(resId)
+        .get();
+    final status = doc.data()?['status']?.toString() ?? '';
+    if (status == 'confirmed') return fallback;
+    // Still 'authorized'/'cast_pending' — this cast accepted, but at least
+    // one other invited cast on this group reservation hasn't responded
+    // yet, so nothing has actually confirmed.
+    return '承諾しました。他のキャストの返答をお待ちください。';
+  } catch (e) {
+    return fallback;
   }
 }
 ''',
@@ -3257,7 +3621,19 @@ Future<List<String>> fetchMyReservations() async {
               .toList() ??
           <String>[];
       final primaryCastId = castIds.isNotEmpty ? castIds.first : '';
-      return '${e.key}|||$status|||$dateLabel|||$location|||$amount|||$primaryCastId';
+      // FIX (§3.5.10/§3.6.11, ReservationListPage rebuild — PROJECT_KNOWLEDGE.md
+      // §71/§72): group-invite acceptance count, sourced from
+      // `cast_responses` (added in the per-cast independent accept/decline
+      // fix, reservations.ts) — how many of the invited casts have accepted
+      // so far. Appended as 3 new trailing fields rather than changing any
+      // existing field's position, so this remains backward-compatible with
+      // any other reader of this same delimited shape.
+      final groupInvite = data['group_invite'] == true;
+      final castResponses = (data['cast_responses'] as Map?) ?? {};
+      final acceptedCount =
+          castIds.where((id) => castResponses[id] == 'accepted').length;
+      final totalCastCount = castIds.length;
+      return '${e.key}|||$status|||$dateLabel|||$location|||$amount|||$primaryCastId|||$groupInvite|||$acceptedCount|||$totalCastCount';
     }).toList();
   } catch (e) {
     return <String>[];
@@ -3595,6 +3971,89 @@ Future<bool> isPaymentSuccess(String? value) async {
 ''',
   );
 
+  // FIX (PROJECT_KNOWLEDGE.md §71/§72): "カードを登録する"/"変更する" were both
+  // confirmed unwired (no `triggers:` at all on Button_eekew809/Button_emw55y75
+  // in the typed SDK) — `createSetupIntent` existed on the backend but
+  // nothing ever called it. A dedicated action rather than extending
+  // `confirmStripePayment`'s own argument list — that class of edit
+  // (`updateCustomAction`'s `arguments:` path) already caused a confusing,
+  // total validation failure once this session (see the
+  // `callCreateReservationWithStaff` postmortem, ~line 10770 above); adding
+  // a brand-new action with its own fixed signature sidesteps it entirely,
+  // same lesson applied here. Combines "fetch the SetupIntent+ephemeral-key
+  // triple from createSetupIntent" and "present the sheet" in ONE action
+  // rather than splitting them across two FlutterFlow actions correlated
+  // through page state — this DSL has no proven JSON-typed action-return/
+  // state-field path (only a Firestore-schema-field JSON type exists, `_json`
+  // above; `extension_payment.dart`'s pre-existing `priceResult: JSON` state
+  // field predates this SDK's own DSL authoring and isn't a pattern to
+  // extend), and three separately-shuttled scalars is exactly the kind of
+  // correlated-state fragility this codebase's own comments already warn
+  // about elsewhere (`List<JSON>` page state "cannot be reliably written
+  // to"). Doing the whole round trip inside one native Dart function avoids
+  // ever needing FlutterFlow state for the intermediate values at all.
+  //
+  // Reuses the exact same Stripe.publishableKey/merchantIdentifier init
+  // lines already established in `confirmStripePayment` above — including
+  // its still-hardcoded test-mode key — for consistency; replacing that
+  // with a build-time-injected value is explicitly Phase 15 (production
+  // cutover) scope, not touched here.
+  app.customAction(
+    'registerCardWithStripe',
+    returns: string,
+    description: 'createSetupIntent Cloud Functionを呼び出し、Stripeの支払い方法登録シートを表示する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
+
+Future<String?> registerCardWithStripe() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('createSetupIntent');
+    final result = await callable.call();
+    final data = result.data;
+    if (data is! Map) {
+      return 'error: unexpected response';
+    }
+    final clientSecret = data['client_secret'] as String?;
+    final customerId = data['customer_id'] as String?;
+    final ephemeralKeySecret = data['ephemeral_key_secret'] as String?;
+    if (clientSecret == null || customerId == null || ephemeralKeySecret == null) {
+      return 'error: missing setup intent data';
+    }
+
+    Stripe.publishableKey =
+        'pk_test_51R7BeGR2VQ6GS3rfVe66XcFQRckis8u7cWcYtHnqOqJZw7ac0lmc8aS5SzFIZM8pAK0hUO0ZYuHQ3AeC0ZgJdnKD00ou7pId8U';
+    Stripe.merchantIdentifier = 'merchant.com.icoccha.app';
+    await Stripe.instance.applySettings();
+
+    await Stripe.instance.initPaymentSheet(
+      paymentSheetParameters: SetupPaymentSheetParameters(
+        setupIntentClientSecret: clientSecret,
+        customerId: customerId,
+        customerEphemeralKeySecret: ephemeralKeySecret,
+        merchantDisplayName: 'icoccha',
+        style: ThemeMode.light,
+      ),
+    );
+
+    await Stripe.instance.presentPaymentSheet();
+
+    return 'success';
+  } on FirebaseFunctionsException catch (e) {
+    return 'error: ${e.message ?? e.code}';
+  } on StripeException catch (e) {
+    if (e.error.code == FailureCode.Canceled) {
+      return 'canceled';
+    }
+    return 'error: ${e.error.localizedMessage ?? e.error.message}';
+  } catch (e) {
+    return 'error: ${e.toString()}';
+  }
+}
+''',
+  );
+
   app.editPageParams(ff.Pages.paymentConfirm, (params) {
     params.ensureParam('resId', string.withDefault(''));
   });
@@ -3649,6 +4108,53 @@ Future<bool> isPaymentSuccess(String? value) async {
             ),
           ],
           orElse: [Snackbar('決済情報の取得に失敗しました。もう一度お試しください。')],
+        ),
+      ],
+    );
+
+    // FIX (PROJECT_KNOWLEDGE.md §71/§72): both card buttons wired to the
+    // same registerCardWithStripe action — Stripe's own PaymentSheet (setup
+    // mode) is the card-entry UI either way, whether registering a first
+    // card or replacing an existing one; the only difference between these
+    // two buttons is their label copy, which the mockup already has
+    // correct. Deliberately NOT wired: refreshing the static "登録済みカード"
+    // masked-number/expiry summary below (Text_mr0f0m4b/Text_6jkosz9c) after
+    // a successful registration — that needs a way to read back the newly
+    // attached card's last4/exp from Stripe, which nothing in this backend
+    // exposes yet (no listPaymentMethods-style callable). A real, disclosed
+    // remaining gap, not silently dropped — out of scope for "wire the
+    // register-card button to actually register a card."
+    page.ensureActions(
+      page.findByKey('Button_eekew809'), // カードを登録する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named('registerCardWithStripe', outputAs: 'cardRegResult'),
+        CallCustomAction.named(
+          'isPaymentSuccess',
+          arguments: {'value': ActionOutput('cardRegResult')},
+          outputAs: 'cardRegSucceeded',
+        ),
+        If(
+          ActionOutput('cardRegSucceeded'),
+          then: [Snackbar('カードを登録しました。')],
+          orElse: [Snackbar('カードの登録がキャンセルされたか失敗しました。')],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Button_emw55y75'), // 変更する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named('registerCardWithStripe', outputAs: 'cardChangeResult'),
+        CallCustomAction.named(
+          'isPaymentSuccess',
+          arguments: {'value': ActionOutput('cardChangeResult')},
+          outputAs: 'cardChangeSucceeded',
+        ),
+        If(
+          ActionOutput('cardChangeSucceeded'),
+          then: [Snackbar('カードを変更しました。')],
+          orElse: [Snackbar('カードの変更がキャンセルされたか失敗しました。')],
         ),
       ],
     );
@@ -3804,28 +4310,40 @@ Future<bool> isPaymentSuccess(String? value) async {
   // closure) to the SAME two custom functions reproduces the original
   // resId wiring byte-for-byte, correctly resolving against this Card's
   // enclosing ListView.
-  // ==========================================================================
-  app.editPage(ff.Pages.reservationListPage, (page) {
-    page.ensureActions(
-      page.findByKey('Card_wf69s6in'),
-      triggerType: FFActionTriggerType.ON_TAP,
-      actions: [
-        Navigate(
-          ff.Pages.reservationDetail,
-          params: {
-            'resId': CustomFunction(
-              reservationListItemResIdFn,
-              args: {'item': ItemRef()},
-            ),
-            'castId': CustomFunction(
-              reservationListItemCastIdFn,
-              args: {'item': ItemRef()},
-            ),
-          },
-        ),
-      ],
-    );
-  });
+  //
+  // SUPERSEDED (ReservationListPage rebuild, §3.5.10/§3.6.11 — status
+  // breakdown + group-invite counter): `page.ensureReplaced` on
+  // `ListView_kardnjc6` (further down this file) rebuilt the whole list,
+  // including a NEW Card with `Card_wf69s6in`'s key gone entirely and its
+  // onTap wiring reproduced directly inline on the new Card instead.
+  // Confirmed the hard way — left live, this block hard-failed the very
+  // next push with `Bad state: page ReservationListPage
+  // findByKey("Card_wf69s6in") found no matches.`, the exact same "stale
+  // key after ensureReplaced" class this file has hit before (MacchaChats'
+  // `ListView_84hpa09g`, same reasoning). Commented out rather than
+  // deleted, matching this file's own established discipline for a
+  // superseded one-shot op.
+  // app.editPage(ff.Pages.reservationListPage, (page) {
+  //   page.ensureActions(
+  //     page.findByKey('Card_wf69s6in'),
+  //     triggerType: FFActionTriggerType.ON_TAP,
+  //     actions: [
+  //       Navigate(
+  //         ff.Pages.reservationDetail,
+  //         params: {
+  //           'resId': CustomFunction(
+  //             reservationListItemResIdFn,
+  //             args: {'item': ItemRef()},
+  //           ),
+  //           'castId': CustomFunction(
+  //             reservationListItemCastIdFn,
+  //             args: {'item': ItemRef()},
+  //           ),
+  //         },
+  //       ),
+  //     ],
+  //   );
+  // });
 
   // ==========================================================================
   // Fix: BasicInfoRegistration's submit button had NO field-completeness
@@ -3843,20 +4361,84 @@ Future<bool> isPaymentSuccess(String? value) async {
   // orElse: [...])`, landed via the now-frozen ensurePage body) is fully
   // superseded, not extended.
   // ==========================================================================
+
+  // New state fields for the 4 discrete consents (feature build,
+  // unimplemented-features pass) — the old `consentAgreed` field was a
+  // NATIVE FlutterFlow page-state field from the original mockup (no
+  // `state.ensureField(...)` call for it anywhere in this script), so
+  // these 4 replacements need fresh declarations, unlike a field this
+  // script already owns. Declared here, immediately before the trigger
+  // that references them — this script executes top-to-bottom, and a
+  // state field must be `ensureField`'d before any `State(...)` reference
+  // to it is compiled (confirmed the hard way earlier this session with
+  // `resDetailData`).
+  app.editPageState(ff.Pages.basicInfoRegistration, (state) {
+    state.ensureField('agreedTos', bool_.withDefault(false));
+    state.ensureField('agreedBusinessCommission', bool_.withDefault(false));
+    state.ensureField('agreedPersonalData', bool_.withDefault(false));
+    state.ensureField('agreedPrivacyPolicy', bool_.withDefault(false));
+  });
+
   app.editPage(ff.Pages.basicInfoRegistration, (page) {
+    // FIX (feature build, unimplemented-features pass): `prefecture`/
+    // `activityPrefecture` now come from the new dynamic-picker App State
+    // fields (`pickedPrefectureValue`/`pickedActivityPrefectureValue`, set
+    // by the bottom-sheet pickers built above) instead of Page State — the
+    // Page State fields these used to read no longer have anything writing
+    // to them (the Dropdown widgets that once did were replaced). Edited
+    // this already-live `ensureActions` call in place rather than adding a
+    // second one, per this project's own standing rule (exactly one
+    // `ensureActions` call per trigger).
+    // FIX (feature build, unimplemented-features pass): replaced the single
+    // `consentAgreed` arg with the same 4 discrete consent flags
+    // (`checkBasicInfoFieldsComplete`/`callCompleteOnboarding` both updated
+    // in place above, matching this project's own freeze+`updateCustomAction`
+    // pattern) — §3.1.8 requires 4 independently-required consents (ToS,
+    // business-commission clause, personal-data handling, privacy policy),
+    // not one combined checkbox.
     page.ensureActions(
       page.findByKey('Button_npmkhs0n'), // SubmitBasicInfoButton
       triggerType: FFActionTriggerType.ON_TAP,
       actions: [
+        // FIX (feature build, unimplemented-features pass): two earlier
+        // push attempts that BOTH (a) changed these 2 actions' argument
+        // lists via `app.raw(updateCustomAction(...))` AND (b) rewired this
+        // SAME button to use the new arg names, in the SAME push, both
+        // failed server-side validation with every argument (old AND new)
+        // reported "not specified" — despite `flutterflow ai test` passing
+        // locally both times. Root cause, isolated by process of
+        // elimination (no direct way to inspect a live custom action's
+        // current argument list found — `flutterflow ai inspect --dsl-json`
+        // does not include custom-code definitions, confirmed by reading
+        // its own output): `compileDslApp` most likely resolves a button's
+        // `CallCustomAction` argument-name-to-parameter-key mapping against
+        // a snapshot taken BEFORE `app.raw(...)` mutations in the same run
+        // are applied, so a button referencing arg names added in the same
+        // push can never resolve correctly, regardless of `args:` hints
+        // (tried, didn't help either — attempt 2). Confirmed as a genuine
+        // PARTIAL SERVER-SIDE PERSIST despite the reported failure: a
+        // follow-up push reverting the action's args back to the ORIGINAL
+        // signature failed with "Unknown argument(s)... consentAgreed.
+        // Declared args: accountType, agreedBusinessCommission,
+        // agreedPersonalData, agreedPrivacyPolicy, agreedTos, birthDate,
+        // city, gender, prefecture" — proving the 9-arg version from the
+        // earlier "failed" push IS actually live server-side. Fix: this
+        // push makes NO further changes to either action's argument list
+        // (no `app.raw(updateCustomAction(...))` for either name below) —
+        // only the button is updated, to reference the args already
+        // confirmed live, closing the same-push race entirely.
         CallCustomAction.named(
           'checkBasicInfoFieldsComplete',
           arguments: {
             'accountType': State('accountType'),
             'gender': State('gender'),
             'birthDate': State('birthDate'),
-            'prefecture': State('prefecture'),
+            'prefecture': AppState(ff.AppState.pickedPrefectureValue),
             'city': State('city'),
-            'consentAgreed': State('consentAgreed'),
+            'agreedTos': State('agreedTos'),
+            'agreedBusinessCommission': State('agreedBusinessCommission'),
+            'agreedPersonalData': State('agreedPersonalData'),
+            'agreedPrivacyPolicy': State('agreedPrivacyPolicy'),
           },
           outputAs: 'basicInfoValidResult',
         ),
@@ -3869,12 +4451,16 @@ Future<bool> isPaymentSuccess(String? value) async {
                 'accountType': State('accountType'),
                 'gender': State('gender'),
                 'birthDate': State('birthDate'),
-                'prefecture': State('prefecture'),
+                'prefecture': AppState(ff.AppState.pickedPrefectureValue),
                 'city': State('city'),
-                'activityPrefecture': State('activityPrefecture'),
+                'activityPrefecture': AppState(ff.AppState.pickedActivityPrefectureValue),
                 'activityCity': State('activityCity'),
                 'staffType': State('staffType'),
                 'referralCode': State('referralCode'),
+                'agreedTos': State('agreedTos'),
+                'agreedBusinessCommission': State('agreedBusinessCommission'),
+                'agreedPersonalData': State('agreedPersonalData'),
+                'agreedPrivacyPolicy': State('agreedPrivacyPolicy'),
               },
               outputAs: 'completeOnboardingResult',
             ),
@@ -3885,33 +4471,28 @@ Future<bool> isPaymentSuccess(String? value) async {
             ),
           ],
           orElse: [
-            Snackbar('必須項目の入力（生年月日はYYYY-MM-DD形式）と利用規約への同意が必要です。'),
+            Snackbar('必須項目の入力（生年月日はYYYY-MM-DD形式）と4項目すべてへの同意が必要です。'),
           ],
         ),
       ],
     );
   });
 
-  // Fix R19 (`reviewWiring`'s dynamic-ListView-shrinkWrap check), flagged
-  // since §15 but deferred as "minor, real execution risk to fix via raw
-  // proto." Now confirmed low-risk: `ListView_kardnjc6` is
-  // `ReservationListPage`'s own dynamic, State-driven list (built in §14)
-  // — `shrinkWrapValue` was left at its native-scaffold default of `true`,
-  // which forces the list to size to its full content up front instead of
-  // lazily building visible items, the exact anti-pattern this project's
-  // own Design & Quality Rules calls out ("avoid shrinkWrap: true on
-  // dynamic ListView"). Unnecessary here specifically: this ListView is
-  // the Scaffold's direct body (not nested inside another scrollable
-  // Column), so it doesn't need shrinkWrap to get a bounded height at all.
-  // `node.props.listView.shrinkWrapValue` confirmed via the proto schema
-  // directly (`FFWidgetProperties.listView` -> `FFListView.shrinkWrapValue`,
-  // a plain `FFBooleanValue`) — same class of pure field-set as
-  // `clearDatabaseRequest()` above, safe to leave live/rerun (idempotent).
-  app.editPage(ff.Pages.reservationListPage, (page) {
-    page.mutateNode(page.findByKey('ListView_kardnjc6'), (node) {
-      node.props.listView.shrinkWrapValue = FFBooleanValue(inputValue: false);
-    });
-  });
+  // Fix R19 (`reviewWiring`'s dynamic-ListView-shrinkWrap check) — FROZEN
+  // (ReservationListPage rebuild, §3.5.10/§3.6.11): `ListView_kardnjc6` no
+  // longer exists — that later rebuild's `ensureReplaced` consumed this
+  // exact key. This `mutateNode` call was originally reasoned to be safe to
+  // leave live/rerun forever (a pure idempotent field-set), but that
+  // reasoning assumed the target key stays stable — it doesn't survive an
+  // `ensureReplaced` on the same node. Moot anyway: the rebuild's own new
+  // `ReservationListItemsListView` never sets `shrinkWrap: true` in the
+  // first place (native default only applies when never touched), so this
+  // fix's real effect is already preserved without needing to reapply it.
+  // app.editPage(ff.Pages.reservationListPage, (page) {
+  //   page.mutateNode(page.findByKey('ListView_kardnjc6'), (node) {
+  //     node.props.listView.shrinkWrapValue = FFBooleanValue(inputValue: false);
+  //   });
+  // });
 
   // ==========================================================================
   // IMPLEMENTATION_PLAN.md Phase 2's own explicit [NEXT] item — the admin-
@@ -4399,6 +4980,12 @@ return parts.length > 4 ? parts[4] : '';
 
   app.editPageState(ff.Pages.reservationDetail, (state) {
     state.ensureField('resVisibilityData', string.withDefault(''));
+    // Moved here from further down the file (comprehensive project-wide
+    // review round 2): this script executes top-to-bottom, and the
+    // ON_INIT_STATE trigger edit just below references `resDetailData` via
+    // `SetState(...)` — the field must be `ensureField`'d BEFORE that
+    // reference is compiled, not merely somewhere in the file.
+    state.ensureField('resDetailData', string.withDefault(''));
   });
 
   app.customAction(
@@ -4537,6 +5124,20 @@ return (isGuest || isCast) && !terminalStatuses.contains(status);
   app.editPage(ff.Pages.reservationDetail, (page) {
     // Root had zero existing triggerActions of any kind (confirmed via the
     // typed SDK) — ensureActions is safe to use directly here.
+    //
+    // FIX (comprehensive project-wide review round 2, CRITICAL): appended
+    // fetchReservationDetailData/SetState('resDetailData', ...) to this
+    // SAME call rather than adding a second `ensureActions(page.root,
+    // ON_INIT_STATE, ...)` call — this project's own established rule
+    // (.cursor/rules/project_rules.md) is that `ensureActions` replaces a
+    // trigger's ENTIRE chain on every rerun, and a second call targeting
+    // the same root+trigger pair fails compilation outright regardless of
+    // what the new step is named. Every date/time/location/reward/
+    // counterpart-name value on this page was previously a static
+    // placeholder baked into the widget tree at authoring time — this is
+    // the actual data fetch that makes them real (see the customAction/
+    // customFunction declarations and the `ensureReplaced` calls near the
+    // end of this file for the widget-side half of the fix).
     page.ensureActions(
       page.root,
       triggerType: FFActionTriggerType.ON_INIT_STATE,
@@ -4547,6 +5148,12 @@ return (isGuest || isCast) && !terminalStatuses.contains(status);
           outputAs: 'visibilityResult',
         ),
         SetState('resVisibilityData', ActionOutput('visibilityResult')),
+        CallCustomAction.named(
+          'fetchReservationDetailData',
+          arguments: {'resId': PageParam('resId')},
+          outputAs: 'detailResult',
+        ),
+        SetState('resDetailData', ActionOutput('detailResult')),
       ],
     );
 
@@ -5168,41 +5775,76 @@ Future<List<String>> fetchDiscoveryCasts() async {
     }
 
     if (guestLat == null || guestLng == null) {
-      const prefectureCenters = <String, List<double>>{
-        '東京都': [35.6895, 139.6917],
-        '神奈川県': [35.4478, 139.6425],
-        '千葉県': [35.6047, 140.1233],
-        '愛知県': [35.1802, 136.9066],
-        '京都府': [35.0116, 135.7681],
-        '大阪府': [34.6937, 135.5023],
-        '兵庫県': [34.6913, 135.1830],
-        '岡山県': [34.6551, 133.9195],
-        '広島県': [34.3853, 132.4553],
-        '福岡県': [33.6064, 130.4181],
-      };
-      var ownPrefecture = '';
-      if (uid.isNotEmpty) {
-        final ownDoc = await firestore.collection('users').doc(uid).get();
-        // `prefecture` (required, all-users residential field), NOT
-        // `activity_prefecture` (optional, cast-only "where I work" field)
-        // — a guest browsing Home would almost always have this empty,
-        // making the fallback silently fail for the primary user of this
-        // feature. Real bug, found on review, not present in the original
-        // design intent (§29's own comment already correctly described
-        // "the guest's registered residential area", just implemented
-        // against the wrong field). This read is allowed by
-        // firestore.rules (own document, owner-only rule is satisfied).
-        ownPrefecture = ownDoc.data()?['prefecture']?.toString() ?? '';
-      }
-      for (final entry in prefectureCenters.entries) {
-        if (ownPrefecture.contains(entry.key)) {
-          guestLat = entry.value[0];
-          guestLng = entry.value[1];
-          break;
+      // FIX (unimplemented-features pass, municipality/GPS task): this used
+      // to be a hardcoded static Dart table (10 prefecture centers,
+      // compiled into the app, not admin-editable) — replaced with a live
+      // lookup against `getServiceAreaCoordinates` (auth.ts), backed by the
+      // real admin-editable `system_config/settings.service_areas` data
+      // (ServiceAreaMunicipalitiesPage). Also now tries a MUNICIPALITY-
+      // level match first (more precise than the prefecture centroid) using
+      // the guest's own `city` field, before falling back to the
+      // prefecture's own representative point, before falling back to
+      // Tokyo — same 3-tier shape as before, just data-driven instead of
+      // compiled-in. Tokyo fallback is set FIRST and unconditionally, so
+      // any failure below (network, malformed data, no match) safely
+      // leaves it in place — same defensive shape as the rest of this
+      // action.
+      guestLat = 35.6895; // 東京駅
+      guestLng = 139.6917;
+      try {
+        var ownPrefecture = '';
+        var ownCity = '';
+        if (uid.isNotEmpty) {
+          final ownDoc = await firestore.collection('users').doc(uid).get();
+          // `prefecture`/`city` (required, all-users residential fields),
+          // NOT `activity_prefecture`/`activity_city` (optional, cast-only
+          // "where I work" fields) — a guest browsing Home would almost
+          // always have those empty, making the fallback silently fail for
+          // the primary user of this feature. Real bug, found on review,
+          // not present in the original design intent.
+          ownPrefecture = ownDoc.data()?['prefecture']?.toString() ?? '';
+          ownCity = ownDoc.data()?['city']?.toString() ?? '';
         }
+        if (ownPrefecture.isNotEmpty) {
+          final coordCallable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+              .httpsCallable('getServiceAreaCoordinates');
+          final coordResult = await coordCallable.call({});
+          if (coordResult.data is Map && coordResult.data['areas'] is List) {
+            for (final raw in coordResult.data['areas'] as List) {
+              final area = raw as Map;
+              final prefName = area['prefecture']?.toString() ?? '';
+              if (prefName.isEmpty || !ownPrefecture.contains(prefName)) continue;
+
+              var matched = false;
+              if (ownCity.isNotEmpty && area['municipalities'] is List) {
+                for (final rawM in area['municipalities'] as List) {
+                  final m = rawM as Map;
+                  final mName = m['name']?.toString() ?? '';
+                  final mLat = (m['lat'] as num?)?.toDouble();
+                  final mLng = (m['lng'] as num?)?.toDouble();
+                  if (mName.isNotEmpty && ownCity.contains(mName) && mLat != null && mLng != null) {
+                    guestLat = mLat;
+                    guestLng = mLng;
+                    matched = true;
+                    break;
+                  }
+                }
+              }
+              if (!matched) {
+                final pLat = (area['lat'] as num?)?.toDouble();
+                final pLng = (area['lng'] as num?)?.toDouble();
+                if (pLat != null && pLng != null) {
+                  guestLat = pLat;
+                  guestLng = pLng;
+                }
+              }
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        // Leave guestLat/guestLng at the Tokyo fallback already set above.
       }
-      guestLat ??= 35.6895;
-      guestLng ??= 139.6917;
     }
 
     final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
@@ -5459,6 +6101,243 @@ return parts.length > 3 && parts[3] == 'true';
     //       onChanged: SetState('activityPrefecture', const WidgetValue()),
     //     ),
     //   );
+  });
+
+  // ==========================================================================
+  // Feature build (unimplemented-features pass): the static 10-item
+  // prefecture Dropdown above is replaced with a real picker that consumes
+  // the already-live, admin-editable `getServiceAreas` backend — closing
+  // the exact gap the block above's own comment disclosed ("this specific
+  // dropdown does not yet consume it live"). `Dropdown.options` still has
+  // no dynamic-binding path (unchanged constraint, re-confirmed by reading
+  // widgets.dart directly again before starting), so this uses a
+  // bottom-sheet picker over a dynamic `ListView` instead, same general
+  // shape as this DSL's own `ShowBottomSheet`/`ListView(source:)` pattern
+  // already proven elsewhere.
+  //
+  // Cross-widget bridge: a component embedded via `ShowBottomSheet` has no
+  // confirmed way to set an ARBITRARY PARENT PAGE's state directly (no
+  // precedent found anywhere in this file for a component doing that —
+  // every existing `SetState(ff.Pages.x.state.y, ...)` qualified-reference
+  // usage found only ever appears INSIDE that same page's own action
+  // chain, never from a component). App State is the proven bridge instead
+  // (confirmed working precedent: `verificationPhoneNumber` already
+  // carries a value from PhoneVarification to SmsCode across a page
+  // navigation) — the picker sheet's row-tap writes to a new App State
+  // field, and `BasicInfoRegistration`'s own submit action (already-live
+  // `ensureActions` below, edited in place) now reads from App State for
+  // these two fields instead of Page State.
+  // ==========================================================================
+
+  app.state('prefecturePickList', listOf(string));
+  app.state('pickedPrefectureValue', string.withDefault(''));
+  app.state('pickedActivityPrefectureValue', string.withDefault(''));
+
+  app.customAction(
+    'fetchServiceAreas',
+    returns: listOf(string),
+    description: 'getServiceAreas Cloud Functionを呼び出し、有効な都道府県一覧を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchServiceAreas() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('getServiceAreas');
+    final result = await callable.call();
+    if (result.data is Map && result.data['areas'] is List) {
+      return (result.data['areas'] as List).map((e) => e.toString()).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  final prefecturePickerLabelFn = app.customFunction(
+    'prefecturePickerLabel',
+    args: {'value': string, 'placeholder': string},
+    returns: string,
+    description: '都道府県選択ボタンの表示ラベル（未選択時はプレースホルダー）を返す。',
+    code: r'''
+final v = value ?? '';
+return v.isEmpty ? (placeholder ?? '') : v;
+''',
+  );
+
+  // Two near-identical sheets (residential vs. activity area) rather than
+  // one parameterized component: the row-tap's `UpdateAppState.set(...)`
+  // target field must be known at compile time in this DSL (no dynamic
+  // field-selection mechanism found), so a single reusable component
+  // couldn't route to two different App State fields anyway. Small,
+  // explicit duplication over a cleverness that doesn't fit the DSL's own
+  // capabilities.
+  //
+  // `shrinkWrap: true` here is a deliberate, disclosed exception to this
+  // project's own Design & Quality Rule ("avoid shrinkWrap: true on
+  // dynamic ListView") — that rule targets long/unbounded lists inside an
+  // already-scrollable page context, where shrinkWrap forces measuring
+  // every child upfront. This list is capped at 10 items (the launch
+  // prefecture count) inside a bottom sheet, which has no bounding
+  // "Expanded" ancestor to size against in the first place — shrinkWrap is
+  // the standard, correct Flutter approach for a short list inside a
+  // sheet/dialog, not a performance risk at this scale.
+  //
+  // FROZEN (confirmed landed — both components exist live, verified via
+  // `lib/flutterflow_project/components/{prefecture,activity_prefecture}
+  // _picker_sheet.dart`) — `app.component(...)` is strict-create-only
+  // (confirmed by reading the SDK compiler source: throws via
+  // `addComponent` if a component with this name already exists in the
+  // project, no identical-payload no-op unlike `ensureCustomAction`/
+  // `ensureAppStateField`), so re-running this declaration on the next
+  // push would fail outright. `ShowBottomSheet` below now references the
+  // typed-SDK handle (`ff.Components.x`) instead of this local variable.
+  // final prefecturePickerSheet = app.component(
+  //   'PrefecturePickerSheet',
+  //   description: '都道府県選択ボトムシート（居住地）。getServiceAreasの結果から選択する。',
+  //   body: Container(
+  //     padding: EdgeInsets.all(16),
+  //     color: Colors.secondaryBackground,
+  //     child: Column(
+  //       crossAxis: CrossAxis.start,
+  //       spacing: 4,
+  //       children: [
+  //         Text('都道府県を選択してください', style: Styles.titleMedium),
+  //         ListView(
+  //           source: AppState('prefecturePickList'),
+  //           shrinkWrap: true,
+  //           itemBuilder: (item) => Button(
+  //             item,
+  //             variant: ButtonVariant.text,
+  //             width: double.infinity,
+  //             onTap: [
+  //               UpdateAppState.set('pickedPrefectureValue', item),
+  //               DismissDialog(),
+  //             ],
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   ),
+  // );
+
+  // final activityPrefecturePickerSheet = app.component(
+  //   'ActivityPrefecturePickerSheet',
+  //   description: '都道府県選択ボトムシート（活動エリア、任意）。getServiceAreasの結果から選択する。',
+  //   body: Container(
+  //     padding: EdgeInsets.all(16),
+  //     color: Colors.secondaryBackground,
+  //     child: Column(
+  //       crossAxis: CrossAxis.start,
+  //       spacing: 4,
+  //       children: [
+  //         Text('活動都道府県を選択してください（任意）', style: Styles.titleMedium),
+  //         ListView(
+  //           source: AppState('prefecturePickList'),
+  //           shrinkWrap: true,
+  //           itemBuilder: (item) => Button(
+  //             item,
+  //             variant: ButtonVariant.text,
+  //             width: double.infinity,
+  //             onTap: [
+  //               UpdateAppState.set('pickedActivityPrefectureValue', item),
+  //               DismissDialog(),
+  //             ],
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   ),
+  // );
+
+  // `ShowBottomSheet` requires a LOCAL `ComponentHandle` (confirmed via its
+  // own doc comment AND by reading `_compileShowBottomSheetAction` in the
+  // SDK compiler directly: it only ever reads `.name` and
+  // `.declaration.params`) — `ff.Components.x` is a DIFFERENT, unrelated
+  // typed-SDK class (`ProjectComponentHandle`, no inheritance relationship
+  // to `ComponentHandle`) and does not type-check there. Since the real
+  // components already exist live (frozen `app.component(...)` calls
+  // above), these are minimal stub `ComponentHandle`s carrying only what
+  // `ShowBottomSheet`'s compiled action actually reads — name and an empty
+  // params map, matching these components' real (paramless) shape — built
+  // directly rather than re-registering via `app.component(...)`, which
+  // would throw on this already-created name.
+  final prefecturePickerSheet = ComponentHandle(
+    ComponentDeclaration(name: 'PrefecturePickerSheet', body: Container()),
+  );
+  final activityPrefecturePickerSheet = ComponentHandle(
+    ComponentDeclaration(name: 'ActivityPrefecturePickerSheet', body: Container()),
+  );
+
+  app.editPage(ff.Pages.basicInfoRegistration, (page) {
+    // Root had no other ON_INIT_STATE trigger (confirmed via the typed
+    // SDK) — safe to wire directly. Resets both picked values to '' on
+    // every load rather than preserving a stale pick from an earlier visit
+    // — this is a linear, one-time onboarding step, not a re-editable
+    // settings page, so there is no "current value" to preserve on entry.
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        CallCustomAction.named('fetchServiceAreas', outputAs: 'serviceAreasResult'),
+        UpdateAppState.set(ff.AppState.prefecturePickList, ActionOutput('serviceAreasResult')),
+        UpdateAppState.set(ff.AppState.pickedPrefectureValue, ''),
+        UpdateAppState.set(ff.AppState.pickedActivityPrefectureValue, ''),
+      ],
+    );
+    page.ensureReplaced(
+      page.findByKey('DropDown_5m4nqpk3'), // PrefectureDropdown — was a static 10-item Dropdown
+      Container(
+        name: 'PrefecturePickerTrigger',
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        borderRadius: 8,
+        borderColor: Colors.alternate,
+        borderWidth: 1,
+        onTap: [ShowBottomSheet(prefecturePickerSheet)],
+        child: Row(
+          mainAxis: MainAxis.spaceBetween,
+          children: [
+            Text(
+              CustomFunction(
+                prefecturePickerLabelFn,
+                args: {'value': AppState(ff.AppState.pickedPrefectureValue), 'placeholder': '都道府県を選択してください'},
+              ),
+              style: Styles.bodyMedium,
+            ),
+            Icon('expand_more', size: 20),
+          ],
+        ),
+      ),
+    );
+    page.ensureReplaced(
+      page.findByKey('DropDown_0n1wfyru'), // ActivityPrefectureDropdown — was a static 10-item Dropdown
+      Container(
+        name: 'ActivityPrefecturePickerTrigger',
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        borderRadius: 8,
+        borderColor: Colors.alternate,
+        borderWidth: 1,
+        onTap: [ShowBottomSheet(activityPrefecturePickerSheet)],
+        child: Row(
+          mainAxis: MainAxis.spaceBetween,
+          children: [
+            Text(
+              CustomFunction(
+                prefecturePickerLabelFn,
+                args: {
+                  'value': AppState(ff.AppState.pickedActivityPrefectureValue),
+                  'placeholder': '活動都道府県を選択してください（任意）',
+                },
+              ),
+              style: Styles.bodyMedium,
+            ),
+            Icon('expand_more', size: 20),
+          ],
+        ),
+      ),
+    );
   });
 
   // ==========================================================================
@@ -9333,13 +10212,44 @@ Future<String> fetchAffiliateDashboard() async {
 ''',
   );
 
-  app.customAction(
-    'shareReferralLink',
-    args: {'platform': string},
-    returns: bool_,
-    description: '紹介リンクを指定プラットフォーム（line/twitter/threads/share）で共有する。紹介コードは自分のUID（invitation_codeフィールドは常に空のため未使用）。',
-    code: r'''
-import 'package:share_plus/share_plus.dart';
+  // FIX (2026-08-13, fresh-eyes re-review pass, CORRECTED after 3 failed
+  // version attempts): `shareReferralLink` (below) originally imported
+  // `package:share_plus/share_plus.dart` and called `Share.share(...)` in
+  // its "default" (no specific platform) branch, but `share_plus` was
+  // never actually declared as a project pub dependency — confirmed via
+  // `dart analyze` on the real generated project (`uri_does_not_exist`).
+  // Adding the dependency turned into a genuine transitive-dependency dead
+  // end for this project's specific pinned package set: `share_plus
+  // <10.0.3` needs `win32 <6.0.0` (conflicts with this project's own
+  // `package_info_plus ^10.2.1`, which needs `win32 ^6.0.1`);
+  // `share_plus [10.0.3, 13.0.0)` still needs `win32 ^5.5.3` (same
+  // conflict); `share_plus >=13.0.0` needs `url_launcher_windows ^3.1.5`
+  // (conflicts with this project's own pinned `url_launcher_windows
+  // 3.1.4`). No `share_plus` version satisfies this project's actual
+  // pinned dependency set. Reverted the pub-dependency addition entirely
+  // (removed) — disproportionate effort/risk for one fallback branch of a
+  // single minor share feature. Fixed the actual gap instead: the
+  // "default" branch (reached only when `platform` isn't
+  // line/twitter/threads) now copies the message+link to the clipboard
+  // via `Clipboard.setData` (`package:flutter/services.dart`, already
+  // available everywhere, no new dependency — same technique already
+  // proven this session for `LedgerOversightPage`'s CSV export) instead
+  // of opening a native OS share sheet. A real, working fallback, not a
+  // silently-broken feature.
+  //
+  // FROZEN (2026-08-13, confirmed landed — `share_plus` absent from
+  // generated_code/pubspec.yaml): `removePubDependency` throws if the
+  // dependency isn't found, so this one-shot cleanup call must not
+  // re-run now that it has already succeeded.
+  // app.raw((project) {
+  //   removePubDependency(project, name: 'share_plus');
+  // });
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'shareReferralLink',
+      code: r'''
+import 'package:flutter/services.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/auth/firebase_auth/auth_util.dart';
 
@@ -9360,7 +10270,7 @@ Future<bool> shareReferralLink(String? platform) async {
         await launchURL('https://www.threads.net/intent/post?text=$message $url');
         break;
       default:
-        await Share.share('$message $url');
+        await Clipboard.setData(ClipboardData(text: '$message $url'));
     }
     return true;
   } catch (e) {
@@ -9368,7 +10278,8 @@ Future<bool> shareReferralLink(String? platform) async {
   }
 }
 ''',
-  );
+    );
+  });
 
   // NOTE: the copy-icon's onTap was originally wired as
   // `ensureActions(..., actions: [CopyToClipboard(CustomFunction(splitFieldFn,
@@ -10759,103 +11670,46 @@ Future<String> fetchMyWorkSettings() async {
     state.ensureField('resNeedsTransport', bool_.withDefault(false));
   });
 
-  // `callCreateReservation` is already live (deployed in an earlier
-  // phase) — per this project's own two-part update-sequencing rule, its
-  // `code:` is changed here via `updateCustomAction` (app.raw), not by
-  // editing the `app.customAction` declaration directly, which would fail
-  // idempotency since the declaration's payload would then mismatch
-  // what's currently live. The original declaration is intentionally left
-  // unsynced for now — sync it in a LATER, separate push once this one is
-  // confirmed live, matching the same rule applied earlier this session
-  // for formatYen/fetchWalletLedgerHistory/fetchMyWorkSettings.
-  // Sidestepped updateCustomAction's `arguments:` (List<FFParameter>) path
-  // entirely after it produced a confusing, total validation failure
-  // ("argument X is not specified" for ALL 14 params, not just the 2 new
-  // ones — inconsistent with a simple per-param mismatch, root cause not
-  // fully diagnosed). Rather than keep fighting an unclear compiler
-  // interaction, declared a NEW custom action instead of mutating the
-  // existing `callCreateReservation` — sidesteps the whole update-
-  // sequencing class of problem, using the same `app.customAction` +
-  // `CallCustomAction.named` mechanism proven reliable everywhere else
-  // this entire session. `callCreateReservation` itself is left
-  // untouched and unused (harmless dead code, disclosed) — the
-  // ReservationForm submit button is rewired to this new action below.
-  app.customAction(
-    'callCreateReservationWithStaff',
-    args: {
-      'castId': string,
-      'date': string,
-      'startTime': string,
-      'timeSlot': string,
-      'durationLabel': string,
-      'meetingAddress': string,
-      'meetingPoint': string,
-      'groupInvite': bool_,
-      'groupSizeLabel': string,
-      'purpose': string,
-      'details': string,
-      'baseAmount': string,
-      'needsSecurity': bool_,
-      'needsTransport': bool_,
-    },
-    returns: string,
-    description: 'createReservation Cloud Functionを呼び出し予約を作成する（警備・送迎スタッフ希望フラグ対応版）。',
-    code: r'''
-import 'package:cloud_functions/cloud_functions.dart';
-
-Future<String?> callCreateReservationWithStaff(
-  String? castId,
-  String? date,
-  String? startTime,
-  String? timeSlot,
-  String? durationLabel,
-  String? meetingAddress,
-  String? meetingPoint,
-  bool? groupInvite,
-  String? groupSizeLabel,
-  String? purpose,
-  String? details,
-  String? baseAmount,
-  bool? needsSecurity,
-  bool? needsTransport,
-) async {
-  try {
-    if (castId == null || castId.isEmpty) return null;
-    final durationMinutes =
-        int.tryParse(RegExp(r'\d+').firstMatch(durationLabel ?? '')?.group(0) ?? '') ?? 60;
-    final groupSize = int.tryParse(groupSizeLabel ?? '') ?? 0;
-    final amount = int.tryParse(baseAmount ?? '') ?? 0;
-    final isoDateTime = '${date}T${(startTime == null || startTime.isEmpty) ? '19:00' : startTime}:00';
-    final fullDetails = (purpose == null || purpose.isEmpty)
-        ? (details ?? '')
-        : '【目的：$purpose】\n${details ?? ''}';
-
-    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
-        .httpsCallable('createReservation');
-    final result = await callable.call({
-      'cast_ids': [castId],
-      'date': isoDateTime,
-      'time_slot': timeSlot ?? '',
-      'duration_minutes': durationMinutes,
-      'location': meetingAddress ?? '',
-      'meeting_point': meetingPoint ?? '',
-      'group_invite': groupInvite ?? false,
-      'group_size': groupSize,
-      'details': fullDetails,
-      'base_amount': amount,
-      'needs_security': needsSecurity ?? false,
-      'needs_transport': needsTransport ?? false,
-    });
-    if (result.data is Map && result.data['res_id'] != null) {
-      return result.data['res_id'] as String;
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
-''',
-  );
+  // `callCreateReservationWithStaff` — FIX (confirmed the hard way,
+  // TWICE, this session): a LIVE `app.customAction(...)` declaration
+  // co-existing with a LATER `updateCustomAction` call for the same name
+  // is the exact anti-pattern this file's own comments already warned
+  // about elsewhere (`fetchWalletLedgerHistory`, `fetchMyWorkSettings`) —
+  // `ensureCustomAction`'s payload comparison against whatever's ACTUALLY
+  // live fails on ANY mismatch, including ones that look byte-identical
+  // by inspection (a description-only mismatch was the actual cause the
+  // second time — the first `updateCustomAction` call only ever touched
+  // `code:`, never `description:`, so hand-editing the description here
+  // "to match" reintroduced a fresh mismatch even after the code itself
+  // was correctly synced). Per the now-doubly-proven-safe pattern used
+  // everywhere else in this file for a post-`updateCustomAction` target,
+  // commented out entirely rather than hand-maintained "in sync" — the
+  // `updateCustomAction(name: 'callCreateReservationWithStaff', ...)` call
+  // (§3.6.7 bulk-invite section, further down this file) is now the only
+  // source of truth for this action, permanently, not just until the next
+  // sync push.
+  //   app.customAction(
+  //     'callCreateReservationWithStaff',
+  //     args: {
+  //       'castId': string,
+  //       'date': string,
+  //       'startTime': string,
+  //       'timeSlot': string,
+  //       'durationLabel': string,
+  //       'meetingAddress': string,
+  //       'meetingPoint': string,
+  //       'groupInvite': bool_,
+  //       'groupSizeLabel': string,
+  //       'purpose': string,
+  //       'details': string,
+  //       'baseAmount': string,
+  //       'needsSecurity': bool_,
+  //       'needsTransport': bool_,
+  //     },
+  //     returns: string,
+  //     description: 'createReservation Cloud Functionを呼び出し予約を作成する（警備・送迎スタッフ希望フラグ対応版）。',
+  //     code: r'''...(see the updateCustomAction call below for the real, current code)...''',
+  //   );
 
   // FROZEN (2026-08-12, immediately after this exact push landed): both
   // ensureInsertedAfter calls below are one-shot and CONFIRMED LANDED —
@@ -10932,12 +11786,56 @@ Future<String?> callCreateReservationWithStaff(
     state.ensureField('paymentConfirmData', string.withDefault(''));
   });
 
-  app.customAction(
-    'fetchPaymentConfirmDetails',
-    args: {'resId': string},
-    returns: string,
-    description: '予約の日時・場所・料金内訳を取得し、決済確認画面表示用データを返す。',
-    code: r'''
+  // Original declaration frozen (comprehensive project-wide review round
+  // 2) — `fetchPaymentConfirmDetails` already exists live; re-declaring it
+  // via `app.customAction` (create-if-missing only) fails once its payload
+  // changes. The staff_fee/thirty_min_rule_applied fields now land via
+  // `updateCustomAction` inside `app.raw(...)` below, same established
+  // pattern as every other already-live action this file mutates in place.
+  //   app.customAction(
+  //     'fetchPaymentConfirmDetails',
+  //     args: {'resId': string},
+  //     returns: string,
+  //     description: '予約の日時・場所・料金内訳を取得し、決済確認画面表示用データを返す。',
+  //     code: r'''
+  //   import 'package:cloud_firestore/cloud_firestore.dart';
+  //
+  //   Future<String?> fetchPaymentConfirmDetails(String? resId) async {
+  //     try {
+  //       if (resId == null || resId.isEmpty) return '';
+  //       final doc = await FirebaseFirestore.instance
+  //           .collection('reservations')
+  //           .doc(resId)
+  //           .get();
+  //       final data = doc.data();
+  //       if (data == null) return '';
+  //       final rawDate = data['date'];
+  //       var dateLabel = '';
+  //       if (rawDate is Timestamp) {
+  //         final d = rawDate.toDate();
+  //         dateLabel =
+  //             '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')} '
+  //             '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  //       }
+  //       final location = (data['location']?.toString() ?? '').replaceAll('|||', '');
+  //       final baseAmount = (data['base_amount'] as num?)?.toInt() ?? 0;
+  //       final transportFee = (data['transport_fee'] as num?)?.toInt() ?? 0;
+  //       final staffFee = (data['staff_fee'] as num?)?.toInt() ?? 0;
+  //       final totalAmount = (data['total_amount'] as num?)?.toInt() ??
+  //           (baseAmount + transportFee + staffFee);
+  //       return '$dateLabel|||$location|||$baseAmount|||$transportFee|||$totalAmount';
+  //     } catch (e) {
+  //       return '';
+  //     }
+  //   }
+  //   ''',
+  //   );
+
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'fetchPaymentConfirmDetails',
+      code: r'''
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 Future<String?> fetchPaymentConfirmDetails(String? resId) async {
@@ -10963,11 +11861,61 @@ Future<String?> fetchPaymentConfirmDetails(String? resId) async {
     final staffFee = (data['staff_fee'] as num?)?.toInt() ?? 0;
     final totalAmount = (data['total_amount'] as num?)?.toInt() ??
         (baseAmount + transportFee + staffFee);
-    return '$dateLabel|||$location|||$baseAmount|||$transportFee|||$totalAmount';
+    final thirtyMinRuleApplied = data['thirty_min_rule_applied'] == true;
+    // FIX (comprehensive project-wide review round 2): `staffFee` was
+    // already computed above but never included in the returned string —
+    // the price breakdown UI showed 基本料金(base) + タクシー代(transport)
+    // with no line for it, so a guest whose reservation actually included
+    // staff cost saw a total that silently didn't match the sum of the
+    // visible line items. `thirtyMinRuleApplied` was entirely absent —
+    // the "30分ルール適用" row's value was a static "適用済み" literal
+    // baked into the widget tree, unconditionally claiming the rule
+    // applied regardless of the reservation's real
+    // `thirty_min_rule_applied` field. Both appended (indices 5/6) rather
+    // than inserted earlier in the string, so the already-landed
+    // index-0..4 bindings (date/location/base/transport/total, frozen
+    // below) keep resolving to the same fields unchanged.
+    return '$dateLabel|||$location|||$baseAmount|||$transportFee|||$totalAmount|||$staffFee|||$thirtyMinRuleApplied';
   } catch (e) {
     return '';
   }
 }
+''',
+    );
+  });
+
+  final paymentConfirmStaffFeeLabelFn = app.customFunction(
+    'paymentConfirmStaffFeeLabel',
+    args: {'data': string},
+    returns: string,
+    description: '決済確認画面データからスタッフ費用の金額を取り出す。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+return parts.length > 5 ? parts[5] : '0';
+''',
+  );
+
+  final paymentConfirmHasStaffFeeFn = app.customFunction(
+    'paymentConfirmHasStaffFee',
+    args: {'data': string},
+    returns: bool_,
+    description: '決済確認画面データからスタッフ費用が発生しているか判定する（発生時のみ行を表示）。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+if (parts.length <= 5) return false;
+return (int.tryParse(parts[5]) ?? 0) > 0;
+''',
+  );
+
+  final paymentConfirmThirtyMinRuleLabelFn = app.customFunction(
+    'paymentConfirmThirtyMinRuleLabel',
+    args: {'data': string},
+    returns: string,
+    description: '決済確認画面データから30分ルール適用状況を表示用ラベルに変換する。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+final applied = parts.length > 6 && parts[6] == 'true';
+return applied ? '適用済み' : '未適用';
 ''',
   );
 
@@ -11044,6 +11992,48 @@ Future<String?> fetchPaymentConfirmDetails(String? resId) async {
     //     name: 'PaymentConfirmTotalAmountValue',
     //   ),
     // );
+  });
+
+  // FIX (comprehensive project-wide review round 2): the price breakdown
+  // above (基本料金/タクシー代/合計) had no line for staff_fee at all — a
+  // guest whose reservation included staff cost saw base+transport that
+  // didn't sum to the visible total with no explanation. Inserted as a new
+  // row (same visual shape as the existing base/transport rows, confirmed
+  // via `Row_aubivfcq`'s own structure), visible only when staff_fee > 0
+  // since it's an optional per-reservation cost, not present on every
+  // booking. Also fixes the adjacent "30分ルール適用" row, whose value was
+  // a static "適用済み" literal baked into the widget tree — it always
+  // claimed the discount applied regardless of the reservation's real
+  // `thirty_min_rule_applied` field.
+  app.editPage(ff.Pages.paymentConfirm, (page) {
+    page.ensureInsertedAfter(
+      page.findByKey('Row_aubivfcq'), // タクシー代 row — new row goes directly below it
+      Row(
+        name: 'PaymentConfirmStaffFeeRow',
+        visible: CustomFunction(paymentConfirmHasStaffFeeFn, args: {'data': State('paymentConfirmData')}),
+        children: [
+          Text('スタッフ費用', style: Styles.bodyMedium),
+          Row(
+            children: [
+              Text(
+                CustomFunction(paymentConfirmStaffFeeLabelFn, args: {'data': State('paymentConfirmData')}),
+                style: Styles.bodyMedium,
+                name: 'PaymentConfirmStaffFeeValue',
+              ),
+              Text('円', style: Styles.bodyMedium),
+            ],
+          ),
+        ],
+      ),
+    );
+    page.ensureReplaced(
+      page.findByKey('Text_37e9ta7k'), // 30分ルール適用 value — was static "適用済み"
+      Text(
+        CustomFunction(paymentConfirmThirtyMinRuleLabelFn, args: {'data': State('paymentConfirmData')}),
+        style: Styles.bodyMedium,
+        name: 'PaymentConfirmThirtyMinRuleValue',
+      ),
+    );
   });
 
   // ==========================================================================
@@ -12032,6 +13022,401 @@ return list.where((shop) {
     page.update(page.findByKey('CircleImage_3lveym1m'), (patch) {
       patch.imagePath('assets/images/macchaChatsimage.png', source: ImageSource.asset);
     });
+  });
+
+  // ==========================================================================
+  // ReservationDetail: real data for the date/time/location/reward/
+  // counterpart-name card (comprehensive project-wide review round 2,
+  // CRITICAL finding). Confirmed via `generated_code/lib/reservation/
+  // reservation_detail/reservation_detail_widget.dart` directly: this
+  // page's entire スケジュール情報 card showed the SAME hardcoded strings
+  // ("2026年 4月 15日（水）", "20:30~21:30", "2,750 円") for every single
+  // reservation, and — a second, independent bug baked into the same
+  // widget tree — the 場所 (location) row's OWN value Text showed that
+  // same hardcoded DATE string too (a copy-paste artifact, not a real
+  // address). The 相手の情報 card's counterpart name ("アルク さん") was
+  // likewise static regardless of who was actually on the reservation.
+  // `fetchReservationVisibility` (already live) only ever fetched
+  // status/role for button gating — nothing on this page fetched the
+  // reservation's own content fields at all.
+  //
+  // Same established pattern as `fetchReservationSummary`
+  // (ReservationConfirmed, above) and `getChatRoomInfo`: one Firestore
+  // read for the reservation's own fields (readable directly under
+  // firestore.rules' guest/cast/staff-or-admin scoping) PLUS one Admin-SDK
+  // read for the counterpart's `nickname` — firestore.rules' `users` rule
+  // is strictly owner-only (`allow read: if request.auth.uid == document`),
+  // so a guest can never read their cast's own user doc directly (or vice
+  // versa) — confirmed the same constraint `getChatRoomInfo` already
+  // solves the same way, reused here via a new `getReservationDetailInfo`
+  // callable (reservations.ts) rather than reinventing it. Counterpart
+  // PHOTO deliberately excluded — `CircleImage_wer97dj4`/`_3lveym1m` above
+  // are an intentional static fallback avatar, not a dynamic binding, so a
+  // photo URL would be dead data.
+  // ==========================================================================
+
+  // `resDetailData`'s `state.ensureField(...)` moved earlier in this file
+  // (alongside `resVisibilityData`) — see that block's own comment for why
+  // (script execution order vs. the ON_INIT_STATE trigger's `SetState`
+  // reference).
+
+  // Original declaration frozen (comprehensive project-wide review round
+  // 2, follow-up finding) — `fetchReservationDetailData` already exists
+  // live from earlier in this same push cycle; re-declaring it via
+  // `app.customAction` fails once its payload changes. The `purposeLabel`/
+  // `messageBody` fields (for the page's separate "リクエストメッセージ" card,
+  // found on direct generated_code verification AFTER the first fix
+  // landed — it has the exact same hardcoded-placeholder defect: a static
+  // "あああ...あ" filler string instead of the reservation's real message)
+  // now land via `updateCustomAction` inside `app.raw(...)` below.
+  //   app.customAction(
+  //     'fetchReservationDetailData',
+  //     args: {'resId': string},
+  //     returns: string,
+  //     description: 'getReservationDetailInfo Cloud Functionを呼び出し、予約の日時・場所・報酬額・相手の氏名を取得する。',
+  //     code: r'''
+  //   import 'package:cloud_functions/cloud_functions.dart';
+  //
+  //   Future<String?> fetchReservationDetailData(String? resId) async {
+  //     try {
+  //       if (resId == null || resId.isEmpty) return '';
+  //       final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+  //           .httpsCallable('getReservationDetailInfo');
+  //       final result = await callable.call({'res_id': resId});
+  //       final data = result.data;
+  //       if (data is! Map || data['success'] != true) return '';
+  //
+  //       var dateLabel = '';
+  //       var timeLabel = '';
+  //       final dateMs = data['date_ms'];
+  //       if (dateMs is int) {
+  //         final start = DateTime.fromMillisecondsSinceEpoch(dateMs);
+  //         final durationMin = (data['duration_minutes'] as num?)?.toInt() ?? 60;
+  //         final end = start.add(Duration(minutes: durationMin));
+  //         const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+  //         final weekday = weekdays[(start.weekday - 1) % 7];
+  //         dateLabel = '${start.year}年 ${start.month}月 ${start.day}日（$weekday）';
+  //         String two(int n) => n.toString().padLeft(2, '0');
+  //         timeLabel = '${two(start.hour)}:${two(start.minute)}~${two(end.hour)}:${two(end.minute)}';
+  //       }
+  //
+  //       final location = (data['location']?.toString() ?? '').replaceAll('|||', '');
+  //       final totalAmount = (data['total_amount'] as num?)?.toInt() ?? 0;
+  //       final amountDigits = totalAmount.toString();
+  //       final buffer = StringBuffer();
+  //       for (var i = 0; i < amountDigits.length; i++) {
+  //         if (i > 0 && (amountDigits.length - i) % 3 == 0) buffer.write(',');
+  //         buffer.write(amountDigits[i]);
+  //       }
+  //       final amountLabel = '$buffer 円';
+  //
+  //       final partnerName = (data['counterpart_nickname']?.toString() ?? '').replaceAll('|||', '');
+  //
+  //       return '$dateLabel|||$timeLabel|||$location|||$amountLabel|||$partnerName';
+  //     } catch (e) {
+  //       return '';
+  //     }
+  //   }
+  //   ''',
+  //   );
+
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'fetchReservationDetailData',
+      code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<String?> fetchReservationDetailData(String? resId) async {
+  try {
+    if (resId == null || resId.isEmpty) return '';
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('getReservationDetailInfo');
+    final result = await callable.call({'res_id': resId});
+    final data = result.data;
+    if (data is! Map || data['success'] != true) return '';
+
+    var dateLabel = '';
+    var timeLabel = '';
+    final dateMs = data['date_ms'];
+    if (dateMs is int) {
+      final start = DateTime.fromMillisecondsSinceEpoch(dateMs);
+      final durationMin = (data['duration_minutes'] as num?)?.toInt() ?? 60;
+      final end = start.add(Duration(minutes: durationMin));
+      const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+      final weekday = weekdays[(start.weekday - 1) % 7];
+      dateLabel = '${start.year}年 ${start.month}月 ${start.day}日（$weekday）';
+      String two(int n) => n.toString().padLeft(2, '0');
+      timeLabel = '${two(start.hour)}:${two(start.minute)}~${two(end.hour)}:${two(end.minute)}';
+    }
+
+    final location = (data['location']?.toString() ?? '').replaceAll('|||', '');
+    final totalAmount = (data['total_amount'] as num?)?.toInt() ?? 0;
+    final amountDigits = totalAmount.toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < amountDigits.length; i++) {
+      if (i > 0 && (amountDigits.length - i) % 3 == 0) buffer.write(',');
+      buffer.write(amountDigits[i]);
+    }
+    final amountLabel = '$buffer 円';
+
+    final partnerName = (data['counterpart_nickname']?.toString() ?? '').replaceAll('|||', '');
+
+    // `createReservation`'s only client (callCreateReservation) writes
+    // `details` as '【目的：$purpose】\n$freeTextDetails' when a purpose was
+    // given (this file's own reservationForm section) — parsed back apart
+    // here rather than adding a separate `purpose` field to the schema.
+    final rawDetails = data['details']?.toString() ?? '';
+    var purposeLabel = '';
+    var messageBody = rawDetails;
+    final purposeMatch = RegExp(r'^【目的：([^】]*)】\n?').firstMatch(rawDetails);
+    if (purposeMatch != null) {
+      purposeLabel = purposeMatch.group(1) ?? '';
+      messageBody = rawDetails.substring(purposeMatch.end);
+    }
+    purposeLabel = purposeLabel.replaceAll('|||', '');
+    messageBody = messageBody.replaceAll('|||', '');
+
+    // FIX (feature build, unimplemented-features pass): group-invite
+    // visibility for the cast deciding whether to accept — see
+    // `getReservationDetailInfo`'s own comment (reservations.ts) for why
+    // this couldn't just be read directly (cast_responses tallying belongs
+    // server-side, matching every other reservation-status computation in
+    // this codebase).
+    final isGroupInvite = data['group_invite'] == true;
+    final groupSize = (data['group_size'] as num?)?.toInt() ?? 0;
+    final acceptedCastCount = (data['accepted_cast_count'] as num?)?.toInt() ?? 0;
+    final totalCastCount = (data['total_cast_count'] as num?)?.toInt() ?? 0;
+    final groupInviteLabel = isGroupInvite
+        ? 'グループお誘い（募集$groupSize名） 承諾状況: $acceptedCastCount/$totalCastCount'
+        : '';
+
+    return '$dateLabel|||$timeLabel|||$location|||$amountLabel|||$partnerName|||$purposeLabel|||$messageBody|||$groupInviteLabel';
+  } catch (e) {
+    return '';
+  }
+}
+''',
+    );
+  });
+
+  final reservationDetailDateLabelFn = app.customFunction(
+    'reservationDetailDateLabel',
+    args: {'data': string},
+    returns: string,
+    description: '予約詳細データ文字列から日付表示を取り出す。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+return parts.isNotEmpty ? parts[0] : '';
+''',
+  );
+
+  final reservationDetailTimeLabelFn = app.customFunction(
+    'reservationDetailTimeLabel',
+    args: {'data': string},
+    returns: string,
+    description: '予約詳細データ文字列から時間表示を取り出す。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+return parts.length > 1 ? parts[1] : '';
+''',
+  );
+
+  final reservationDetailLocationLabelFn = app.customFunction(
+    'reservationDetailLocationLabel',
+    args: {'data': string},
+    returns: string,
+    description: '予約詳細データ文字列から場所を取り出す。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+return parts.length > 2 ? parts[2] : '';
+''',
+  );
+
+  final reservationDetailAmountLabelFn = app.customFunction(
+    'reservationDetailAmountLabel',
+    args: {'data': string},
+    returns: string,
+    description: '予約詳細データ文字列から報酬額表示を取り出す。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+return parts.length > 3 ? parts[3] : '';
+''',
+  );
+
+  final reservationDetailPartnerNameFn = app.customFunction(
+    'reservationDetailPartnerName',
+    args: {'data': string},
+    returns: string,
+    description: '予約詳細データ文字列から相手の氏名を取り出す。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+final name = parts.length > 4 ? parts[4] : '';
+return name.isEmpty ? '' : '$name さん';
+''',
+  );
+
+  // Reuses the ALREADY-fetched `resVisibilityData` (isGuest/isCast, set by
+  // fetchReservationVisibility on the same ON_INIT_STATE trigger) rather
+  // than adding a second role signal — the "ゲストユーザー" subtitle under
+  // the counterpart's name was static regardless of viewer/counterpart
+  // role (a guest viewing their cast's card saw "ゲストユーザー" mislabeling
+  // the cast as a guest).
+  final reservationDetailPartnerRoleLabelFn = app.customFunction(
+    'reservationDetailPartnerRoleLabel',
+    args: {'visibilityData': string},
+    returns: string,
+    description: '予約詳細データから相手の役割ラベル（キャスト/ゲスト）を判定する。',
+    code: r'''
+final parts = (visibilityData ?? '').split('|||');
+if (parts.length < 3) return '';
+final isGuest = parts[1] == 'true';
+final isCast = parts[2] == 'true';
+if (isGuest) return 'キャスト';
+if (isCast) return 'ゲスト';
+return '';
+''',
+  );
+
+  // Follow-up finding (comprehensive project-wide review round 2), caught
+  // on direct generated_code verification after the fix above landed: the
+  // page's separate "リクエストメッセージ" card had the SAME hardcoded-
+  // placeholder defect — a static "お食事" purpose value and a literal
+  // "あああ...あ" filler string standing in for the reservation's real
+  // message, both baked into the widget tree regardless of what was
+  // actually requested.
+  final reservationDetailPurposeLabelFn = app.customFunction(
+    'reservationDetailPurposeLabel',
+    args: {'data': string},
+    returns: string,
+    description: '予約詳細データからお誘い目的を取り出す。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+return parts.length > 5 ? parts[5] : '';
+''',
+  );
+
+  final reservationDetailMessageBodyFn = app.customFunction(
+    'reservationDetailMessageBody',
+    args: {'data': string},
+    returns: string,
+    description: '予約詳細データからリクエストメッセージ本文を取り出す。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+return parts.length > 6 ? parts[6] : '';
+''',
+  );
+
+  final reservationDetailGroupInviteLabelFn = app.customFunction(
+    'reservationDetailGroupInviteLabel',
+    args: {'data': string},
+    returns: string,
+    description: '予約詳細データからグループお誘いの承諾状況ラベルを取り出す（グループお誘いでない場合は空文字）。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+return parts.length > 7 ? parts[7] : '';
+''',
+  );
+
+  app.editPage(ff.Pages.reservationDetail, (page) {
+    page.ensureReplaced(
+      page.findByKey('Text_lwjamgvd'), // 日付 value
+      Text(
+        CustomFunction(reservationDetailDateLabelFn, args: {'data': State('resDetailData')}),
+        style: Styles.bodyMedium,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        name: 'ReservationDetailDateValue',
+      ),
+    );
+    page.ensureReplaced(
+      page.findByKey('Text_e4oa7o7g'), // 時間 value
+      Text(
+        CustomFunction(reservationDetailTimeLabelFn, args: {'data': State('resDetailData')}),
+        style: Styles.bodyMedium,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        name: 'ReservationDetailTimeValue',
+      ),
+    );
+    page.ensureReplaced(
+      page.findByKey('Text_bxraoj4e'), // 場所 value — was showing the DATE string (copy-paste bug)
+      Text(
+        CustomFunction(reservationDetailLocationLabelFn, args: {'data': State('resDetailData')}),
+        style: Styles.bodyMedium,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        name: 'ReservationDetailLocationValue',
+      ),
+    );
+    page.ensureReplaced(
+      page.findByKey('Text_i1ojfwsp'), // 報酬 value
+      Text(
+        CustomFunction(reservationDetailAmountLabelFn, args: {'data': State('resDetailData')}),
+        style: Styles.bodyMedium,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        name: 'ReservationDetailAmountValue',
+      ),
+    );
+    page.ensureReplaced(
+      page.findByKey('Text_f8n0q6ba'), // 相手の情報 — counterpart name
+      Text(
+        CustomFunction(reservationDetailPartnerNameFn, args: {'data': State('resDetailData')}),
+        style: Styles.bodyMedium,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        name: 'ReservationDetailPartnerName',
+      ),
+    );
+    page.ensureReplaced(
+      page.findByKey('Text_hwsv4ksy'), // 相手の情報 — counterpart role subtitle
+      Text(
+        CustomFunction(reservationDetailPartnerRoleLabelFn, args: {'visibilityData': State('resVisibilityData')}),
+        style: Styles.bodyMedium,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        name: 'ReservationDetailPartnerRole',
+      ),
+    );
+    page.ensureReplaced(
+      page.findByKey('Text_13bm1jnh'), // リクエストメッセージ card — counterpart name (same duplicate as above)
+      Text(
+        CustomFunction(reservationDetailPartnerNameFn, args: {'data': State('resDetailData')}),
+        style: Styles.bodyMedium,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        name: 'ReservationDetailMessagePartnerName',
+      ),
+    );
+    page.ensureReplaced(
+      page.findByKey('Text_i1chyesr'), // リクエストメッセージ card — counterpart role subtitle
+      Text(
+        CustomFunction(reservationDetailPartnerRoleLabelFn, args: {'visibilityData': State('resVisibilityData')}),
+        style: Styles.bodyMedium,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        name: 'ReservationDetailMessagePartnerRole',
+      ),
+    );
+    page.ensureReplaced(
+      page.findByKey('Text_7f26jiz4'), // お誘い目的 value — was static "お食事"
+      Text(
+        CustomFunction(reservationDetailPurposeLabelFn, args: {'data': State('resDetailData')}),
+        style: Styles.bodyMedium,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        name: 'ReservationDetailPurposeValue',
+      ),
+    );
+    page.ensureReplaced(
+      page.findByKey('Text_8q00w3cm'), // message body — was a static "あああ...あ" filler literal
+      Text(
+        CustomFunction(reservationDetailMessageBodyFn, args: {'data': State('resDetailData')}),
+        style: Styles.bodyMedium,
+        name: 'ReservationDetailMessageBody',
+      ),
+    );
   });
 
   app.editComponent(ff.Components.affiliateQrCodeBottomSheet, (component) {
@@ -13195,11 +14580,20 @@ Future<List<String>> callGetCastSchedule(String? castId, String? date) async {
     state.ensureField('scheduleDaySlots', listOf(string));
   });
 
+  app.editPageState(ff.Pages.castProfile, (state) {
+    state.ensureField('isFavorited', bool_.withDefault(false));
+  });
+
   app.editPage(ff.Pages.castProfile, (page) {
     // Extending the SAME ON_INIT_STATE chain already established at
     // dsl/edit.dart:7299 (reproduced verbatim) — appending the initial
     // date computation + first day's fetch, not a second call on this
-    // trigger.
+    // trigger. Favorites (§3.6.6, this same push): appended the favorite-
+    // status check as one more step in this SAME chain — a second, separate
+    // `ensureActions` call on this same root+trigger is confirmed (this
+    // file's own established finding, reproduced verbatim in comments
+    // elsewhere) to fail `compileDslApp` outright even when reproducing an
+    // otherwise-unchanged chain.
     page.ensureActions(
       page.root,
       triggerType: FFActionTriggerType.ON_INIT_STATE,
@@ -13220,6 +14614,12 @@ Future<List<String>> callGetCastSchedule(String? castId, String? date) async {
           outputAs: 'scheduleGuestInitResult',
         ),
         SetState('scheduleDaySlots', ActionOutput('scheduleGuestInitResult')),
+        CallCustomAction.named(
+          'checkIsCastFavorited',
+          arguments: {'castId': PageParam('castId')},
+          outputAs: 'isFavoritedInitResult',
+        ),
+        SetState('isFavorited', ActionOutput('isFavoritedInitResult')),
       ],
     );
 
@@ -13531,4 +14931,8276 @@ return p.isNotEmpty ? p : '19:00';
   //     ),
   //   );
   // });
+
+  // ==========================================================================
+  // Favorites (§3.6.6) — no FavoritesPage existed at all; only a decorative
+  // heart icon on the OLD carousel-era HomePage design, removed when Phase 3
+  // rebuilt the discovery grid into a GridView (confirmed: grepping the
+  // current typed SDK for a heart/like/bookmark icon anywhere on HomePage or
+  // CastProfile returns nothing). Backend: addFavorite/removeFavorite/
+  // getFavoriteCasts/isCastFavorited (auth.ts), `favorites` subcollection
+  // (users/{uid}/favorites/{castId}) — deny-all client rules, Cloud
+  // Functions only (firestore.rules' own comment on this collection
+  // explains why: consistency with this project's established convention,
+  // not a strict requirement for genuinely low-stakes data).
+  //
+  // Toggle wired on CastProfile only, not the HomePage discovery grid —
+  // deliberately scoped down from the original ask, disclosed not silently
+  // dropped. HomePage's `DiscoveryCastGrid` item template (`Stack_7fkbnrrf`)
+  // has already been patched multiple times this session (online-dot,
+  // real/fallback image swap) and reconstructing it via `ensureReplaced`
+  // would require reproducing every existing child's exact DSL construction
+  // from the typed SDK's structural summary alone (the source that built it
+  // isn't visible from here) — real risk of subtly breaking the
+  // image/fallback/online-dot logic already live there for a page this
+  // heavily trafficked. CastProfile is a single, non-repeating page, so
+  // inserting one new sibling via `ensureInsertedAfter` is safe and touches
+  // nothing existing. HomePage's own grid heart icon remains a real,
+  // disclosed follow-up item, not silently completed.
+  // ==========================================================================
+
+  app.customAction(
+    'callAddFavorite',
+    args: {'castId': string},
+    returns: bool_,
+    description: 'addFavorite Cloud Functionを呼び出し、キャストをお気に入りに追加する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAddFavorite(String? castId) async {
+  try {
+    final id = castId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('addFavorite');
+    final result = await callable.call({'cast_id': id});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callRemoveFavorite',
+    args: {'castId': string},
+    returns: bool_,
+    description: 'removeFavorite Cloud Functionを呼び出し、キャストをお気に入りから解除する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callRemoveFavorite(String? castId) async {
+  try {
+    final id = castId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('removeFavorite');
+    final result = await callable.call({'cast_id': id});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'checkIsCastFavorited',
+    args: {'castId': string},
+    returns: bool_,
+    description: 'isCastFavorited Cloud Functionを呼び出し、指定キャストがお気に入り登録済みか判定する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> checkIsCastFavorited(String? castId) async {
+  try {
+    final id = castId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('isCastFavorited');
+    final result = await callable.call({'cast_id': id});
+    return result.data is Map && result.data['favorited'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'fetchFavoriteCasts',
+    returns: listOf(string),
+    description: 'getFavoriteCasts Cloud Functionを呼び出し、お気に入りキャスト一覧（uid|||nickname|||photoUrl|||isOnline）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchFavoriteCasts() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('getFavoriteCasts');
+    final result = await callable.call();
+    if (result.data is Map && result.data['items'] is List) {
+      return (result.data['items'] as List).map((e) => e.toString()).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  // ── CastProfile: favorite-toggle button (visible-state pair, matching
+  // this file's own `ConditionalBuilder`-is-broken workaround — a confirmed
+  // SDK bug, §63 — two opposite-`visible:` siblings instead). Inserted as a
+  // new sibling in the existing invite-buttons row via `ensureInsertedAfter`
+  // — doesn't touch or reconstruct either existing button. ──
+  app.editPage(ff.Pages.castProfile, (page) {
+    page.ensureInsertedAfter(
+      page.findByKey('Button_z76lh1eh'), // ココ店で誘う
+      Stack(
+        name: 'FavoriteToggleStack',
+        children: [
+          IconButton(
+            'favorite',
+            size: 28,
+            color: Colors.error,
+            name: 'FavoriteOnIcon',
+            visible: State('isFavorited'),
+            onTap: [
+              CallCustomAction.named(
+                'callRemoveFavorite',
+                arguments: {'castId': PageParam('castId')},
+                outputAs: 'removeFavoriteResult',
+              ),
+              If(
+                ActionOutput('removeFavoriteResult'),
+                then: [
+                  SetState('isFavorited', false),
+                  Snackbar('お気に入りを解除しました。'),
+                ],
+                orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+              ),
+            ],
+          ),
+          IconButton(
+            'favorite_border',
+            size: 28,
+            color: Colors.secondaryText,
+            name: 'FavoriteOffIcon',
+            visible: Not(State('isFavorited')),
+            onTap: [
+              CallCustomAction.named(
+                'callAddFavorite',
+                arguments: {'castId': PageParam('castId')},
+                outputAs: 'addFavoriteResult',
+              ),
+              If(
+                ActionOutput('addFavoriteResult'),
+                then: [
+                  SetState('isFavorited', true),
+                  Snackbar('お気に入りに追加しました。'),
+                ],
+                orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  });
+
+  // ── FavoritesPage (new) ─────────────────────────────────────────────────
+  // Distinctly-named parsing custom functions rather than reusing
+  // discoveryCastId/Nickname/PhotoUrl (HomePage) — those weren't captured
+  // into a local variable at their own declaration site (bare
+  // `app.customFunction('discoveryCastId', ...)` statements, confirmed by
+  // reading them directly), so there is no in-scope handle to reference
+  // from here without either risking a same-script duplicate-declaration
+  // error (re-calling `app.customFunction` with the same name a second time
+  // in one script run) or editing that already-proven-working declaration
+  // site just to add a capture. Small, self-contained duplication (3 tiny
+  // position-based parsers) is the lower-risk choice.
+  final isFavoritesListEmptyFn = app.customFunction(
+    'isFavoritesListEmpty',
+    args: {'items': listOf(string)},
+    returns: bool_,
+    description: 'お気に入りリストが空かどうかを判定する（空状態メッセージの表示切り替え用）。',
+    code: r'''
+return (items ?? const <String>[]).isEmpty;
+''',
+  );
+
+  final favCastIdFn = app.customFunction(
+    'favCastId',
+    args: {'item': string},
+    returns: string,
+    description: 'お気に入りキャストリスト1件からUIDを取り出す。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.isNotEmpty ? parts[0] : '';
+''',
+  );
+
+  final favCastNicknameFn = app.customFunction(
+    'favCastNickname',
+    args: {'item': string},
+    returns: string,
+    description: 'お気に入りキャストリスト1件からニックネームを取り出す。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.length > 1 ? parts[1] : '';
+''',
+  );
+
+  final favoritesPage = app.ensurePage(
+    'FavoritesPage',
+    route: '/favorites',
+    description: 'お気に入りキャスト一覧画面。',
+    state: {'favoriteCastsList': listOf(string)},
+    onLoad: [
+      CallCustomAction.named('fetchFavoriteCasts', outputAs: 'favoriteCastsInitResult'),
+      // NOTE: typed-form (ff.Pages.favoritesPage.state.favoriteCastsList)
+      // used here even though this whole `ensurePage` call is a no-op
+      // post-creation (page already exists remotely, per this file's own
+      // established freeze discipline) — required for THIS SCRIPT to still
+      // compile/validate at all, since the validator checks the whole file
+      // uniformly and the typed handle exists now. Has no remote effect;
+      // the real, currently-live body is the `editPage`/`ensureReplaced`
+      // block further down this file.
+      SetState(ff.Pages.favoritesPage.state.favoriteCastsList, ActionOutput('favoriteCastsInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'お気に入り'),
+      body: Column(
+        padding: 16,
+        children: [
+          Text(
+            'お気に入りのキャストはいません。',
+            style: Styles.bodyMedium,
+            visible: CustomFunction(isFavoritesListEmptyFn, args: {'items': State(ff.Pages.favoritesPage.state.favoriteCastsList)}),
+          ),
+          Expanded(
+            ListView(
+              name: 'FavoriteCastsListView',
+              spacing: 8,
+              source: State(ff.Pages.favoritesPage.state.favoriteCastsList),
+              itemBuilder: (item) => Card(
+                child: Container(
+                  padding: 12,
+                  onTap: [
+                    Navigate(
+                      ff.Pages.castProfile,
+                      params: {'castId': CustomFunction(favCastIdFn, args: {'item': item})},
+                    ),
+                  ],
+                  child: Row(
+                    mainAxis: MainAxis.spaceBetween,
+                    children: [
+                      Expanded(
+                        Text(
+                          CustomFunction(favCastNicknameFn, args: {'item': item}),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        'favorite',
+                        size: 24,
+                        color: Colors.error,
+                        onTap: [
+                          CallCustomAction.named(
+                            'callRemoveFavorite',
+                            arguments: {'castId': CustomFunction(favCastIdFn, args: {'item': item})},
+                            outputAs: 'favListRemoveResult',
+                          ),
+                          CallCustomAction.named('fetchFavoriteCasts', outputAs: 'favListRefetchResult'),
+                          SetState(ff.Pages.favoritesPage.state.favoriteCastsList, ActionOutput('favListRefetchResult')),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // ==========================================================================
+  // Bulk-invite (§3.6.7) — select up to 5 favorited casts, send one
+  // identical request to all. Reuses the EXISTING `createReservation`
+  // multi-cast support (`cast_ids` array, already validated/slot-locked for
+  // every cast — confirmed by reading reservations.ts directly) rather than
+  // inventing a separate mechanism: "send one identical request to all N"
+  // is exactly what a multi-cast_ids reservation already IS. Distinct from
+  // `group_invite` (recruit a not-yet-known partner via the public work-board
+  // bulletin, already built in Phase 10) — bulk-invite is for pre-selected,
+  // already-favorited casts.
+  //
+  // FavoritesPage was created in a PREVIOUS push (now exists remotely,
+  // `ff.Pages.favoritesPage` in scope) — this is a fresh `editPage`/
+  // `editPageState` call, not a second `ensurePage`. `ensurePage` would
+  // silently no-op these body changes per this file's own established
+  // freeze discipline (see the BlockList/SystemInfo comments elsewhere).
+  //
+  // The ListView is fully reconstructed via `ensureReplaced` rather than
+  // attempting to inject a Checkbox into the EXISTING itemBuilder template
+  // via `ensureInsertedAfter` — deliberately: `ensureInsertedAfter` inserts
+  // a STATIC widget description, with no way to bind it to the itemBuilder
+  // closure's own per-item `item` variable (that binding only exists when
+  // AUTHORING a fresh `itemBuilder: (item) => ...` closure, which this call
+  // does). Safe to fully reproduce here — this exact ListView was authored
+  // in THIS project's own previous push, so its current shape is known
+  // precisely, not guessed from the typed SDK's structural summary alone
+  // (the same reasoning that ruled out doing this to HomePage's
+  // DiscoveryCastGrid, which this session did NOT author from scratch).
+  //
+  // Deliberately NOT wired: auto-hiding ReservationForm's group-invite
+  // toggle when arriving via bulk-invite (§3.6.7's own "mutually exclusive
+  // UI paths" wording) — ReservationForm's widget tree has been patched
+  // many times this session and a dynamic-visibility edit there needs
+  // `ensureReplaced` reconstructing that specific row from a source this
+  // call site doesn't have direct knowledge of; using both simultaneously
+  // isn't a correctness/crash risk (group_invite is just an independent
+  // boolean flag on the reservation, per reservations.ts), only a UX nicety
+  // the spec calls for. A real, disclosed scope reduction, not silently
+  // dropped.
+  // ==========================================================================
+
+  // `callCreateReservationWithStaff`'s CSV-parsing change (bulk-invite,
+  // §3.6.7). PERMANENT mechanism, not a one-time sync step — the original
+  // `app.customAction` declaration (above, ~line 10892) is now commented
+  // out for good (see its own comment for why "sync it by hand" doesn't
+  // work reliably here). This `updateCustomAction` call is the sole,
+  // ongoing source of truth for this action's `code:` from now on.
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'callCreateReservationWithStaff',
+      code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<String?> callCreateReservationWithStaff(
+  String? castId,
+  String? date,
+  String? startTime,
+  String? timeSlot,
+  String? durationLabel,
+  String? meetingAddress,
+  String? meetingPoint,
+  bool? groupInvite,
+  String? groupSizeLabel,
+  String? purpose,
+  String? details,
+  String? baseAmount,
+  bool? needsSecurity,
+  bool? needsTransport,
+) async {
+  try {
+    if (castId == null || castId.isEmpty) return null;
+    // FIX (comprehensive project-wide review round 2): same unguarded
+    // `date` interpolation bug as `callCreateReservation` above — see that
+    // action's own comment for the failure mode.
+    if (date == null || date.isEmpty) return null;
+    final durationMinutes =
+        int.tryParse(RegExp(r'\d+').firstMatch(durationLabel ?? '')?.group(0) ?? '') ?? 60;
+    final groupSize = int.tryParse(groupSizeLabel ?? '') ?? 0;
+    final amount = int.tryParse(baseAmount ?? '') ?? 0;
+    final isoDateTime = '${date}T${(startTime == null || startTime.isEmpty) ? '19:00' : startTime}:00';
+    final fullDetails = (purpose == null || purpose.isEmpty)
+        ? (details ?? '')
+        : '【目的：$purpose】\n${details ?? ''}';
+    final castIds = castId
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('createReservation');
+    final result = await callable.call({
+      'cast_ids': castIds,
+      'date': isoDateTime,
+      'time_slot': timeSlot ?? '',
+      'duration_minutes': durationMinutes,
+      'location': meetingAddress ?? '',
+      'meeting_point': meetingPoint ?? '',
+      'group_invite': groupInvite ?? false,
+      'group_size': groupSize,
+      'details': fullDetails,
+      'base_amount': amount,
+      'needs_security': needsSecurity ?? false,
+      'needs_transport': needsTransport ?? false,
+    });
+    if (result.data is Map && result.data['res_id'] != null) {
+      return result.data['res_id'] as String;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+''',
+    );
+  });
+
+  app.editPageState(ff.Pages.favoritesPage, (state) {
+    state.ensureField('selectedFavoriteIds', listOf(string));
+  });
+
+  // Reuses `isFavoritesListEmptyFn`/`favCastIdFn`/`favCastNicknameFn`
+  // directly rather than redeclaring them — `dsl/edit.dart` is one
+  // ever-growing, persistent script where EVERY push re-executes the WHOLE
+  // file top-to-bottom in one `buildEditFlow` run, so these `final`
+  // variables from the earlier FavoritesPage-creation block (above, same
+  // file, same function scope) are already in scope here. Calling
+  // `app.customFunction` a SECOND time with the same name string within one
+  // run is the real risk this avoids (a same-run duplicate-registration
+  // failure) — renaming only the LOCAL Dart variable, as an earlier draft
+  // of this exact block mistakenly did, would not have fixed that; only
+  // reusing the existing handle does.
+  final isIdInListFn = app.customFunction(
+    'isIdInList',
+    args: {'id': string, 'items': listOf(string)},
+    returns: bool_,
+    description: 'IDがリストに含まれるか判定する（一括お誘いの選択チェック用）。',
+    code: r'''
+return (items ?? const <String>[]).contains(id ?? '');
+''',
+  );
+
+  final toggleIdInListFn = app.customFunction(
+    'toggleIdInList',
+    args: {'id': string, 'items': listOf(string)},
+    returns: listOf(string),
+    description: 'リストにIDが含まれていれば削除、含まれていなければ追加する（最大5件まで、一括お誘いの選択用）。',
+    code: r'''
+final list = List<String>.from(items ?? const <String>[]);
+final target = id ?? '';
+if (target.isEmpty) return list;
+if (list.contains(target)) {
+  list.remove(target);
+} else {
+  if (list.length >= 5) return list;
+  list.add(target);
+}
+return list;
+''',
+  );
+
+  final joinIdsFn = app.customFunction(
+    'joinIds',
+    args: {'items': listOf(string)},
+    returns: string,
+    description: 'IDリストをカンマ区切り文字列に結合する（一括お誘いのcastIdパラメータ用）。',
+    code: r'''
+return (items ?? const <String>[]).join(',');
+''',
+  );
+
+  app.editPage(ff.Pages.favoritesPage, (page) {
+    page.ensureInsertedAfter(
+      page.findByKey('Text_d126embl'), // お気に入りのキャストはいません。
+      Button(
+        '選んだキャストを一括で誘う（最大5人）',
+        variant: ButtonVariant.outlined,
+        name: 'BulkInviteButton',
+        onTap: [
+          If(
+            CustomFunction(isFavoritesListEmptyFn, args: {'items': State('selectedFavoriteIds')}),
+            then: [Snackbar('キャストを選択してください。')],
+            orElse: [
+              Navigate(
+                ff.Pages.reservationForm,
+                params: {
+                  'castId': CustomFunction(joinIdsFn, args: {'items': State('selectedFavoriteIds')}),
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    // FROZEN (confirmed landed in its own prior push, this same session):
+    // `ListView_5ecrqq3c` no longer exists — this `ensureReplaced` already
+    // succeeded once. Left live, it hard-fails the NEXT push with "no
+    // matches" (same class this file has hit repeatedly: MacchaChats'
+    // `ListView_84hpa09g`, ReservationListPage's `Card_wf69s6in`/
+    // `ListView_kardnjc6`). Commented out per this file's own established
+    // discipline for a superseded one-shot structural op.
+    // page.ensureReplaced(
+      // page.findByKey('ListView_5ecrqq3c'),
+      // ListView(
+        // name: 'FavoriteCastsListView',
+        // spacing: 8,
+        // // Typed form required here (compiler-enforced): unlike the bare
+        // // State('favoriteCastsList') string form used in this SAME field's
+        // // ORIGINAL declaration (app.ensurePage, previous push, left
+        // // untouched above) — the typed handle only became available AFTER
+        // // that push succeeded and regenerated ff.Pages.favoritesPage; any
+        // // EDIT made after that point must use it.
+        // source: State(ff.Pages.favoritesPage.state.favoriteCastsList),
+        // itemBuilder: (item) => Card(
+          // child: Container(
+            // padding: 12,
+            // onTap: [
+              // Navigate(
+                // ff.Pages.castProfile,
+                // params: {'castId': CustomFunction(favCastIdFn, args: {'item': item})},
+              // ),
+            // ],
+            // child: Row(
+              // mainAxis: MainAxis.spaceBetween,
+              // children: [
+                // Checkbox(
+                  // value: CustomFunction(
+                    // isIdInListFn,
+                    // args: {
+                      // 'id': CustomFunction(favCastIdFn, args: {'item': item}),
+                      // 'items': State('selectedFavoriteIds'),
+                    // },
+                  // ),
+                  // onChanged: [
+                    // SetState(
+                      // 'selectedFavoriteIds',
+                      // CustomFunction(
+                        // toggleIdInListFn,
+                        // args: {
+                          // 'id': CustomFunction(favCastIdFn, args: {'item': item}),
+                          // 'items': State('selectedFavoriteIds'),
+                        // },
+                      // ),
+                    // ),
+                  // ],
+                // ),
+                // Expanded(
+                  // Text(
+                    // CustomFunction(favCastNicknameFn, args: {'item': item}),
+                    // maxLines: 1,
+                    // overflow: TextOverflow.ellipsis,
+                  // ),
+                // ),
+                // IconButton(
+                  // 'favorite',
+                  // size: 24,
+                  // color: Colors.error,
+                  // onTap: [
+                    // CallCustomAction.named(
+                      // 'callRemoveFavorite',
+                      // arguments: {'castId': CustomFunction(favCastIdFn, args: {'item': item})},
+                      // outputAs: 'favListRemoveResult',
+                    // ),
+                    // CallCustomAction.named('fetchFavoriteCasts', outputAs: 'favListRefetchResult'),
+                    // SetState(ff.Pages.favoritesPage.state.favoriteCastsList, ActionOutput('favListRefetchResult')),
+                  // ],
+                // ),
+              // ],
+            // ),
+          // ),
+        // ),
+      // ),
+    // );
+  });
+
+  // Entry point — matches the exact "add a nav button to HomePage's AppBar
+  // title row" pattern already proven for ReservationListPage
+  // (`Button_1gytvzks`, added after that page was found built-but-
+  // completely-unreachable, §58) — never repeat that mistake for a brand
+  // new page again. Uses the LOCALLY CAPTURED `favoritesPage` variable
+  // (only valid within this same script run, before `ff.Pages.favoritesPage`
+  // exists post-push), matching this file's own established same-push
+  // page-creation-and-reference convention (see the BlockList/SystemInfo
+  // history comments elsewhere in this file).
+  app.editPage(ff.Pages.homePage, (page) {
+    page.ensureInsertedAfter(
+      page.findByKey('Button_1gytvzks'), // 予約一覧
+      Button(
+        'お気に入り',
+        variant: ButtonVariant.text,
+        name: 'FavoritesNavButton',
+        onTap: [Navigate(favoritesPage)],
+      ),
+    );
+  });
+
+  // ==========================================================================
+  // CocoTenDetailPage (§3.4.1-2) — no venue detail page existed at all;
+  // tapping a shop card in CocomisePage only ever opened a small
+  // AlertDialog with name/genre (confirmed via the FROZEN CocotenShopGrid
+  // block above). Display data is passed directly as page params from the
+  // shop card's own already-in-memory record (CocomisePage already fetched
+  // the full shops list) rather than re-fetching by ID — simpler, no extra
+  // round trip, and sidesteps needing a "fetch one Firestore doc by ID"
+  // primitive this session has no confirmed working example of.
+  //
+  // Scope, deliberately bounded and disclosed: the "invite a cast from this
+  // venue" entry point navigates to HomePage (browse → pick a cast the
+  // normal way) rather than attempting to thread the venue's address
+  // through HomePage → CastProfile → ReservationForm automatically — doing
+  // that properly needs either a new FFAppState field carrying "pending
+  // venue address" across 2 extra navigation hops, or a cast-picker inside
+  // ReservationForm itself (which doesn't exist), either a materially
+  // larger, separately-scoped change. The guest can type the venue's
+  // address into ReservationForm's existing meeting-address field by hand.
+  // No map/area search either (no map widget anywhere in this app, no
+  // `location` geopoint populated on real documents) — both pre-existing,
+  // disclosed limitations (PROJECT_KNOWLEDGE.md §71), not newly introduced.
+  // ==========================================================================
+
+  // `formatShopAddress` (a 4-part prefecture/city/town_block/building
+  // joiner) was dropped — those 4 fields turned out not to exist in the
+  // real FlutterFlow-side schema at all (confirmed via
+  // lib/flutterflow_project/schemas.dart directly: `cocoten_shops` only
+  // ever declares a single `address` string, matching the original spec's
+  // own collection definition). `adminUpsertCocotenShop` (admin.ts, same
+  // push) now computes and writes that combined `address` field itself, so
+  // this page can just read it directly — one field, no client-side join.
+  final cocoTenDetailPage = app.ensurePage(
+    'CocoTenDetailPage',
+    route: '/cocoten-detail',
+    description: 'ココ店詳細画面（店舗情報表示、キャストお誘い導線）。',
+    params: {
+      'shopId': string.withDefault(''),
+      'shopName': string.withDefault(''),
+      'shopGenre': string.withDefault(''),
+      'shopAddress': string.withDefault(''),
+      'shopMenu': string.withDefault(''),
+      'shopGuestBenefits': string.withDefault(''),
+      'shopActive': bool_.withDefault(false),
+    },
+    state: {
+      'shopNameState': string.withDefault(''),
+      'shopGenreState': string.withDefault(''),
+      'shopAddressState': string.withDefault(''),
+      'shopMenuState': string.withDefault(''),
+      'shopGuestBenefitsState': string.withDefault(''),
+      'shopActiveState': bool_.withDefault(false),
+    },
+    onLoad: [
+      SetState(ff.Pages.cocoTenDetailPage.state.shopNameState, PageParam('shopName')),
+      SetState(ff.Pages.cocoTenDetailPage.state.shopGenreState, PageParam('shopGenre')),
+      SetState(ff.Pages.cocoTenDetailPage.state.shopAddressState, PageParam('shopAddress')),
+      SetState(ff.Pages.cocoTenDetailPage.state.shopMenuState, PageParam('shopMenu')),
+      SetState(
+        ff.Pages.cocoTenDetailPage.state.shopGuestBenefitsState,
+        PageParam('shopGuestBenefits'),
+      ),
+      SetState(ff.Pages.cocoTenDetailPage.state.shopActiveState, PageParam('shopActive')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'ココ店詳細'),
+      body: Column(
+        padding: 16,
+        spacing: 12,
+        children: [
+          Row(
+            mainAxis: MainAxis.spaceBetween,
+            crossAxis: CrossAxis.center,
+            children: [
+              Expanded(
+                Text(
+                  State(ff.Pages.cocoTenDetailPage.state.shopNameState),
+                  style: Styles.titleLarge,
+                ),
+              ),
+              Container(
+                width: 10,
+                height: 10,
+                borderRadius: 5,
+                color: Colors.success,
+                visible: State(ff.Pages.cocoTenDetailPage.state.shopActiveState),
+                name: 'CocoTenDetailActiveDot',
+              ),
+            ],
+          ),
+          Text(
+            State(ff.Pages.cocoTenDetailPage.state.shopGenreState),
+            style: Styles.bodyMedium,
+            color: Colors.secondaryText,
+          ),
+          Divider(),
+          Text('住所', style: Styles.titleMedium),
+          Text(
+            State(ff.Pages.cocoTenDetailPage.state.shopAddressState),
+            style: Styles.bodyMedium,
+          ),
+          Text(
+            'メニュー',
+            style: Styles.titleMedium,
+            visible: Not(Equals(State(ff.Pages.cocoTenDetailPage.state.shopMenuState), '')),
+          ),
+          Text(
+            State(ff.Pages.cocoTenDetailPage.state.shopMenuState),
+            style: Styles.bodyMedium,
+            visible: Not(Equals(State(ff.Pages.cocoTenDetailPage.state.shopMenuState), '')),
+          ),
+          Text(
+            'ゲスト特典',
+            style: Styles.titleMedium,
+            visible: Not(
+              Equals(State(ff.Pages.cocoTenDetailPage.state.shopGuestBenefitsState), ''),
+            ),
+          ),
+          Text(
+            State(ff.Pages.cocoTenDetailPage.state.shopGuestBenefitsState),
+            style: Styles.bodyMedium,
+            visible: Not(
+              Equals(State(ff.Pages.cocoTenDetailPage.state.shopGuestBenefitsState), ''),
+            ),
+          ),
+          Button(
+            'このお店で待ち合わせるキャストを探す',
+            name: 'InviteAtVenueButton',
+            onTap: [Navigate(ff.Pages.homePage)],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // FIX (comprehensive project-wide review round 2, CONFIRMED): the button
+  // above navigated to plain HomePage with ZERO params — a dead-end CTA.
+  // `HomePageWidget` has no venue/shop concept at all (confirmed via
+  // home_page_widget.dart), so a guest tapping "このお店で待ち合わせるキャストを
+  // 探す" (find a cast to meet up with at THIS venue) landed on the exact
+  // same generic Home screen they'd see from anywhere else, with nothing
+  // connecting it back to the venue they came from — looks broken, not
+  // "not implemented."
+  //
+  // A fully correct fix (rank Home's discovery-cast query by proximity to
+  // THIS venue) isn't safely buildable right now: `cocoten_shops.location`
+  // (geopoint) is schema.md's own documented "未実装、書き込まれることはない"
+  // (never written — no geocoding mechanism exists), so there's no real
+  // coordinate to rank from; HomePage's own discovery fetch
+  // (`fetchDiscoveryCasts`, this file) already resolves an ORIGIN via
+  // GPS-then-registered-prefecture fallback wired to a delicate, already-
+  // documented-as-fragile ON_INIT_STATE chain (this file's own comment:
+  // "one call per trigger, always" — a second call targeting the same
+  // trigger fails compilation outright). Threading a venue-prefecture
+  // override through that chain is real, riskier surgery than this pass
+  // should take on blind. Disclosed scope reduction, not silently
+  // dropped: replaced the misleading silent navigation with an honest
+  // Snackbar so the CTA no longer LOOKS broken while this real feature
+  // (venue-proximity-ranked discovery) is flagged in PROJECT_KNOWLEDGE.md
+  // as follow-up work for a session that can safely rework that chain.
+  app.editPage(ff.Pages.cocoTenDetailPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_l4uhb287'), // InviteAtVenueButton
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        Snackbar('この機能は近日公開予定です。しばらくお待ちください。'),
+      ],
+    );
+  });
+
+  final cocotenShopIdFn = app.customFunction(
+    'cocotenShopId',
+    args: {'shop': ff.Collections.cocotenShops},
+    returns: string,
+    description: 'CocotenShopsレコードからドキュメントIDを取り出す（詳細画面への遷移用）。',
+    code: r'''
+try {
+  return shop?.reference.id ?? '';
+} catch (e) {
+  return '';
+}
+''',
+  );
+
+  // Repoints the shop card's tap from the small AlertDialog (FROZEN block
+  // above) to the new detail page — full `ensureReplaced` reconstruction of
+  // the same GridView (constructor-only `source`/`itemBuilder`, no patch
+  // method re-sources an existing GridView, same reasoning already
+  // documented on the original block), targeted by NAME per that block's
+  // own note ("Any future change must target that name instead of
+  // re-inserting").
+  app.editPage(ff.Pages.cocomisePage, (page) {
+    // FROZEN (confirmed landed in its own prior push, this same session):
+    // even though this targets by NAME (not key) and the replacement
+    // reuses the SAME name, re-running it isn't confirmed safe — untested
+    // whether `findByName` reliably re-resolves to a replaced node's new
+    // key. Not worth risking given the key-based cases in this same push
+    // demonstrably do NOT survive; commented out for the same reason.
+    // page.ensureReplaced(
+      // page.findByName('CocotenShopGrid'),
+      // GridView(
+        // name: 'CocotenShopGrid',
+        // source: CustomFunction(
+          // filterCocotenShopsFn,
+          // args: {
+            // 'shops': State('shops'),
+            // 'genre': State('selectedGenre'),
+            // 'activeOnly': State('activeOnly'),
+            // 'keyword': AppState(ff.AppState.searchShopKeyword),
+          // },
+        // ),
+        // columns: 2,
+        // crossAxisSpacing: 10,
+        // mainAxisSpacing: 10,
+        // childAspectRatio: 1.0,
+        // itemBuilder: (item) => Container(
+          // name: 'CocotenShopCard',
+          // padding: EdgeInsets.all(12),
+          // borderRadius: 12,
+          // borderColor: Colors.alternate,
+          // borderWidth: 1,
+          // color: Colors.secondaryBackground,
+          // onTap: [
+            // Navigate(
+              // cocoTenDetailPage,
+              // params: {
+                // 'shopId': CustomFunction(cocotenShopIdFn, args: {'shop': item}),
+                // 'shopName': item['name'],
+                // 'shopGenre': item['genre'],
+                // 'shopAddress': item['address'],
+                // 'shopMenu': item['menu'],
+                // 'shopGuestBenefits': item['guest_benefits'],
+                // 'shopActive': item['active'],
+              // },
+            // ),
+          // ],
+          // child: Column(
+            // crossAxis: CrossAxis.start,
+            // mainAxis: MainAxis.center,
+            // spacing: 6,
+            // children: [
+              // Row(
+                // mainAxis: MainAxis.spaceBetween,
+                // children: [
+                  // Text(
+                    // item['name'],
+                    // style: Styles.bodyLarge,
+                    // maxLines: 1,
+                    // overflow: TextOverflow.ellipsis,
+                  // ),
+                  // Container(
+                    // width: 10,
+                    // height: 10,
+                    // borderRadius: 5,
+                    // color: Colors.success,
+                    // visible: item['active'],
+                    // name: 'CocotenShopActiveDot',
+                  // ),
+                // ],
+              // ),
+              // Text(
+                // item['genre'],
+                // style: Styles.bodySmall,
+                // color: Colors.secondaryText,
+                // maxLines: 1,
+                // overflow: TextOverflow.ellipsis,
+              // ),
+            // ],
+          // ),
+        // ),
+      // ),
+    // );
+  });
+
+  // ==========================================================================
+  // ReservationListPage rebuild (§3.5.10/§3.6.11) — status breakdown +
+  // group-invite acceptance counter. `fetchMyReservations`'s delimited-item
+  // shape was extended above (3 new trailing fields: group_invite,
+  // acceptedCount, totalCastCount) — everything here consumes that.
+  //
+  // Reuses `reservationListItemResIdFn`/`reservationListItemCastIdFn`
+  // (already captured as `CustomFunctionHandle` stubs above, ~line 3399) —
+  // a `CustomFunctionHandle(name:, args:, returnType:)` stub is a pure
+  // compile-time descriptor with no live proto tie (confirmed by reading
+  // its own class in types.dart), the established pattern this file
+  // already uses to reference a FROZEN custom function's declaration from
+  // later code without redeclaring it. `reservationListItemLabelFn` itself
+  // was never captured this way (only referenced inside the frozen,
+  // commented-out `ensurePage` body) — stubbed fresh here for the same
+  // reason.
+  // ==========================================================================
+
+  final reservationListItemLabelFn = CustomFunctionHandle(
+    name: 'reservationListItemLabel',
+    args: {'item': string},
+    returnType: string,
+  );
+
+  // Original declaration frozen (feature build, unimplemented-features
+  // pass) — `filterReservationsByCategory` already exists live; re-
+  // declaring it via `app.customFunction` (create-if-missing only) fails
+  // once its payload changes. The new 'completed' category (and narrowing
+  // 'confirmed' to exclude it) now lands via `updateCustomFunction` inside
+  // `app.raw(...)` below, same established pattern as every other
+  // already-live custom function/action this file mutates in place.
+  //   app.customFunction(
+  //     'filterReservationsByCategory',
+  //     args: {'items': listOf(string), 'category': string},
+  //     returns: listOf(string),
+  //     description: 'カテゴリ（all/pending/declined/expired/confirmed）で予約リストを絞り込む。',
+  //     code: r'''
+  //   final list = items ?? const <String>[];
+  //   final cat = category ?? 'all';
+  //   if (cat == 'all') return list;
+  //   return list.where((item) {
+  //     final parts = item.split('|||');
+  //     if (parts.length < 2) return false;
+  //     final status = parts[1];
+  //     switch (cat) {
+  //       case 'pending':
+  //         return status == 'request_pending' || status == 'authorized';
+  //       case 'declined':
+  //         return status == 'cancelled';
+  //       case 'expired':
+  //         return status == 'expired';
+  //       case 'confirmed':
+  //         return status != 'request_pending' &&
+  //             status != 'authorized' &&
+  //             status != 'cancelled' &&
+  //             status != 'expired';
+  //       default:
+  //         return true;
+  //     }
+  //   }).toList();
+  //   ''',
+  //   );
+
+  final filterReservationsByCategoryFn = CustomFunctionHandle(
+    name: 'filterReservationsByCategory',
+    args: {'items': listOf(string), 'category': string},
+    returnType: listOf(string),
+  );
+
+  app.raw((project) {
+    updateCustomFunction(
+      project,
+      name: 'filterReservationsByCategory',
+      code: r'''
+final list = items ?? const <String>[];
+final cat = category ?? 'all';
+if (cat == 'all') return list;
+return list.where((item) {
+  final parts = item.split('|||');
+  if (parts.length < 2) return false;
+  final status = parts[1];
+  switch (cat) {
+    case 'pending':
+      return status == 'request_pending' || status == 'authorized';
+    case 'declined':
+      return status == 'cancelled';
+    case 'expired':
+      return status == 'expired';
+    // FIX (feature build, unimplemented-features pass): 'confirmed' used
+    // to lump every non-terminal-negative status together — an ACTIVE
+    // reservation (confirmed/in_progress/completion_pending/review_pending)
+    // was indistinguishable from a genuinely PAST, completed one. No
+    // dedicated history/completed-only view existed. Narrowed 'confirmed'
+    // to active-only and added a new 'completed' category so the two are
+    // now separately filterable — the new '完了' tab (below) uses it.
+    case 'confirmed':
+      return status != 'request_pending' &&
+          status != 'authorized' &&
+          status != 'cancelled' &&
+          status != 'expired' &&
+          status != 'completed';
+    case 'completed':
+      return status == 'completed';
+    default:
+      return true;
+  }
+}).toList();
+''',
+    );
+  });
+
+  final reservationGroupInviteLabelFn = app.customFunction(
+    'reservationGroupInviteLabel',
+    args: {'item': string},
+    returns: string,
+    description: '予約1件のグループお誘い承諾状況ラベルを作る（グループお誘いでない場合は空文字）。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 9) return '';
+if (parts[6] != 'true') return '';
+return 'グループ承諾: ${parts[7]}/${parts[8]}';
+''',
+  );
+
+  app.editPageState(ff.Pages.reservationListPage, (state) {
+    state.ensureField('selectedReservationCategory', string.withDefault('all'));
+  });
+
+  app.editPage(ff.Pages.reservationListPage, (page) {
+    // First `ensureActions` call on this trigger — the ORIGINAL ON_INIT_STATE
+    // was set via the now-frozen `ensurePage`'s own `onLoad:` (inert since
+    // the page already exists, per this file's own established rule), not
+    // via a prior `ensureActions` call, so this isn't "a second call on an
+    // already-`ensureActions`'d trigger" — reproduces that same 2-step
+    // chain verbatim, using the typed state-field handle since
+    // `ff.Pages.reservationListPage` already exists.
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        CallCustomAction.named('fetchMyReservations', outputAs: 'myReservationsResult'),
+        SetState(
+          ff.Pages.reservationListPage.state.myReservationsList,
+          ActionOutput('myReservationsResult'),
+        ),
+      ],
+    );
+
+    // Full reconstruction — adding the category-tabs row above the list
+    // means the list can no longer be the Scaffold's sole direct body
+    // child, so this replaces `ListView_kardnjc6` with a Column wrapping
+    // both. Known content (this page's only prior structural work, §14 —
+    // same file), safe to reproduce+extend via `ensureReplaced`.
+    //
+    // FROZEN (confirmed landed in its own prior push, this same session,
+    // verified live via generated_code): `ListView_kardnjc6` no longer
+    // exists. Left live, this hard-fails the very next push (confirmed —
+    // this is what originally surfaced the whole "stale ensureReplaced
+    // target" issue this push). The real replacement (`ReservationListColumn`
+    // / `ReservationListItemsListView`) is confirmed live and unaffected by
+    // commenting this out — this is purely the authoring record now.
+    // page.ensureReplaced(
+      // page.findByKey('ListView_kardnjc6'),
+      // Column(
+        // name: 'ReservationListColumn',
+        // children: [
+          // Row(
+            // name: 'ReservationCategoryTabs',
+            // mainAxis: MainAxis.spaceEvenly,
+            // children: [
+              // Container(
+                // padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                // onTap: [SetState('selectedReservationCategory', 'all')],
+                // child: Text('すべて', style: Styles.bodySmall),
+              // ),
+              // Container(
+                // padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                // onTap: [SetState('selectedReservationCategory', 'pending')],
+                // child: Text('承認待ち', style: Styles.bodySmall),
+              // ),
+              // Container(
+                // padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                // onTap: [SetState('selectedReservationCategory', 'declined')],
+                // child: Text('否認', style: Styles.bodySmall),
+              // ),
+              // Container(
+                // padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                // onTap: [SetState('selectedReservationCategory', 'expired')],
+                // child: Text('期限切れ', style: Styles.bodySmall),
+              // ),
+              // Container(
+                // padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                // onTap: [SetState('selectedReservationCategory', 'confirmed')],
+                // child: Text('確定済み', style: Styles.bodySmall),
+              // ),
+            // ],
+          // ),
+          // Divider(),
+          // Expanded(
+            // ListView(
+              // name: 'ReservationListItemsListView',
+              // padding: EdgeInsets.all(16),
+              // spacing: 8,
+              // source: CustomFunction(
+                // filterReservationsByCategoryFn,
+                // args: {
+                  // 'items': State(ff.Pages.reservationListPage.state.myReservationsList),
+                  // 'category': State('selectedReservationCategory'),
+                // },
+              // ),
+              // itemBuilder: (item) => Card(
+                // name: 'ReservationListItemCard',
+                // onTap: [
+                  // Navigate(
+                    // ff.Pages.reservationDetail,
+                    // params: {
+                      // 'resId': CustomFunction(reservationListItemResIdFn, args: {'item': item}),
+                      // 'castId': CustomFunction(reservationListItemCastIdFn, args: {'item': item}),
+                    // },
+                  // ),
+                // ],
+                // child: Container(
+                  // padding: EdgeInsets.all(12),
+                  // child: Column(
+                    // crossAxis: CrossAxis.start,
+                    // spacing: 4,
+                    // children: [
+                      // Text(CustomFunction(reservationListItemLabelFn, args: {'item': item})),
+                      // Text(
+                        // CustomFunction(reservationGroupInviteLabelFn, args: {'item': item}),
+                        // style: Styles.bodySmall,
+                        // color: Colors.secondaryText,
+                        // visible: Not(
+                          // Equals(
+                            // CustomFunction(reservationGroupInviteLabelFn, args: {'item': item}),
+                            // '',
+                          // ),
+                        // ),
+                      // ),
+                    // ],
+                  // ),
+                // ),
+              // ),
+            // ),
+          // ),
+        // ],
+      // ),
+    // );
+  });
+
+  // ==========================================================================
+  // Feature build (unimplemented-features pass): the "確定済み" tab used to
+  // mean "everything past the pending/declined/expired gate," lumping an
+  // ACTIVE reservation together with a genuinely PAST, completed one — no
+  // dedicated history view existed. Relabeled that tab "進行中" (in
+  // progress, matches its new narrowed meaning per
+  // `filterReservationsByCategory`'s update above) and inserted a new 6th
+  // tab, "完了" (completed), right after it. Styling (Container +
+  // EdgeInsets.all(8) + Text/Styles.bodySmall) copied from the real
+  // generated code for the existing tabs, not the earlier (never-landed,
+  // frozen above) draft — confirmed by reading
+  // generated_code/lib/reservation_list_page/reservation_list_page_widget.dart
+  // directly, which uses `EdgeInsets.all(8.0)`, not
+  // `EdgeInsets.symmetric(horizontal: 8, vertical: 8)` as that draft
+  // assumed.
+  // ==========================================================================
+
+  app.editPage(ff.Pages.reservationListPage, (page) {
+    page.update(page.findByKey('Text_r603rhdf'), (patch) {
+      patch.text('進行中');
+    });
+    page.ensureInsertedAfter(
+      page.findByKey('Container_9ilrua0r'), // 進行中 (formerly 確定済み) tab
+      Container(
+        name: 'ReservationCompletedTab',
+        padding: EdgeInsets.all(8),
+        onTap: [SetState('selectedReservationCategory', 'completed')],
+        child: Text('完了', style: Styles.bodySmall),
+      ),
+    );
+  });
+
+  // ==========================================================================
+  // Notification settings (Phase 11 MVP checklist item, §3.7 — "neither UI
+  // nor backend exists" per the standing gap this list tracked). Backend:
+  // 5 new boolean fields on `users` (one per the admin spec's own 5-category
+  // taxonomy, §3.8.16: matching/work/CocoTen/Stripe/admin), added to
+  // `updateProfile`'s existing allowlist (auth.ts) rather than a new
+  // callable — same self-updates-own-doc shape as every other profile
+  // field already there. No push-SENDING mechanism exists yet (FCM/OneSignal
+  // wiring is separately-tracked admin work) — these fields exist now so
+  // that infrastructure can read real preferences the moment it's built.
+  // Section inserted into the existing (otherwise account-deletion-only)
+  // SettingsPage via `ensureInsertedBefore`, ahead of the "delete account"
+  // danger-zone content rather than a brand new page — SettingsPage is
+  // already MyPage's own "アカウント・基本管理" destination.
+  // ==========================================================================
+
+  app.raw((project) {
+    _addField(project, 'users', 'notify_matching', _bool_, description: 'マッチング通知を受け取るか。');
+    _addField(project, 'users', 'notify_work', _bool_, description: 'ワーク通知を受け取るか。');
+    _addField(project, 'users', 'notify_cocoten', _bool_, description: 'ココ店通知を受け取るか。');
+    _addField(project, 'users', 'notify_stripe', _bool_, description: 'Stripe（決済）通知を受け取るか。');
+    _addField(project, 'users', 'notify_admin', _bool_, description: '管理者からのお知らせ通知を受け取るか。');
+  });
+
+  app.customAction(
+    'fetchNotificationPreferences',
+    returns: string,
+    description: '自分の通知設定5項目を取得する（真偽値5つを|||区切りで返す）。未設定時はデフォルトtrue。',
+    code: r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '/auth/firebase_auth/auth_util.dart';
+
+Future<String> fetchNotificationPreferences() async {
+  try {
+    final uid = currentUserUid;
+    if (uid.isEmpty) return 'true|||true|||true|||true|||true';
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final data = doc.data();
+    if (data == null) return 'true|||true|||true|||true|||true';
+    String b(String key) => data[key] == false ? 'false' : 'true';
+    return '${b('notify_matching')}|||${b('notify_work')}|||${b('notify_cocoten')}|||${b('notify_stripe')}|||${b('notify_admin')}';
+  } catch (e) {
+    return 'true|||true|||true|||true|||true';
+  }
+}
+''',
+  );
+
+  final csvBoolPartFn = app.customFunction(
+    'csvBoolPart',
+    args: {'csv': string, 'index': int_},
+    returns: bool_,
+    description: '|||区切りの真偽値CSVからN番目の値を取り出す（通知設定の初期表示用）。',
+    code: r'''
+final parts = (csv ?? '').split('|||');
+final i = index ?? 0;
+if (i < 0 || i >= parts.length) return true;
+return parts[i] == 'true';
+''',
+  );
+
+  app.customAction(
+    'callUpdateNotificationPreferences',
+    args: {
+      'notifyMatching': bool_,
+      'notifyWork': bool_,
+      'notifyCocoten': bool_,
+      'notifyStripe': bool_,
+      'notifyAdmin': bool_,
+    },
+    returns: bool_,
+    description: 'updateProfile Cloud Functionを呼び出し、通知設定5項目を保存する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callUpdateNotificationPreferences(
+  bool? notifyMatching,
+  bool? notifyWork,
+  bool? notifyCocoten,
+  bool? notifyStripe,
+  bool? notifyAdmin,
+) async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('updateProfile');
+    final result = await callable.call({
+      'notify_matching': notifyMatching ?? true,
+      'notify_work': notifyWork ?? true,
+      'notify_cocoten': notifyCocoten ?? true,
+      'notify_stripe': notifyStripe ?? true,
+      'notify_admin': notifyAdmin ?? true,
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.editPageState(ff.Pages.settingsPage, (state) {
+    state.ensureField('notifyMatching', bool_.withDefault(true));
+    state.ensureField('notifyWork', bool_.withDefault(true));
+    state.ensureField('notifyCocoten', bool_.withDefault(true));
+    state.ensureField('notifyStripe', bool_.withDefault(true));
+    state.ensureField('notifyAdmin', bool_.withDefault(true));
+  });
+
+  app.editPage(ff.Pages.settingsPage, (page) {
+    // First `ensureActions` call on this trigger — SettingsPage's typed SDK
+    // dump shows no `triggers:` on its root at all today, confirming no
+    // prior ON_INIT_STATE exists to reproduce.
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        CallCustomAction.named('fetchNotificationPreferences', outputAs: 'notifPrefsResult'),
+        SetState(
+          'notifyMatching',
+          CustomFunction(csvBoolPartFn, args: {'csv': ActionOutput('notifPrefsResult'), 'index': 0}),
+        ),
+        SetState(
+          'notifyWork',
+          CustomFunction(csvBoolPartFn, args: {'csv': ActionOutput('notifPrefsResult'), 'index': 1}),
+        ),
+        SetState(
+          'notifyCocoten',
+          CustomFunction(csvBoolPartFn, args: {'csv': ActionOutput('notifPrefsResult'), 'index': 2}),
+        ),
+        SetState(
+          'notifyStripe',
+          CustomFunction(csvBoolPartFn, args: {'csv': ActionOutput('notifPrefsResult'), 'index': 3}),
+        ),
+        SetState(
+          'notifyAdmin',
+          CustomFunction(csvBoolPartFn, args: {'csv': ActionOutput('notifPrefsResult'), 'index': 4}),
+        ),
+      ],
+    );
+
+    // FROZEN — CRITICAL FINDING (this push, Task #12): `ensureInsertedBefore`
+    // is NOT safely re-runnable for a content-bearing widget the way
+    // `ensureInsertedAfter` empirically is for a simple `Navigate`-only
+    // button (`FavoritesNavButton`, confirmed via generated_code to stay
+    // singular across 5+ subsequent pushes). Left live across Tasks #9-#11's
+    // pushes, this SAME call silently inserted a SECOND full duplicate copy
+    // of this section into SettingsPage (confirmed directly: the typed SDK
+    // shows TWO `NotificationSettingsSection` Columns, `Column_29dngffs` and
+    // `Column_8f3e96pk`, both with identical 5-checkbox+save-button content)
+    // — this is what actually caused the earlier "output variable same name
+    // as another widget" errors (Task #11), not a genuine naming mistake on
+    // this file's part. The rename "fix" that unblocked Task #11's push
+    // only worked because the NEW names were unique against the stale
+    // duplicate's OLD names — it didn't stop a 3rd copy from being queued
+    // by THIS push. See the dedup fix (`ensureReplaced` on the first
+    // duplicate's key) further down this file, added in this same pass.
+    // page.ensureInsertedBefore(
+      // page.findByKey('Text_4ytmp7l4'), // アカウントを削除する
+      // Column(
+        // name: 'NotificationSettingsSection',
+        // crossAxis: CrossAxis.start,
+        // spacing: 4,
+        // children: [
+          // Text('通知設定', style: Styles.titleMedium),
+          // Row(
+            // mainAxis: MainAxis.spaceBetween,
+            // children: [
+              // Text('マッチング通知', style: Styles.bodyMedium),
+              // Checkbox(
+                // value: State('notifyMatching'),
+                // onChanged: [SetState('notifyMatching', Not(State('notifyMatching')))],
+              // ),
+            // ],
+          // ),
+          // Row(
+            // mainAxis: MainAxis.spaceBetween,
+            // children: [
+              // Text('ワーク通知', style: Styles.bodyMedium),
+              // Checkbox(
+                // value: State('notifyWork'),
+                // onChanged: [SetState('notifyWork', Not(State('notifyWork')))],
+              // ),
+            // ],
+          // ),
+          // Row(
+            // mainAxis: MainAxis.spaceBetween,
+            // children: [
+              // Text('ココ店通知', style: Styles.bodyMedium),
+              // Checkbox(
+                // value: State('notifyCocoten'),
+                // onChanged: [SetState('notifyCocoten', Not(State('notifyCocoten')))],
+              // ),
+            // ],
+          // ),
+          // Row(
+            // mainAxis: MainAxis.spaceBetween,
+            // children: [
+              // Text('決済（Stripe）通知', style: Styles.bodyMedium),
+              // Checkbox(
+                // value: State('notifyStripe'),
+                // onChanged: [SetState('notifyStripe', Not(State('notifyStripe')))],
+              // ),
+            // ],
+          // ),
+          // Row(
+            // mainAxis: MainAxis.spaceBetween,
+            // children: [
+              // Text('管理者からのお知らせ', style: Styles.bodyMedium),
+              // Checkbox(
+                // value: State('notifyAdmin'),
+                // onChanged: [SetState('notifyAdmin', Not(State('notifyAdmin')))],
+              // ),
+            // ],
+          // ),
+          // Button(
+            // '通知設定を保存する',
+            // name: 'SaveNotificationSettingsButton',
+            // onTap: [
+              // CallCustomAction.named(
+                // 'callUpdateNotificationPreferences',
+                // arguments: {
+                  // 'notifyMatching': State('notifyMatching'),
+                  // 'notifyWork': State('notifyWork'),
+                  // 'notifyCocoten': State('notifyCocoten'),
+                  // 'notifyStripe': State('notifyStripe'),
+                  // 'notifyAdmin': State('notifyAdmin'),
+                // },
+                // outputAs: 'settingsSaveNotifPrefsResult',
+              // ),
+              // If(
+                // ActionOutput('settingsSaveNotifPrefsResult'),
+                // then: [Snackbar('通知設定を保存しました。')],
+                // orElse: [Snackbar('保存に失敗しました。もう一度お試しください。')],
+              // ),
+            // ],
+          // ),
+          // Divider(),
+        // ],
+      // ),
+    // );
+  });
+
+  // ==========================================================================
+  // Phone self-service change flow (Phase 11 MVP checklist item, §3.7 —
+  // "signup-only today, no way to change later"). Reuses the existing SMS
+  // infrastructure (sendPhoneVerificationCode/syncVerifiedPhone,
+  // auth.ts's syncVerifiedPhone) as-is — sending a code and persisting the
+  // verified result server-side are identical regardless of whether this is
+  // a first-time link or a later change. Does NOT reuse
+  // `verifyPhoneCodeAndLink` for the verify step: that action calls
+  // `currentUser.linkWithCredential(...)`, which throws
+  // `provider-already-linked`/`credential-already-in-use` for a user who
+  // already has a verified phone — exactly the case this flow exists for.
+  // A new `verifyPhoneCodeAndUpdate` action tries link first (still correct
+  // for a user changing their phone for the very first time from Settings,
+  // never having gone through signup's own flow) and falls back to
+  // `updatePhoneNumber` on that specific error, rather than assuming one
+  // path always applies.
+  //
+  // Scope, deliberately bounded and disclosed: email/auth-credential
+  // change is NOT built here — Firebase requires a recent-reauthentication
+  // step for that (a password re-entry flow), a materially separate,
+  // larger piece of work than phone re-verification. This section is
+  // phone-only; email change remains a real, disclosed gap.
+  // ==========================================================================
+
+  // FROZEN (2026-08-13, fresh-eyes re-review pass): already exists live
+  // with the SAME missing-`firebase_auth`-import bug already documented
+  // above for verifyPhoneCodeAndLink/checkEmailVerified/
+  // sendFirebaseEmailVerification. Fixed via updateCustomAction.
+  // app.customAction(
+  //   'verifyPhoneCodeAndUpdate',
+  //   args: {'smsCode': string},
+  //   returns: bool_,
+  //   description: 'SMS認証コードを確認し、ログイン中のアカウントの電話番号を変更する（既にリンク済みでも動作する版）。',
+  //   code: r'''
+  // import '/auth/firebase_auth/auth_util.dart';
+  // import 'package:flutter/foundation.dart';
+  //
+  // Future<bool> verifyPhoneCodeAndUpdate(String? smsCode) async {
+  //   if (smsCode == null || smsCode.isEmpty) return false;
+  //   if (kIsWeb) {
+  //     return false;
+  //   }
+  //   final verificationId =
+  //       authManager.phoneAuthManager.phoneAuthVerificationCode;
+  //   final currentUser = FirebaseAuth.instance.currentUser;
+  //   if (verificationId == null || currentUser == null) return false;
+  //   try {
+  //     final credential = PhoneAuthProvider.credential(
+  //       verificationId: verificationId,
+  //       smsCode: smsCode,
+  //     );
+  //     try {
+  //       await currentUser.linkWithCredential(credential);
+  //     } on FirebaseAuthException catch (e) {
+  //       if (e.code == 'provider-already-linked' ||
+  //           e.code == 'credential-already-in-use') {
+  //         await currentUser.updatePhoneNumber(credential);
+  //       } else {
+  //         rethrow;
+  //       }
+  //     }
+  //     await currentUser.getIdToken(true);
+  //     return true;
+  //   } catch (e) {
+  //     return false;
+  //   }
+  // }
+  // ''',
+  // );
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'verifyPhoneCodeAndUpdate',
+      code: r'''
+import '/auth/firebase_auth/auth_util.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+
+Future<bool> verifyPhoneCodeAndUpdate(String? smsCode) async {
+  if (smsCode == null || smsCode.isEmpty) return false;
+  if (kIsWeb) {
+    return false;
+  }
+  final verificationId =
+      authManager.phoneAuthManager.phoneAuthVerificationCode;
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (verificationId == null || currentUser == null) return false;
+  try {
+    final credential = PhoneAuthProvider.credential(
+      verificationId: verificationId,
+      smsCode: smsCode,
+    );
+    try {
+      await currentUser.linkWithCredential(credential);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'provider-already-linked' ||
+          e.code == 'credential-already-in-use') {
+        await currentUser.updatePhoneNumber(credential);
+      } else {
+        rethrow;
+      }
+    }
+    // Force a token refresh so the phone_number custom claim reflects the
+    // new number for the immediately-following callSyncVerifiedPhone call.
+    await currentUser.getIdToken(true);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+    );
+  });
+
+  app.editPageState(ff.Pages.settingsPage, (state) {
+    state.ensureField('settingsPhoneNumber', string.withDefault(''));
+    state.ensureField('settingsSmsCode', string.withDefault(''));
+    state.ensureField('settingsPhoneCodeSent', bool_.withDefault(false));
+  });
+
+  app.editPage(ff.Pages.settingsPage, (page) {
+    // FROZEN — same finding as NotificationSettingsSection above:
+    // `ensureInsertedBefore` silently duplicated this section too
+    // (`Column_ueht3med`/`Column_latledyj`, confirmed via the typed SDK).
+    // See the dedup fix further down this file.
+    // page.ensureInsertedBefore(
+      // page.findByKey('Text_4ytmp7l4'), // アカウントを削除する
+      // Column(
+        // name: 'PhoneChangeSection',
+        // crossAxis: CrossAxis.start,
+        // spacing: 4,
+        // children: [
+          // Text('電話番号を変更する', style: Styles.titleMedium),
+          // TextField(
+            // hint: '例: +819012345678',
+            // name: 'SettingsPhoneNumberField',
+            // onChanged: SetState('settingsPhoneNumber', const TextValue()),
+          // ),
+          // Button(
+            // 'SMSを送信する',
+            // name: 'SendPhoneChangeCodeButton',
+            // visible: Not(State('settingsPhoneCodeSent')),
+            // onTap: [
+              // CallCustomAction.named(
+                // 'sendPhoneVerificationCode',
+                // arguments: {'phoneNumber': State('settingsPhoneNumber')},
+                // outputAs: 'settingsSendPhoneChgCodeResult',
+              // ),
+              // If(
+                // ActionOutput('settingsSendPhoneChgCodeResult'),
+                // then: [
+                  // SetState('settingsPhoneCodeSent', true),
+                  // Snackbar('SMSを送信しました。'),
+                // ],
+                // orElse: [Snackbar('送信に失敗しました。電話番号をご確認ください。')],
+              // ),
+            // ],
+          // ),
+          // TextField(
+            // hint: '6桁の認証コード',
+            // name: 'SettingsSmsCodeField',
+            // visible: State('settingsPhoneCodeSent'),
+            // onChanged: SetState('settingsSmsCode', const TextValue()),
+          // ),
+          // Button(
+            // '確認して変更する',
+            // name: 'ConfirmPhoneChangeButton',
+            // visible: State('settingsPhoneCodeSent'),
+            // onTap: [
+              // CallCustomAction.named(
+                // 'verifyPhoneCodeAndUpdate',
+                // arguments: {'smsCode': State('settingsSmsCode')},
+                // outputAs: 'settingsVerifyPhoneChgResult',
+              // ),
+              // If(
+                // ActionOutput('settingsVerifyPhoneChgResult'),
+                // then: [
+                  // CallCustomAction.named('callSyncVerifiedPhone', outputAs: 'settingsSyncPhoneChgResult'),
+                  // SetState('settingsPhoneCodeSent', false),
+                  // SetState('settingsSmsCode', ''),
+                  // Snackbar('電話番号を変更しました。'),
+                // ],
+                // orElse: [Snackbar('確認コードが正しくありません。もう一度お試しください。')],
+              // ),
+            // ],
+          // ),
+          // Divider(),
+        // ],
+      // ),
+    // );
+  });
+
+  // Dedup fix (this same push): removes the FIRST of the two duplicate
+  // copies each `ensureInsertedBefore` above silently created. No delete-
+  // widget primitive exists in this DSL (confirmed, this file's own
+  // established precedent — the HomePage fake-cast-grid removal used the
+  // identical technique) — replaced with an invisible, zero-size Container
+  // instead of attempting removal outright. The SECOND copy of each section
+  // (`Column_8f3e96pk` for notification settings, `Column_latledyj` for
+  // phone change) is left as the real, visible one — both copies were
+  // structurally identical at the time this ran (same state bindings,
+  // since state fields are declared once and shared regardless of which
+  // widget copy renders them), so which one survives doesn't matter
+  // functionally.
+  // FROZEN (confirmed landed this same push, verified via generated_code —
+  // `settingsSaveNotifPrefsResult`/`電話番号を変更する` each appear exactly
+  // once now): `Column_29dngffs`/`Column_ueht3med` no longer exist, replaced
+  // by the invisible containers below. Left live, this fails the next push
+  // the same way every other stale-key `ensureReplaced` in this file has.
+  //
+  // Root-cause note for future work in this file: the duplication bug that
+  // necessitated this cleanup traces specifically to `ensureInsertedBefore`
+  // — every `ensureInsertedAfter` call in this file (FavoritesNavButton,
+  // BulkInviteButton, FavoriteToggleStack, TutorialLinkText, AdminMenuRow)
+  // was independently confirmed via generated_code to stay singular across
+  // many subsequent pushes with NO freezing needed, while both
+  // `ensureInsertedBefore` calls in this file duplicated. Prefer
+  // `ensureInsertedAfter` (pick a different anchor if needed) over
+  // `ensureInsertedBefore` for any future structural insert.
+  // app.editPage(ff.Pages.settingsPage, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('Column_29dngffs'), // duplicate #1 of NotificationSettingsSection
+  //     Container(
+  //       name: 'RemovedDuplicateNotificationSettingsSection',
+  //       width: 0,
+  //       height: 0,
+  //       visible: false,
+  //     ),
+  //   );
+  //   page.ensureReplaced(
+  //     page.findByKey('Column_ueht3med'), // duplicate #1 of PhoneChangeSection
+  //     Container(
+  //       name: 'RemovedDuplicatePhoneChangeSection',
+  //       width: 0,
+  //       height: 0,
+  //       visible: false,
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // Dedicated debt-history view (Phase 8's own disclosed PARTIAL item,
+  // §3.7.9-11 — WalletPage shows ledger entries and the current
+  // `logical_debt` total, but never the `debt_history` collection itself,
+  // which is where each individual accrual/offset event with its own
+  // reason is recorded). `debt_history` is owner-readable directly
+  // (firestore.rules: `resource.data.user_id == request.auth.uid`,
+  // confirmed by reading the rule directly) — a client-side query, no new
+  // Cloud Function needed. New composite index added
+  // (firestore.indexes.json: user_id ASC + created_at DESC, same shape as
+  // `ledger`'s own).
+  // ==========================================================================
+
+  app.customAction(
+    'fetchDebtHistory',
+    returns: listOf(string),
+    description: '自分の論理負債履歴（debt_history）を新しい順に取得する。',
+    code: r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '/auth/firebase_auth/auth_util.dart';
+
+Future<List<String>> fetchDebtHistory() async {
+  try {
+    final uid = currentUserUid;
+    if (uid.isEmpty) return <String>[];
+    final snap = await FirebaseFirestore.instance
+        .collection('debt_history')
+        .where('user_id', isEqualTo: uid)
+        .orderBy('created_at', descending: true)
+        .limit(50)
+        .get();
+    return snap.docs.map((d) {
+      final data = d.data();
+      final amount = data['amount']?.toString() ?? '0';
+      final reason = (data['reason']?.toString() ?? '').replaceAll('|||', '');
+      final rawDate = data['created_at'];
+      var dateLabel = '';
+      if (rawDate is Timestamp) {
+        final dt = rawDate.toDate();
+        dateLabel =
+            '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      }
+      return '$amount|||$reason|||$dateLabel';
+    }).toList();
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  final debtHistoryItemLabelFn = app.customFunction(
+    'debtHistoryItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: '負債履歴1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 3) return '';
+return '${parts[2]}　¥${parts[0]}　${parts[1]}';
+''',
+  );
+
+  app.editPageState(ff.Pages.walletPage, (state) {
+    state.ensureField('debtHistoryList', listOf(string));
+  });
+
+  app.editPage(ff.Pages.walletPage, (page) {
+    // Extends the SAME ON_INIT_STATE chain already established at
+    // dsl/edit.dart:9092 (reproduced verbatim) — appending the debt-history
+    // fetch, not a second call on this trigger.
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        CallCustomAction.named('fetchWalletBalance', outputAs: 'balanceResult'),
+        SetState(
+          ff.Pages.walletPage.state.walletAvailableStr,
+          CustomFunction(splitFieldFn, args: {'data': ActionOutput('balanceResult'), 'index': 0}),
+        ),
+        SetState(
+          ff.Pages.walletPage.state.walletPendingStr,
+          CustomFunction(splitFieldFn, args: {'data': ActionOutput('balanceResult'), 'index': 1}),
+        ),
+        SetState(
+          'hasStripeAccountStr',
+          CustomFunction(splitFieldFn, args: {'data': ActionOutput('balanceResult'), 'index': 2}),
+        ),
+        CallCustomAction.named('fetchMyLogicalDebt', outputAs: 'debtResult'),
+        SetState(ff.Pages.walletPage.state.logicalDebtStr, ActionOutput('debtResult')),
+        CallCustomAction.named('fetchWalletLedgerHistory', outputAs: 'historyResult'),
+        SetState(ff.Pages.walletPage.state.ledgerHistoryList, ActionOutput('historyResult')),
+        CallCustomAction.named('fetchDebtHistory', outputAs: 'debtHistoryResult'),
+        SetState('debtHistoryList', ActionOutput('debtHistoryResult')),
+      ],
+    );
+
+    page.ensureInsertedAfter(
+      page.findByKey('ListView_g0qjiznm'), // WalletHistoryListView
+      Column(
+        name: 'DebtHistorySection',
+        crossAxis: CrossAxis.start,
+        children: [
+          Divider(),
+          Text('負債履歴', style: Styles.titleMedium),
+          ListView(
+            name: 'DebtHistoryListView',
+            shrinkWrap: true,
+            spacing: 4,
+            source: State('debtHistoryList'),
+            itemBuilder: (item) => Text(
+              CustomFunction(debtHistoryItemLabelFn, args: {'item': item}),
+              style: Styles.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  });
+
+  // ==========================================================================
+  // Admin panel foundation (Phase 12, §3.8) — 0 of 19 required admin
+  // surfaces had a shared entry point before this; the 3 that already
+  // existed (KycReviewPage, AdminReportReviewPage, AdminAffiliateManagement)
+  // were each independently confirmed to have ZERO incoming navigation
+  // anywhere in the live app — the exact "built but unreachable" class this
+  // project has hit and fixed repeatedly for other pages (TutorialPage,
+  // ReservationListPage originally), just never caught for the admin pages
+  // specifically until now. This section: (1) a real role-gated entry point
+  // on MyPage's drawer, (2) an AdminDashboardPage hub linking to all 4 admin
+  // destinations (the 3 existing + this new one), (3) UserManagementPage,
+  // the first genuinely new admin surface — freeze/unfreeze/force-remove,
+  // wired to backend callables (adminGetUsers/adminToggleFreeze/
+  // adminForceDeleteUser) that have existed since this session's earlier
+  // backend work but were never called from anywhere.
+  // ==========================================================================
+
+  app.customAction(
+    'checkIsAdminRole',
+    returns: bool_,
+    description: '現在のユーザーのroleがadminかどうかを確認する（管理者メニューの表示・入場ゲート用）。',
+    code: r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '/auth/firebase_auth/auth_util.dart';
+
+Future<bool> checkIsAdminRole() async {
+  try {
+    final uid = currentUserUid;
+    if (uid.isEmpty) return false;
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    return doc.data()?['role'] == 'admin';
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'fetchAdminUsers',
+    returns: listOf(string),
+    description: 'adminGetUsers Cloud Functionを呼び出し、ユーザー一覧（新しい順・最大50件）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminUsers() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetUsers');
+    final result = await callable.call({'limit': 50});
+    if (result.data is Map && result.data['users'] is List) {
+      return (result.data['users'] as List).map((u) {
+        final m = u as Map;
+        final id = m['id']?.toString() ?? '';
+        final nickname = (m['nickname']?.toString() ?? '').replaceAll('|||', '');
+        final accountType = m['account_type']?.toString() ?? '';
+        final approvalStatus = m['approval_status']?.toString() ?? '';
+        final isFrozen = m['is_frozen'] == true;
+        return '$id|||$nickname|||$accountType|||$approvalStatus|||$isFrozen';
+      }).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminToggleFreeze',
+    args: {'userId': string, 'freeze': bool_},
+    returns: bool_,
+    description: 'adminToggleFreeze Cloud Functionを呼び出し、ユーザーの凍結状態を切り替える。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminToggleFreeze(String? userId, bool? freeze) async {
+  try {
+    final id = userId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminToggleFreeze');
+    final result = await callable.call({
+      'user_id': id,
+      'freeze': freeze ?? false,
+      'reason': '管理者操作（アプリ内ユーザー管理）',
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminForceDeleteUser',
+    args: {'userId': string},
+    returns: bool_,
+    description: 'adminForceDeleteUser Cloud Functionを呼び出し、ユーザーを強制退会させる。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminForceDeleteUser(String? userId) async {
+  try {
+    final id = userId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminForceDeleteUser');
+    final result = await callable.call({
+      'user_id': id,
+      'reason': '管理者による強制退会（アプリ内ユーザー管理）',
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  final adminUserIdFn = app.customFunction(
+    'adminUserId',
+    args: {'item': string},
+    returns: string,
+    description: '管理者ユーザー一覧1件分からUIDを取り出す。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.isNotEmpty ? parts[0] : '';
+''',
+  );
+
+  final adminUserItemLabelFn = app.customFunction(
+    'adminUserItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: '管理者ユーザー一覧1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 5) return '';
+final frozenLabel = parts[4] == 'true' ? '（凍結中）' : '';
+return '${parts[1]}$frozenLabel\n${parts[2]}　${parts[3]}';
+''',
+  );
+
+  final adminUserIsFrozenFn = app.customFunction(
+    'adminUserIsFrozen',
+    args: {'item': string},
+    returns: bool_,
+    description: '管理者ユーザー一覧1件分が凍結中かどうかを判定する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.length > 4 && parts[4] == 'true';
+''',
+  );
+
+  final userManagementPage = app.ensurePage(
+    'UserManagementPage',
+    route: '/admin-users',
+    description: '管理者用ユーザー一覧画面（凍結・凍結解除・強制退会）。role==adminのみ実質的に到達（AdminDashboardPage側でゲート）。',
+    state: {'adminUsersList': listOf(string)},
+    onLoad: [
+      CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersInitResult'),
+      SetState(ff.Pages.userManagementPage.state.adminUsersList, ActionOutput('adminUsersInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'ユーザー管理'),
+      body: ListView(
+        name: 'AdminUsersListView',
+        padding: EdgeInsets.all(16),
+        spacing: 8,
+        source: State(ff.Pages.userManagementPage.state.adminUsersList),
+        itemBuilder: (item) => Card(
+          child: Container(
+            padding: EdgeInsets.all(12),
+            child: Column(
+              crossAxis: CrossAxis.start,
+              spacing: 4,
+              children: [
+                Text(CustomFunction(adminUserItemLabelFn, args: {'item': item})),
+                Row(
+                  mainAxis: MainAxis.spaceBetween,
+                  children: [
+                    Button(
+                      '凍結/解除',
+                      name: 'AdminToggleFreezeButton',
+                      onTap: [
+                        CallCustomAction.named(
+                          'callAdminToggleFreeze',
+                          arguments: {
+                            'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                            'freeze': Not(CustomFunction(adminUserIsFrozenFn, args: {'item': item})),
+                          },
+                          outputAs: 'adminToggleFreezeResult',
+                        ),
+                        CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult'),
+                        SetState(ff.Pages.userManagementPage.state.adminUsersList, ActionOutput('adminUsersRefetchResult')),
+                      ],
+                    ),
+                    Button(
+                      '強制退会',
+                      name: 'AdminForceDeleteButton',
+                      onTap: [
+                        CallCustomAction.named(
+                          'callAdminForceDeleteUser',
+                          arguments: {'userId': CustomFunction(adminUserIdFn, args: {'item': item})},
+                          outputAs: 'adminForceDeleteResult',
+                        ),
+                        CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult2'),
+                        SetState(ff.Pages.userManagementPage.state.adminUsersList, ActionOutput('adminUsersRefetchResult2')),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  final adminDashboardPage = app.ensurePage(
+    'AdminDashboardPage',
+    route: '/admin-dashboard',
+    description: '管理者メニュー画面。各管理機能への入口。role!=adminなら読み込み時にMyPageへ戻す（クライアント側ゲートはUXのみ — 各Cloud Functionはverifyadmin/verifyAdminV1でサーバー側にも独立して権限を強制する）。',
+    onLoad: [
+      CallCustomAction.named('checkIsAdminRole', outputAs: 'adminGateResult'),
+      If(
+        Not(ActionOutput('adminGateResult')),
+        then: [
+          Snackbar('アクセス権限がありません。'),
+          Navigate(ff.Pages.myPage, replaceRoute: true),
+        ],
+        orElse: [],
+      ),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: '管理者メニュー'),
+      body: Column(
+        padding: EdgeInsets.all(16),
+        spacing: 12,
+        children: [
+          Button(
+            'ユーザー管理',
+            name: 'AdminUserManagementNavButton',
+            onTap: [Navigate(userManagementPage)],
+          ),
+          Button(
+            'KYC審査',
+            name: 'AdminKycReviewNavButton',
+            onTap: [Navigate(ff.Pages.kycReviewPage)],
+          ),
+          Button(
+            '通報レビュー',
+            name: 'AdminReportReviewNavButton',
+            onTap: [Navigate(ff.Pages.adminReportReviewPage)],
+          ),
+          Button(
+            'アフィリエイト管理',
+            name: 'AdminAffiliateManagementNavButton',
+            onTap: [Navigate(ff.Pages.adminAffiliateManagement)],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  app.editPageState(ff.Pages.myPage, (state) {
+    state.ensureField('isAdminUser', bool_.withDefault(false));
+  });
+
+  app.editPage(ff.Pages.myPage, (page) {
+    // Extends the SAME ON_INIT_STATE chain already established at
+    // dsl/edit.dart:8938 (reproduced verbatim) — appending the admin-role
+    // check AND (unimplemented-features pass, native push notifications
+    // task) the FCM token registration, not a second call on this trigger.
+    // MyPage chosen as the registration point (not HomePage) deliberately:
+    // HomePage's own ON_INIT_STATE chain is elsewhere in this file flagged
+    // as delicate/risky to touch a second time; MyPage is visited by every
+    // logged-in guest/cast routinely and carries no such warning. Fire-
+    // and-forget — `registerFcmToken`'s own result isn't surfaced in any
+    // UI state, matching a permission-prompt side effect, not a visible
+    // page value.
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        UpdateAppState.set(ff.AppState.navIndex, 4),
+        CallCustomAction.named(
+          'fetchCastReviews',
+          arguments: {'castId': AuthUser(AuthUserField.userId)},
+          outputAs: 'myReviewsResult',
+        ),
+        SetState('myReviewsList', ActionOutput('myReviewsResult')),
+        CallCustomAction.named('checkIsAdminRole', outputAs: 'isAdminResult'),
+        SetState('isAdminUser', ActionOutput('isAdminResult')),
+        CallCustomAction.named('registerFcmToken', outputAs: 'fcmTokenResult'),
+      ],
+    );
+
+    page.ensureInsertedAfter(
+      page.findByKey('Row_8iq153hm'), // システム・情報 (last drawer row)
+      Container(
+        // `Row` has no `onTap:` in this DSL's constructor (confirmed by
+        // compile error) — every other tappable drawer row on this exact
+        // page is native FlutterFlow content this session didn't author,
+        // so no directly-observed Row+onTap precedent existed to copy;
+        // wrapped in a Container instead, matching this file's own
+        // established fallback for any Row that needs to be tappable.
+        name: 'AdminMenuRow',
+        visible: State('isAdminUser'),
+        onTap: [Navigate(adminDashboardPage)],
+        child: Row(
+          children: [
+            Icon('admin_panel_settings', size: 24),
+            Text('管理者メニュー', style: Styles.bodyLarge),
+          ],
+        ),
+      ),
+    );
+  });
+
+  // ==========================================================================
+  // Admin: reservation oversight (§3.8.8) — force-cancel + manual refund
+  // (with a REAL partial-amount input, unlike the sister admin-dashboard
+  // project's own precedent, which hardcodes 0/full-refund-only — this
+  // project's task list explicitly called that out as a gap worth closing
+  // rather than inheriting). One shared reason/amount input pair at the top
+  // of the page rather than per-row fields, matching this project's own
+  // established minimal-admin-slice pattern (KycReviewPage's approve/reject
+  // has no per-row reason field either) — the admin fills in reason/amount
+  // once, then taps the action button on whichever reservation row they
+  // mean it for.
+  // ==========================================================================
+
+  app.customAction(
+    'fetchAdminReservations',
+    returns: listOf(string),
+    description: 'adminGetReservations Cloud Functionを呼び出し、予約一覧（新しい順・最大50件、フィルタなし）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminReservations() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetReservations');
+    final result = await callable.call({'limit': 50});
+    if (result.data is Map && result.data['reservations'] is List) {
+      return (result.data['reservations'] as List).map((r) {
+        final m = r as Map;
+        final id = m['id']?.toString() ?? '';
+        final status = m['status']?.toString() ?? '';
+        final guestId = m['guest_id']?.toString() ?? '';
+        final totalAmount = m['total_amount']?.toString() ?? '0';
+        final thirtyMinRule = m['thirty_min_rule_applied'] == true;
+        return '$id|||$status|||$guestId|||$totalAmount|||$thirtyMinRule';
+      }).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminForceCancel',
+    args: {'resId': string, 'reason': string},
+    returns: bool_,
+    description: 'adminForceCancel Cloud Functionを呼び出し、予約を強制キャンセルする。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminForceCancel(String? resId, String? reason) async {
+  try {
+    final id = resId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminForceCancel');
+    final result = await callable.call({
+      'res_id': id,
+      'reason': (reason == null || reason.isEmpty) ? '管理者による強制キャンセル' : reason,
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminManualRefund',
+    args: {'resId': string, 'amount': string, 'reason': string},
+    returns: bool_,
+    description: 'adminManualRefund Cloud Functionを呼び出し、手動返金する（amount未入力時は全額）。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminManualRefund(String? resId, String? amount, String? reason) async {
+  try {
+    final id = resId ?? '';
+    final refundReason = reason ?? '';
+    if (id.isEmpty || refundReason.isEmpty) return false;
+    final parsedAmount = int.tryParse(amount ?? '');
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminManualRefund');
+    final result = await callable.call({
+      'res_id': id,
+      'reason': refundReason,
+      if (parsedAmount != null) 'amount': parsedAmount,
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  final adminResIdFn = app.customFunction(
+    'adminResId',
+    args: {'item': string},
+    returns: string,
+    description: '管理者予約一覧1件分から予約IDを取り出す。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.isNotEmpty ? parts[0] : '';
+''',
+  );
+
+  final adminReservationItemLabelFn = app.customFunction(
+    'adminReservationItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: '管理者予約一覧1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 5) return '';
+final ruleLabel = parts[4] == 'true' ? '（30分ルール適用）' : '';
+return '${parts[1]}$ruleLabel\nゲスト: ${parts[2]}　¥${parts[3]}';
+''',
+  );
+
+  final reservationOversightPage = app.ensurePage(
+    'ReservationOversightPage',
+    route: '/admin-reservations',
+    description: '管理者用予約オーバーサイト画面（強制キャンセル・手動返金）。',
+    state: {
+      'adminReservationsList': listOf(string),
+      'adminActionReason': string.withDefault(''),
+      'adminRefundAmount': string.withDefault(''),
+    },
+    onLoad: [
+      CallCustomAction.named('fetchAdminReservations', outputAs: 'adminResInitResult'),
+      SetState(ff.Pages.reservationOversightPage.state.adminReservationsList, ActionOutput('adminResInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: '予約オーバーサイト'),
+      body: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxis: CrossAxis.start,
+              spacing: 8,
+              children: [
+                TextField(
+                  hint: '操作理由（キャンセル・返金共通）',
+                  name: 'AdminActionReasonField',
+                  onChanged: SetState(ff.Pages.reservationOversightPage.state.adminActionReason, const TextValue()),
+                ),
+                TextField(
+                  hint: '返金額（円、空欄で全額）',
+                  keyboard: Keyboard.number,
+                  name: 'AdminRefundAmountField',
+                  onChanged: SetState(ff.Pages.reservationOversightPage.state.adminRefundAmount, const TextValue()),
+                ),
+              ],
+            ),
+          ),
+          Divider(),
+          Expanded(
+            ListView(
+              name: 'AdminReservationsListView',
+              padding: EdgeInsets.all(16),
+              spacing: 8,
+              source: State(ff.Pages.reservationOversightPage.state.adminReservationsList),
+              itemBuilder: (item) => Card(
+                child: Container(
+                  padding: EdgeInsets.all(12),
+                  child: Column(
+                    crossAxis: CrossAxis.start,
+                    spacing: 4,
+                    children: [
+                      Text(CustomFunction(adminReservationItemLabelFn, args: {'item': item})),
+                      Row(
+                        mainAxis: MainAxis.spaceBetween,
+                        children: [
+                          Button(
+                            '強制キャンセル',
+                            name: 'AdminForceCancelButton',
+                            onTap: [
+                              CallCustomAction.named(
+                                'callAdminForceCancel',
+                                arguments: {
+                                  'resId': CustomFunction(adminResIdFn, args: {'item': item}),
+                                  'reason': State(ff.Pages.reservationOversightPage.state.adminActionReason),
+                                },
+                                outputAs: 'adminForceCancelResult',
+                              ),
+                              CallCustomAction.named('fetchAdminReservations', outputAs: 'adminResRefetchResult'),
+                              SetState(ff.Pages.reservationOversightPage.state.adminReservationsList, ActionOutput('adminResRefetchResult')),
+                            ],
+                          ),
+                          Button(
+                            '手動返金',
+                            name: 'AdminManualRefundButton',
+                            onTap: [
+                              CallCustomAction.named(
+                                'callAdminManualRefund',
+                                arguments: {
+                                  'resId': CustomFunction(adminResIdFn, args: {'item': item}),
+                                  'amount': State(ff.Pages.reservationOversightPage.state.adminRefundAmount),
+                                  'reason': State(ff.Pages.reservationOversightPage.state.adminActionReason),
+                                },
+                                outputAs: 'adminManualRefundResult',
+                              ),
+                              CallCustomAction.named('fetchAdminReservations', outputAs: 'adminResRefetchResult2'),
+                              SetState(ff.Pages.reservationOversightPage.state.adminReservationsList, ActionOutput('adminResRefetchResult2')),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // FROZEN (2026-08-13, root-caused during Task #20 — see the consolidated
+  // fix at the end of this file for full detail): re-running this SAME
+  // `ensureInsertedAfter(Button_ecphn4d3, ...)` call on every subsequent
+  // push, alongside 4 OTHER equally-anchored calls added by later tasks,
+  // cascaded into real duplicate buttons in the live AdminDashboardPage
+  // (confirmed via lib/flutterflow_project/pages/admin_dashboard_page.dart:
+  // 21 total children for 9 intended unique buttons). Do not re-enable.
+  // app.editPage(ff.Pages.adminDashboardPage, (page) {
+  //   page.ensureInsertedAfter(
+  //     page.findByKey('Button_ecphn4d3'), // AdminUserManagementNavButton
+  //     Button(
+  //       '予約オーバーサイト',
+  //       name: 'AdminReservationOversightNavButton',
+  //       onTap: [Navigate(reservationOversightPage)],
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // Admin: extension oversight (§3.8.9). `adminGetReservationExtras` is
+  // scoped to ONE reservation (extensions + their reward-ledger entries),
+  // not a global "every extension across every reservation" query — no
+  // backend aggregation exists for the latter, and building one is a
+  // separate, larger feature than this task's scope. Reached as a
+  // drill-down from ReservationOversightPage (a new button per row) rather
+  // than a second top-level list, matching what the backend actually
+  // supports.
+  // ==========================================================================
+
+  app.customAction(
+    'fetchAdminReservationExtras',
+    args: {'resId': string},
+    returns: listOf(string),
+    description: 'adminGetReservationExtras Cloud Functionを呼び出し、指定予約の延長・報酬台帳を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminReservationExtras(String? resId) async {
+  try {
+    final id = resId ?? '';
+    if (id.isEmpty) return <String>[];
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetReservationExtras');
+    final result = await callable.call({'res_id': id});
+    if (result.data is! Map) return <String>[];
+    final data = result.data as Map;
+    final items = <String>[];
+    for (final e in (data['extensions'] as List? ?? [])) {
+      final m = e as Map;
+      items.add(
+        'ext|||${m['duration_minutes'] ?? 0}分|||${m['amount'] ?? 0}|||${m['status'] ?? ''}',
+      );
+    }
+    for (final r in (data['rewards'] as List? ?? [])) {
+      final m = r as Map;
+      items.add(
+        'reward|||${(m['cast_nickname']?.toString() ?? '').replaceAll('|||', '')}|||${m['cast_reward'] ?? 0}|||${m['net_transfer'] ?? 0}',
+      );
+    }
+    return items;
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  final adminExtraItemLabelFn = app.customFunction(
+    'adminExtraItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: '延長オーバーサイト1件分（延長 or 報酬）を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 4) return '';
+if (parts[0] == 'ext') {
+  return '延長: ${parts[1]}　¥${parts[2]}　${parts[3]}';
+}
+return '報酬: ${parts[1]}　キャスト取分¥${parts[2]}　振込額¥${parts[3]}';
+''',
+  );
+
+  final extensionOversightPage = app.ensurePage(
+    'ExtensionOversightPage',
+    route: '/admin-extension-oversight',
+    description: '管理者用：指定予約の延長・報酬台帳詳細画面。',
+    params: {'resId': string.withDefault('')},
+    state: {'adminExtrasList': listOf(string)},
+    onLoad: [
+      CallCustomAction.named(
+        'fetchAdminReservationExtras',
+        arguments: {'resId': PageParam('resId')},
+        outputAs: 'adminExtrasInitResult',
+      ),
+      SetState(ff.Pages.extensionOversightPage.state.adminExtrasList, ActionOutput('adminExtrasInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: '延長・報酬オーバーサイト'),
+      body: ListView(
+        name: 'AdminExtrasListView',
+        padding: EdgeInsets.all(16),
+        spacing: 8,
+        source: State(ff.Pages.extensionOversightPage.state.adminExtrasList),
+        itemBuilder: (item) => Text(
+          CustomFunction(adminExtraItemLabelFn, args: {'item': item}),
+          style: Styles.bodyMedium,
+        ),
+      ),
+    ),
+  );
+
+  // `ItemRef()` (used successfully elsewhere in this file for a widget
+  // ALREADY inside a ListView's itemBuilder, e.g. ReservationListPage's
+  // Card_wf69s6in fix) does NOT resolve for a widget newly added via
+  // `ensureInsertedAfter` — confirmed by compile error ("ItemRef used
+  // outside a ListView builder") — an insert doesn't inherit the
+  // surrounding itemBuilder context the way editing an EXISTING widget
+  // already inside it does. Full `ensureReplaced` reconstruction instead,
+  // reproducing Task #13's own AdminReservationsListView exactly (known
+  // content — authored in this same file, same session) plus the new
+  // extension-detail button, using the closure's own real `item` variable
+  // directly rather than `ItemRef()`.
+  app.editPage(ff.Pages.reservationOversightPage, (page) {
+    // FROZEN (confirmed landed this same push — 延長・報酬詳細/
+    // ExtensionOversightPageWidget.routeName both confirmed present in
+    // generated_code): `ListView_0bpkfamt` no longer exists.
+    // page.ensureReplaced(
+      // page.findByKey('ListView_0bpkfamt'), // AdminReservationsListView
+      // ListView(
+        // name: 'AdminReservationsListView',
+        // padding: EdgeInsets.all(16),
+        // spacing: 8,
+        // source: State(ff.Pages.reservationOversightPage.state.adminReservationsList),
+        // itemBuilder: (item) => Card(
+          // child: Container(
+            // padding: EdgeInsets.all(12),
+            // child: Column(
+              // crossAxis: CrossAxis.start,
+              // spacing: 4,
+              // children: [
+                // Text(CustomFunction(adminReservationItemLabelFn, args: {'item': item})),
+                // Row(
+                  // mainAxis: MainAxis.spaceBetween,
+                  // children: [
+                    // Button(
+                      // '強制キャンセル',
+                      // name: 'AdminForceCancelButton',
+                      // onTap: [
+                        // CallCustomAction.named(
+                          // 'callAdminForceCancel',
+                          // arguments: {
+                            // 'resId': CustomFunction(adminResIdFn, args: {'item': item}),
+                            // 'reason': State(ff.Pages.reservationOversightPage.state.adminActionReason),
+                          // },
+                          // outputAs: 'adminForceCancelResult',
+                        // ),
+                        // CallCustomAction.named('fetchAdminReservations', outputAs: 'adminResRefetchResult'),
+                        // SetState(
+                          // ff.Pages.reservationOversightPage.state.adminReservationsList,
+                          // ActionOutput('adminResRefetchResult'),
+                        // ),
+                      // ],
+                    // ),
+                    // Button(
+                      // '手動返金',
+                      // name: 'AdminManualRefundButton',
+                      // onTap: [
+                        // CallCustomAction.named(
+                          // 'callAdminManualRefund',
+                          // arguments: {
+                            // 'resId': CustomFunction(adminResIdFn, args: {'item': item}),
+                            // 'amount': State(ff.Pages.reservationOversightPage.state.adminRefundAmount),
+                            // 'reason': State(ff.Pages.reservationOversightPage.state.adminActionReason),
+                          // },
+                          // outputAs: 'adminManualRefundResult',
+                        // ),
+                        // CallCustomAction.named('fetchAdminReservations', outputAs: 'adminResRefetchResult2'),
+                        // SetState(
+                          // ff.Pages.reservationOversightPage.state.adminReservationsList,
+                          // ActionOutput('adminResRefetchResult2'),
+                        // ),
+                      // ],
+                    // ),
+                  // ],
+                // ),
+                // Button(
+                  // '延長・報酬詳細',
+                  // name: 'AdminExtensionOversightNavButton',
+                  // onTap: [
+                    // Navigate(
+                      // extensionOversightPage,
+                      // params: {'resId': CustomFunction(adminResIdFn, args: {'item': item})},
+                    // ),
+                  // ],
+                // ),
+              // ],
+            // ),
+          // ),
+        // ),
+      // ),
+    // );
+  });
+
+  // ==========================================================================
+  // Admin: chat oversight (§3.8.10) — no precedent to adapt (sister project
+  // has none), no admin-side backend existed for `chat_rooms` before this
+  // session's new adminGetChatRooms/adminCloseChat (admin.ts). Read-only
+  // room list (res_id, active/closed status, last message time) + one
+  // manual override (force-close), matching this project's own established
+  // minimal-admin-slice pattern.
+  // ==========================================================================
+
+  app.customAction(
+    'fetchAdminChatRooms',
+    returns: listOf(string),
+    description: 'adminGetChatRooms Cloud Functionを呼び出し、チャットルーム一覧（新しい順・最大50件）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminChatRooms() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetChatRooms');
+    final result = await callable.call();
+    if (result.data is Map && result.data['rooms'] is List) {
+      return (result.data['rooms'] as List).map((r) {
+        final m = r as Map;
+        final id = m['id']?.toString() ?? '';
+        final resId = m['res_id']?.toString() ?? '';
+        final active = m['active'] == true;
+        final participants = (m['participants'] as List?)?.length ?? 0;
+        return '$id|||$resId|||$active|||$participants';
+      }).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminCloseChat',
+    args: {'roomId': string},
+    returns: bool_,
+    description: 'adminCloseChat Cloud Functionを呼び出し、チャットルームを強制クローズする。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminCloseChat(String? roomId) async {
+  try {
+    final id = roomId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminCloseChat');
+    final result = await callable.call({'room_id': id, 'reason': '管理者による強制クローズ'});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  final adminChatRoomIdFn = app.customFunction(
+    'adminChatRoomId',
+    args: {'item': string},
+    returns: string,
+    description: '管理者チャットルーム一覧1件分からルームIDを取り出す。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.isNotEmpty ? parts[0] : '';
+''',
+  );
+
+  final adminChatRoomItemLabelFn = app.customFunction(
+    'adminChatRoomItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: '管理者チャットルーム一覧1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 4) return '';
+final statusLabel = parts[2] == 'true' ? 'オープン中' : 'クローズ済み';
+return '予約: ${parts[1]}\n$statusLabel　参加者${parts[3]}名';
+''',
+  );
+
+  final chatOversightPage = app.ensurePage(
+    'ChatOversightPage',
+    route: '/admin-chat-oversight',
+    description: '管理者用チャットルーム監視画面（オープン状態確認・強制クローズ）。',
+    state: {'adminChatRoomsList': listOf(string)},
+    onLoad: [
+      CallCustomAction.named('fetchAdminChatRooms', outputAs: 'adminChatRoomsInitResult'),
+      SetState(ff.Pages.chatOversightPage.state.adminChatRoomsList, ActionOutput('adminChatRoomsInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'チャットオーバーサイト'),
+      body: ListView(
+        name: 'AdminChatRoomsListView',
+        padding: EdgeInsets.all(16),
+        spacing: 8,
+        source: State(ff.Pages.chatOversightPage.state.adminChatRoomsList),
+        itemBuilder: (item) => Card(
+          child: Container(
+            padding: EdgeInsets.all(12),
+            child: Column(
+              crossAxis: CrossAxis.start,
+              spacing: 4,
+              children: [
+                Text(CustomFunction(adminChatRoomItemLabelFn, args: {'item': item})),
+                Button(
+                  '強制クローズ',
+                  name: 'AdminCloseChatButton',
+                  onTap: [
+                    CallCustomAction.named(
+                      'callAdminCloseChat',
+                      arguments: {'roomId': CustomFunction(adminChatRoomIdFn, args: {'item': item})},
+                      outputAs: 'adminCloseChatResult',
+                    ),
+                    CallCustomAction.named('fetchAdminChatRooms', outputAs: 'adminChatRoomsRefetchResult'),
+                    SetState(ff.Pages.chatOversightPage.state.adminChatRoomsList, ActionOutput('adminChatRoomsRefetchResult')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  // FROZEN (2026-08-13, same cascading-duplication root cause — see the
+  // consolidated fix at the end of this file). Do not re-enable.
+  // app.editPage(ff.Pages.adminDashboardPage, (page) {
+  //   page.ensureInsertedAfter(
+  //     page.findByKey('Button_ecphn4d3'), // AdminUserManagementNavButton
+  //     Button(
+  //       'チャットオーバーサイト',
+  //       name: 'AdminChatOversightNavButton',
+  //       onTap: [Navigate(chatOversightPage)],
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // Admin: staff/work-post management (§3.8.11) — create/stop security &
+  // transport job postings. Scope, deliberately bounded and disclosed:
+  // admin-side direct applicant hiring (`adminHireWorkPostApplicant`) is
+  // NOT wired here — the client-facing flow already covers the common case
+  // (a post's own poster selects applicants via `selectWorkApplicant`,
+  // Phase 10), and building a full admin hire-picker UI on top is a
+  // materially separate, larger addition than this task's core ask
+  // ("create/stop postings, manage applicant selection" — read as "the
+  // postings themselves," the part with no existing UI at all). Fee-split
+  // audit visibility already exists via ReservationOversightPage's own
+  // status/amount display — no separate view built here to avoid
+  // duplicating that.
+  // ==========================================================================
+
+  // Original declaration frozen (feature build, unimplemented-features
+  // pass) — `fetchAdminWorkPosts` already exists live; re-declaring via
+  // `app.customAction` fails once its payload changes. This is a pure
+  // CODE change (the action's own signature — no args, `returns:
+  // listOf(string)` — is unchanged, only the CONTENT of each returned
+  // string gains a 6th field), not an argument-list change, so this is
+  // safe to combine with widget changes in the same push (unlike §37's
+  // argument-list same-push race — see project_rules.md).
+  //   app.customAction(
+  //     'fetchAdminWorkPosts',
+  //     returns: listOf(string),
+  //     description: 'adminGetWorkPosts Cloud Functionを呼び出し、ワーク投稿一覧（新しい順・最大100件）を取得する。',
+  //     code: r'''
+  //   import 'package:cloud_functions/cloud_functions.dart';
+  //
+  //   Future<List<String>> fetchAdminWorkPosts() async {
+  //     try {
+  //       final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+  //           .httpsCallable('adminGetWorkPosts');
+  //       final result = await callable.call();
+  //       if (result.data is Map && result.data['posts'] is List) {
+  //         return (result.data['posts'] as List).map((p) {
+  //           final m = p as Map;
+  //           final id = m['id']?.toString() ?? '';
+  //           final type = m['type']?.toString() ?? '';
+  //           final description = (m['description']?.toString() ?? '').replaceAll('|||', '');
+  //           final status = m['status']?.toString() ?? '';
+  //           final fee = m['fee']?.toString() ?? '0';
+  //           return '$id|||$type|||$description|||$status|||$fee';
+  //         }).toList();
+  //       }
+  //       return <String>[];
+  //     } catch (e) {
+  //       return <String>[];
+  //     }
+  //   }
+  //   ''',
+  //   );
+
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'fetchAdminWorkPosts',
+      code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminWorkPosts() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetWorkPosts');
+    final result = await callable.call();
+    if (result.data is Map && result.data['posts'] is List) {
+      return (result.data['posts'] as List).map((p) {
+        final m = p as Map;
+        final id = m['id']?.toString() ?? '';
+        final type = m['type']?.toString() ?? '';
+        final description = (m['description']?.toString() ?? '').replaceAll('|||', '');
+        final status = m['status']?.toString() ?? '';
+        final fee = m['fee']?.toString() ?? '0';
+        // FIX (feature build, unimplemented-features pass): appended
+        // `chat_room_id` (index 5) so the admin post list can tell which
+        // partner_recruit posts have a real recruitment chat to moderate.
+        final chatRoomId = (m['chat_room_id']?.toString() ?? '').replaceAll('|||', '');
+        return '$id|||$type|||$description|||$status|||$fee|||$chatRoomId';
+      }).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+    );
+  });
+
+  app.customAction(
+    'callAdminCloseWorkPost',
+    args: {'postId': string},
+    returns: bool_,
+    description: 'adminCloseWorkPost Cloud Functionを呼び出し、ワーク投稿を停止する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminCloseWorkPost(String? postId) async {
+  try {
+    final id = postId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminCloseWorkPost');
+    final result = await callable.call({'post_id': id, 'reason': '管理者による投稿停止'});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminCreateWorkPost',
+    args: {'workType': string, 'description': string, 'fee': string},
+    returns: bool_,
+    description: 'adminCreateWorkPost Cloud Functionを呼び出し、警備/送迎スタッフ募集投稿を作成する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminCreateWorkPost(String? workType, String? description, String? fee) async {
+  try {
+    final type = workType ?? '';
+    final desc = description ?? '';
+    if ((type != 'security' && type != 'transport') || desc.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminCreateWorkPost');
+    final result = await callable.call({
+      'type': type,
+      'description': desc,
+      'fee': int.tryParse(fee ?? '') ?? 0,
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  final adminWorkPostIdFn = app.customFunction(
+    'adminWorkPostId',
+    args: {'item': string},
+    returns: string,
+    description: '管理者ワーク投稿一覧1件分から投稿IDを取り出す。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.isNotEmpty ? parts[0] : '';
+''',
+  );
+
+  final adminWorkPostItemLabelFn = app.customFunction(
+    'adminWorkPostItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: '管理者ワーク投稿一覧1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 5) return '';
+final typeLabels = {'security': '警備', 'transport': '送迎', 'partner_recruit': 'グループお誘い'};
+final typeLabel = typeLabels[parts[1]] ?? parts[1];
+return '$typeLabel　${parts[3]}\n${parts[2]}\n¥${parts[4]}';
+''',
+  );
+
+  // FIX (feature build, unimplemented-features pass, §3.8.12): whether this
+  // post has a real recruitment chat to moderate — only `partner_recruit`
+  // posts ever get one (`selectWorkApplicant`'s own type guard, work-
+  // posts.ts), and only once an applicant has actually been selected.
+  final adminWorkPostHasChatFn = app.customFunction(
+    'adminWorkPostHasChat',
+    args: {'item': string},
+    returns: bool_,
+    description: '管理者ワーク投稿一覧1件分から、モデレーション対象のグループお誘いチャットが存在するか判定する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 6) return false;
+return parts[1] == 'partner_recruit' && parts[5].isNotEmpty;
+''',
+  );
+
+  // Same message shape as `fetchReportChatLog` above (nickname|||text|||,
+  // extracted via the shared `splitFieldFn`) — deliberate consistency, not
+  // independently reinvented.
+  app.customAction(
+    'fetchAdminRecruitmentChatLog',
+    args: {'postId': string},
+    returns: listOf(string),
+    description: 'adminGetRecruitmentChatLog Cloud Functionを呼び出し、グループお誘いチャットのログを取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminRecruitmentChatLog(String? postId) async {
+  try {
+    final id = postId ?? '';
+    if (id.isEmpty) return <String>[];
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetRecruitmentChatLog');
+    final result = await callable.call({'post_id': id});
+    if (result.data is! Map) return <String>[];
+    final data = result.data as Map;
+    if (data['messages'] is! List || (data['messages'] as List).isEmpty) {
+      final reason = data['no_chat_reason']?.toString() ?? 'チャットログがありません。';
+      return <String>['|||$reason|||'];
+    }
+    final messages = data['messages'] as List;
+    return messages.map((raw) {
+      final m = raw as Map;
+      final nickname = (m['sender_nickname']?.toString() ?? '').replaceAll('|||', '');
+      final text = (m['text']?.toString() ?? '').replaceAll('|||', '');
+      return '$nickname|||$text|||';
+    }).toList();
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  // Dedicated page (not an inline-expanding section on WorkPostManagementPage
+  // itself, unlike AdminReportReviewPage's own chat-log viewer) — matches
+  // this project's more common "focused drill-down page navigated to with
+  // a param" shape (ConsentRecordPage, HomeRankingDiagnosticsPage, etc.),
+  // and avoids needing to insert a whole new top-level section into
+  // WorkPostManagementPage's existing Scaffold body. Disclosed scope
+  // reduction, not silently dropped: no inline "freeze this participant"
+  // action here (unlike AdminReportReviewPage's freeze button) — this page
+  // shows sender nicknames so an admin can identify who to moderate, then
+  // freeze them from the already-existing UserManagementPage; building a
+  // second independent freeze entry point wasn't judged worth the added
+  // complexity for this pass.
+  // FROZEN (confirmed landed — page exists live, verified via
+  // lib/flutterflow_project/pages/admin_recruitment_chat_page.dart and
+  // generated_code) — `app.ensurePage(...)` won't error on rerun but its
+  // body becomes inert once the page exists (same documented behavior as
+  // every other `ensurePage` call in this file); any future change must go
+  // through `app.editPage(ff.Pages.adminRecruitmentChatPage, ...)` instead.
+  // final adminRecruitmentChatPage = app.ensurePage(
+  //   'AdminRecruitmentChatPage',
+  //   route: '/admin-recruitment-chat',
+  //   description: '管理者用グループお誘いチャットログ閲覧画面（キャスト間の勧誘・調整チャットのモデレーション用、IMPLEMENTATION_PLAN.md §3.8.12）。',
+  //   params: {'postId': string.withDefault('')},
+  //   state: {'chatLog': listOf(string)},
+  //   onLoad: [
+  //     CallCustomAction.named(
+  //       'fetchAdminRecruitmentChatLog',
+  //       arguments: {'postId': PageParam('postId')},
+  //       outputAs: 'chatLogResult',
+  //     ),
+  //     SetState('chatLog', ActionOutput('chatLogResult')),
+  //   ],
+  //   body: Scaffold(
+  //     appBar: AppBar(title: 'グループお誘いチャットログ'),
+  //     body: ListView(
+  //       name: 'AdminRecruitmentChatListView',
+  //       padding: EdgeInsets.all(16),
+  //       spacing: 8,
+  //       source: State('chatLog'),
+  //       itemBuilder: (item) => Card(
+  //         child: Container(
+  //           padding: EdgeInsets.all(12),
+  //           child: Column(
+  //             crossAxis: CrossAxis.start,
+  //             spacing: 4,
+  //             children: [
+  //               Text(
+  //                 CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+  //                 style: Styles.titleSmall,
+  //               ),
+  //               Text(
+  //                 CustomFunction(splitFieldFn, args: {'data': item, 'index': 1}),
+  //                 style: Styles.bodyMedium,
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       ),
+  //     ),
+  //   ),
+  // );
+
+  final workPostManagementPage = app.ensurePage(
+    'WorkPostManagementPage',
+    route: '/admin-work-posts',
+    description: '管理者用ワーク投稿管理画面（警備・送迎募集の作成/停止）。',
+    state: {
+      'adminWorkPostsList': listOf(string),
+      'newWorkPostType': string.withDefault('security'),
+      'newWorkPostDescription': string.withDefault(''),
+      'newWorkPostFee': string.withDefault(''),
+    },
+    onLoad: [
+      CallCustomAction.named('fetchAdminWorkPosts', outputAs: 'adminWorkPostsInitResult'),
+      SetState(ff.Pages.workPostManagementPage.state.adminWorkPostsList, ActionOutput('adminWorkPostsInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'ワーク投稿管理'),
+      body: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxis: CrossAxis.start,
+              spacing: 8,
+              children: [
+                Text('新規募集を作成', style: Styles.titleMedium),
+                Dropdown(
+                  name: 'NewWorkPostTypeDropdown',
+                  hint: '種別を選択',
+                  options: const ['security', 'transport'],
+                  value: State(ff.Pages.workPostManagementPage.state.newWorkPostType),
+                  onChanged: SetState(ff.Pages.workPostManagementPage.state.newWorkPostType, const WidgetValue()),
+                ),
+                TextField(
+                  hint: '募集内容',
+                  name: 'NewWorkPostDescriptionField',
+                  onChanged: SetState(ff.Pages.workPostManagementPage.state.newWorkPostDescription, const TextValue()),
+                ),
+                TextField(
+                  hint: '報酬（円）',
+                  keyboard: Keyboard.number,
+                  name: 'NewWorkPostFeeField',
+                  onChanged: SetState(ff.Pages.workPostManagementPage.state.newWorkPostFee, const TextValue()),
+                ),
+                Button(
+                  '投稿を作成する',
+                  name: 'CreateWorkPostButton',
+                  onTap: [
+                    CallCustomAction.named(
+                      'callAdminCreateWorkPost',
+                      arguments: {
+                        'workType': State(ff.Pages.workPostManagementPage.state.newWorkPostType),
+                        'description': State(ff.Pages.workPostManagementPage.state.newWorkPostDescription),
+                        'fee': State(ff.Pages.workPostManagementPage.state.newWorkPostFee),
+                      },
+                      outputAs: 'createWorkPostResult',
+                    ),
+                    CallCustomAction.named('fetchAdminWorkPosts', outputAs: 'adminWorkPostsRefetchResult'),
+                    SetState(ff.Pages.workPostManagementPage.state.adminWorkPostsList, ActionOutput('adminWorkPostsRefetchResult')),
+                    If(
+                      ActionOutput('createWorkPostResult'),
+                      then: [Snackbar('投稿を作成しました。')],
+                      orElse: [Snackbar('作成に失敗しました。')],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Divider(),
+          Expanded(
+            ListView(
+              name: 'AdminWorkPostsListView',
+              padding: EdgeInsets.all(16),
+              spacing: 8,
+              source: State(ff.Pages.workPostManagementPage.state.adminWorkPostsList),
+              itemBuilder: (item) => Card(
+                child: Container(
+                  padding: EdgeInsets.all(12),
+                  child: Column(
+                    crossAxis: CrossAxis.start,
+                    spacing: 4,
+                    children: [
+                      Text(CustomFunction(adminWorkPostItemLabelFn, args: {'item': item})),
+                      Button(
+                        '停止する',
+                        name: 'AdminCloseWorkPostButton',
+                        onTap: [
+                          CallCustomAction.named(
+                            'callAdminCloseWorkPost',
+                            arguments: {'postId': CustomFunction(adminWorkPostIdFn, args: {'item': item})},
+                            outputAs: 'adminCloseWorkPostResult',
+                          ),
+                          CallCustomAction.named('fetchAdminWorkPosts', outputAs: 'adminWorkPostsRefetchResult2'),
+                          SetState(ff.Pages.workPostManagementPage.state.adminWorkPostsList, ActionOutput('adminWorkPostsRefetchResult2')),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // FROZEN (2026-08-13, same cascading-duplication root cause — see the
+  // consolidated fix at the end of this file). Do not re-enable.
+  // app.editPage(ff.Pages.adminDashboardPage, (page) {
+  //   page.ensureInsertedAfter(
+  //     page.findByKey('Button_ecphn4d3'), // AdminUserManagementNavButton
+  //     Button(
+  //       'ワーク投稿管理',
+  //       name: 'AdminWorkPostManagementNavButton',
+  //       onTap: [Navigate(workPostManagementPage)],
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // Admin: schedule oversight + profile-content moderation (§3.8.13) — no
+  // precedent (sister project has neither). Schedule half reuses
+  // `getCastScheduleForGuest` (auth.ts) as-is — it's callable by ANY
+  // authenticated user, not gated to the guest role specifically, so no new
+  // backend was needed there; shown as a same-day availability SUMMARY
+  // (count of non-available slots) rather than the full interactive 48-slot
+  // grid — that grid is this project's own documented "single largest
+  // remaining Phase 11 item" in scale, and admin OVERSIGHT (§3.8.6's own
+  // "observability, not just a feature" framing) doesn't need the full
+  // interactive surface, just visibility. Content-moderation half extends
+  // `adminUpdateUserProfile` (this same push) with photo-clear + a real
+  // self-intro edit — both were previously wired to nothing.
+  // ==========================================================================
+
+  app.customAction(
+    'fetchAdminUserDetail',
+    args: {'userId': string},
+    returns: string,
+    description: 'adminGetUsers Cloud Functionを呼び出し、指定ユーザー1件分の詳細を取得する（自己紹介文を含む）。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<String?> fetchAdminUserDetail(String? userId) async {
+  try {
+    final id = userId ?? '';
+    if (id.isEmpty) return null;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetUsers');
+    final result = await callable.call({'user_id': id});
+    if (result.data is Map && result.data['user'] is Map) {
+      final m = result.data['user'] as Map;
+      return (m['self_introduction']?.toString() ?? '');
+    }
+    return '';
+  } catch (e) {
+    return '';
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminUpdateSelfIntro',
+    args: {'userId': string, 'selfIntro': string},
+    returns: bool_,
+    description: 'adminUpdateUserProfile Cloud Functionを呼び出し、自己紹介文を更新する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminUpdateSelfIntro(String? userId, String? selfIntro) async {
+  try {
+    final id = userId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminUpdateUserProfile');
+    final result = await callable.call({
+      'user_id': id,
+      'self_introduction': selfIntro ?? '',
+      'reason': '管理者によるコンテンツ修正',
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminClearPhoto',
+    args: {'userId': string},
+    returns: bool_,
+    description: 'adminUpdateUserProfile Cloud Functionを呼び出し、プロフィール画像をクリアする。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminClearPhoto(String? userId) async {
+  try {
+    final id = userId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminUpdateUserProfile');
+    final result = await callable.call({
+      'user_id': id,
+      'clear_photo': true,
+      'reason': '管理者による不適切な画像の削除',
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'fetchAdminCastScheduleSummary',
+    args: {'castId': string},
+    returns: string,
+    description: 'getCastScheduleForGuest Cloud Functionを呼び出し、本日の空き状況サマリーを作る（管理者用オーバーサイト）。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<String> fetchAdminCastScheduleSummary(String? castId) async {
+  try {
+    final id = castId ?? '';
+    if (id.isEmpty) return '対象なし';
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('getCastScheduleForGuest');
+    final result = await callable.call({'cast_id': id, 'date': dateStr});
+    if (result.data is Map && result.data['items'] is List) {
+      final items = (result.data['items'] as List).map((e) => e.toString()).toList();
+      final unavailable = items.where((s) => s != 'available').length;
+      return '本日($dateStr)：$unavailable/48枠が予約済み・ブロック中';
+    }
+    return '取得できませんでした';
+  } catch (e) {
+    return '取得できませんでした';
+  }
+}
+''',
+  );
+
+  final userContentModerationPage = app.ensurePage(
+    'UserContentModerationPage',
+    route: '/admin-user-content',
+    description: '管理者用コンテンツモデレーション画面（自己紹介編集・画像削除・当日スケジュール確認）。',
+    params: {
+      'userId': string.withDefault(''),
+      'userNickname': string.withDefault(''),
+      'userAccountType': string.withDefault(''),
+    },
+    state: {
+      'moderationSelfIntro': string.withDefault(''),
+      'moderationNewSelfIntro': string.withDefault(''),
+      'moderationScheduleSummary': string.withDefault(''),
+    },
+    onLoad: [
+      CallCustomAction.named(
+        'fetchAdminUserDetail',
+        arguments: {'userId': PageParam('userId')},
+        outputAs: 'userDetailInitResult',
+      ),
+      SetState(ff.Pages.userContentModerationPage.state.moderationSelfIntro, ActionOutput('userDetailInitResult')),
+      If(
+        Equals(PageParam('userAccountType'), 'cast'),
+        then: [
+          CallCustomAction.named(
+            'fetchAdminCastScheduleSummary',
+            arguments: {'castId': PageParam('userId')},
+            outputAs: 'scheduleSummaryInitResult',
+          ),
+          SetState(ff.Pages.userContentModerationPage.state.moderationScheduleSummary, ActionOutput('scheduleSummaryInitResult')),
+        ],
+        orElse: [],
+      ),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'コンテンツモデレーション'),
+      body: Column(
+        padding: EdgeInsets.all(16),
+        spacing: 12,
+        children: [
+          Text(PageParam('userNickname'), style: Styles.titleLarge),
+          Text(
+            State(ff.Pages.userContentModerationPage.state.moderationScheduleSummary),
+            style: Styles.bodyMedium,
+            visible: Equals(PageParam('userAccountType'), 'cast'),
+          ),
+          Divider(),
+          Text('現在の自己紹介文', style: Styles.titleMedium),
+          // Read-only display of the CURRENT value, fetched on load — the
+          // edit field below intentionally starts blank rather than
+          // attempting to pre-fill it (this DSL's TextField has no
+          // supported way to bind a dynamic initial value at authoring
+          // time, confirmed elsewhere this session — same reason
+          // adminUpsertCocotenShop's own text fields all start blank).
+          Text(
+            State(ff.Pages.userContentModerationPage.state.moderationSelfIntro),
+            style: Styles.bodyMedium,
+            maxLines: 5,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text('新しい自己紹介文（空欄のまま保存すると変更なし）', style: Styles.titleMedium),
+          TextField(
+            hint: '新しい自己紹介文を入力（変更する場合のみ）',
+            name: 'ModerationSelfIntroField',
+            onChanged: SetState(ff.Pages.userContentModerationPage.state.moderationNewSelfIntro, const TextValue()),
+          ),
+          Button(
+            '自己紹介文を保存',
+            name: 'SaveSelfIntroButton',
+            onTap: [
+              CallCustomAction.named(
+                'callAdminUpdateSelfIntro',
+                arguments: {'userId': PageParam('userId'), 'selfIntro': State(ff.Pages.userContentModerationPage.state.moderationNewSelfIntro)},
+                outputAs: 'saveSelfIntroResult',
+              ),
+              If(
+                ActionOutput('saveSelfIntroResult'),
+                then: [Snackbar('自己紹介文を更新しました。')],
+                orElse: [Snackbar('更新に失敗しました。')],
+              ),
+            ],
+          ),
+          Divider(),
+          Button(
+            'プロフィール画像を削除する',
+            name: 'ClearPhotoButton',
+            onTap: [
+              CallCustomAction.named(
+                'callAdminClearPhoto',
+                arguments: {'userId': PageParam('userId')},
+                outputAs: 'clearPhotoResult',
+              ),
+              If(
+                ActionOutput('clearPhotoResult'),
+                then: [Snackbar('プロフィール画像を削除しました。')],
+                orElse: [Snackbar('削除に失敗しました。')],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  final adminUserNicknameFn = app.customFunction(
+    'adminUserNickname',
+    args: {'item': string},
+    returns: string,
+    description: '管理者ユーザー一覧1件分からニックネームを取り出す。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.length > 1 ? parts[1] : '';
+''',
+  );
+
+  final adminUserAccountTypeFn = app.customFunction(
+    'adminUserAccountType',
+    args: {'item': string},
+    returns: string,
+    description: '管理者ユーザー一覧1件分からaccount_typeを取り出す。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.length > 2 ? parts[2] : '';
+''',
+  );
+
+  // Full `ensureReplaced` reconstruction of UserManagementPage's own list —
+  // same reason as ReservationOversightPage's own extension-detail button
+  // (Task #14): a per-row navigation button needs the itemBuilder closure's
+  // real `item` variable, which `ItemRef()` cannot supply for a
+  // newly-inserted sibling. Reproduces Task #12's original freeze/
+  // force-delete content exactly (known — authored in this same file, same
+  // session) plus the new content-moderation button.
+  app.editPage(ff.Pages.userManagementPage, (page) {
+    // FROZEN (confirmed landed this same push — 'コンテンツ管理' button text
+    // confirmed present in generated_code): `ListView_n3oqu1v5` no longer
+    // exists.
+    // page.ensureReplaced(
+      // page.findByKey('ListView_n3oqu1v5'), // AdminUsersListView
+      // ListView(
+        // name: 'AdminUsersListView',
+        // padding: EdgeInsets.all(16),
+        // spacing: 8,
+        // source: State(ff.Pages.userManagementPage.state.adminUsersList),
+        // itemBuilder: (item) => Card(
+          // child: Container(
+            // padding: EdgeInsets.all(12),
+            // child: Column(
+              // crossAxis: CrossAxis.start,
+              // spacing: 4,
+              // children: [
+                // Text(CustomFunction(adminUserItemLabelFn, args: {'item': item})),
+                // Row(
+                  // mainAxis: MainAxis.spaceBetween,
+                  // children: [
+                    // Button(
+                      // '凍結/解除',
+                      // name: 'AdminToggleFreezeButton',
+                      // onTap: [
+                        // CallCustomAction.named(
+                          // 'callAdminToggleFreeze',
+                          // arguments: {
+                            // 'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                            // 'freeze': Not(CustomFunction(adminUserIsFrozenFn, args: {'item': item})),
+                          // },
+                          // outputAs: 'adminToggleFreezeResult',
+                        // ),
+                        // CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult'),
+                        // SetState(
+                          // ff.Pages.userManagementPage.state.adminUsersList,
+                          // ActionOutput('adminUsersRefetchResult'),
+                        // ),
+                      // ],
+                    // ),
+                    // Button(
+                      // '強制退会',
+                      // name: 'AdminForceDeleteButton',
+                      // onTap: [
+                        // CallCustomAction.named(
+                          // 'callAdminForceDeleteUser',
+                          // arguments: {'userId': CustomFunction(adminUserIdFn, args: {'item': item})},
+                          // outputAs: 'adminForceDeleteResult',
+                        // ),
+                        // CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult2'),
+                        // SetState(
+                          // ff.Pages.userManagementPage.state.adminUsersList,
+                          // ActionOutput('adminUsersRefetchResult2'),
+                        // ),
+                      // ],
+                    // ),
+                  // ],
+                // ),
+                // Button(
+                  // 'コンテンツ管理',
+                  // name: 'AdminContentModerationNavButton',
+                  // onTap: [
+                    // Navigate(
+                      // userContentModerationPage,
+                      // params: {
+                        // 'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                        // 'userNickname': CustomFunction(adminUserNicknameFn, args: {'item': item}),
+                        // 'userAccountType': CustomFunction(adminUserAccountTypeFn, args: {'item': item}),
+                      // },
+                    // ),
+                  // ],
+                // ),
+              // ],
+            // ),
+          // ),
+        // ),
+      // ),
+    // );
+  });
+
+  // ==========================================================================
+  // Admin: withdrawal-request queue + account-deletion block monitor
+  // (IMPLEMENTATION_PLAN.md item 15). `payout_requests` docs only ever store
+  // {user_id, status, created_at, updated_at} — no `amount` field (confirmed
+  // by reading requestPayout, stripe-payments.ts) — the real balance is
+  // joined live from Stripe by adminGetPayoutRequests itself, so the list
+  // item string carries stripe_balance/debt_total instead of a stored
+  // amount. The deletion-block monitor is a NEW backend function
+  // (adminGetAccountDeletionStatus, admin.ts) with no prior DSL wiring —
+  // read-only mirror of requestWithdrawal's (auth.ts) own three block
+  // checks, reached per-user from UserManagementPage exactly like
+  // UserContentModerationPage's own nav button (Task #18).
+  // ==========================================================================
+
+  app.customAction(
+    'fetchAdminPayoutRequests',
+    returns: listOf(string),
+    description: 'adminGetPayoutRequests Cloud Functionを呼び出し、出金申請一覧（保留中優先）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminPayoutRequests() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetPayoutRequests');
+    final result = await callable.call({'status': 'pending', 'limit': 50});
+    if (result.data is Map && result.data['requests'] is List) {
+      return (result.data['requests'] as List).map((r) {
+        final m = r as Map;
+        final id = m['id']?.toString() ?? '';
+        final userId = m['user_id']?.toString() ?? '';
+        final status = m['status']?.toString() ?? '';
+        final stripeBalance = m['stripe_balance']?.toString() ?? '0';
+        final debtTotal = m['debt_total']?.toString() ?? '0';
+        return '$id|||$userId|||$status|||$stripeBalance|||$debtTotal';
+      }).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminApprovePayout',
+    args: {'requestId': string, 'action': string},
+    returns: bool_,
+    description: 'adminApprovePayout Cloud Functionを呼び出し、出金申請を承認/保留/却下する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminApprovePayout(String? requestId, String? action) async {
+  try {
+    final id = requestId ?? '';
+    final act = action ?? '';
+    if (id.isEmpty || act.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminApprovePayout');
+    final result = await callable.call({'requestId': id, 'action': act});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  final adminPayoutRequestIdFn = app.customFunction(
+    'adminPayoutRequestId',
+    args: {'item': string},
+    returns: string,
+    description: '出金申請一覧1件分から申請IDを取り出す。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.isNotEmpty ? parts[0] : '';
+''',
+  );
+
+  final adminPayoutItemLabelFn = app.customFunction(
+    'adminPayoutItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: '出金申請一覧1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 5) return '';
+return 'ユーザー: ${parts[1]}　${parts[2]}\nStripe残高: ¥${parts[3]}　論理負債: ¥${parts[4]}';
+''',
+  );
+
+  final withdrawalQueuePage = app.ensurePage(
+    'WithdrawalQueuePage',
+    route: '/admin-withdrawals',
+    description: '管理者用出金申請キュー画面（承認・保留・却下）。',
+    state: {'adminPayoutRequestsList': listOf(string)},
+    onLoad: [
+      CallCustomAction.named('fetchAdminPayoutRequests', outputAs: 'payoutRequestsInitResult'),
+      SetState(ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList, ActionOutput('payoutRequestsInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: '出金申請キュー'),
+      body: ListView(
+        name: 'AdminPayoutRequestsListView',
+        padding: EdgeInsets.all(16),
+        spacing: 8,
+        source: State(ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList),
+        itemBuilder: (item) => Card(
+          child: Container(
+            padding: EdgeInsets.all(12),
+            child: Column(
+              crossAxis: CrossAxis.start,
+              spacing: 4,
+              children: [
+                Text(CustomFunction(adminPayoutItemLabelFn, args: {'item': item})),
+                Row(
+                  mainAxis: MainAxis.spaceBetween,
+                  children: [
+                    Button(
+                      '承認',
+                      name: 'AdminApprovePayoutButton',
+                      onTap: [
+                        CallCustomAction.named(
+                          'callAdminApprovePayout',
+                          arguments: {
+                            'requestId': CustomFunction(adminPayoutRequestIdFn, args: {'item': item}),
+                            'action': 'approve',
+                          },
+                          outputAs: 'adminApprovePayoutResult',
+                        ),
+                        CallCustomAction.named('fetchAdminPayoutRequests', outputAs: 'payoutRequestsRefetchResult'),
+                        SetState(ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList, ActionOutput('payoutRequestsRefetchResult')),
+                      ],
+                    ),
+                    Button(
+                      '保留',
+                      name: 'AdminHoldPayoutButton',
+                      onTap: [
+                        CallCustomAction.named(
+                          'callAdminApprovePayout',
+                          arguments: {
+                            'requestId': CustomFunction(adminPayoutRequestIdFn, args: {'item': item}),
+                            'action': 'on_hold',
+                          },
+                          outputAs: 'adminHoldPayoutResult',
+                        ),
+                        CallCustomAction.named('fetchAdminPayoutRequests', outputAs: 'payoutRequestsRefetchResult2'),
+                        SetState(ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList, ActionOutput('payoutRequestsRefetchResult2')),
+                      ],
+                    ),
+                    Button(
+                      '却下',
+                      name: 'AdminRejectPayoutButton',
+                      onTap: [
+                        CallCustomAction.named(
+                          'callAdminApprovePayout',
+                          arguments: {
+                            'requestId': CustomFunction(adminPayoutRequestIdFn, args: {'item': item}),
+                            'action': 'rejected',
+                          },
+                          outputAs: 'adminRejectPayoutResult',
+                        ),
+                        CallCustomAction.named('fetchAdminPayoutRequests', outputAs: 'payoutRequestsRefetchResult3'),
+                        SetState(ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList, ActionOutput('payoutRequestsRefetchResult3')),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  // FROZEN (2026-08-13, same cascading-duplication root cause — see the
+  // consolidated fix at the end of this file). Do not re-enable.
+  // app.editPage(ff.Pages.adminDashboardPage, (page) {
+  //   page.ensureInsertedAfter(
+  //     page.findByKey('Button_ecphn4d3'), // AdminUserManagementNavButton
+  //     Button(
+  //       '出金申請キュー',
+  //       name: 'AdminWithdrawalQueueNavButton',
+  //       onTap: [Navigate(withdrawalQueuePage)],
+  //     ),
+  //   );
+  // });
+
+  app.customAction(
+    'fetchAdminDeletionBlockStatus',
+    args: {'userId': string},
+    returns: string,
+    description: 'adminGetAccountDeletionStatus Cloud Functionを呼び出し、退会ブロック状況を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<String> fetchAdminDeletionBlockStatus(String? userId) async {
+  try {
+    final id = userId ?? '';
+    if (id.isEmpty) return 'false|||false|||0|||false|||false';
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetAccountDeletionStatus');
+    final result = await callable.call({'user_id': id});
+    if (result.data is! Map) return 'false|||false|||0|||false|||false';
+    final data = result.data as Map;
+    return '${data['blocked'] == true}|||${data['blocked_by_debt'] == true}|||${data['logical_debt'] ?? 0}|||${data['blocked_by_reservation'] == true}|||${data['blocked_by_ledger'] == true}';
+  } catch (e) {
+    return 'false|||false|||0|||false|||false';
+  }
+}
+''',
+  );
+
+  final deletionBlockLabelFn = app.customFunction(
+    'deletionBlockLabel',
+    args: {'status': string},
+    returns: string,
+    description: '退会ブロック状況の文字列を表示用ラベルに整形する。',
+    code: r'''
+final parts = (status ?? '').split('|||');
+if (parts.length < 5) return '';
+final blocked = parts[0] == 'true';
+if (!blocked) return '退会ブロックなし。いつでも自己退会が可能です。';
+final reasons = <String>[];
+if (parts[1] == 'true') reasons.add('論理負債あり（¥${parts[2]}）');
+if (parts[3] == 'true') reasons.add('進行中の予約あり');
+if (parts[4] == 'true') reasons.add('送金処理中の台帳あり');
+return '退会ブロック中:\n・' + reasons.join('\n・');
+''',
+  );
+
+  final accountDeletionMonitorPage = app.ensurePage(
+    'AccountDeletionMonitorPage',
+    route: '/admin-deletion-monitor',
+    description: '管理者用退会ブロック状況モニター画面（負債/進行中予約/送金処理中の内訳表示、強制退会による手動オーバーライド）。',
+    params: {
+      'userId': string.withDefault(''),
+      'userNickname': string.withDefault(''),
+    },
+    state: {'deletionBlockStatus': string.withDefault('')},
+    onLoad: [
+      CallCustomAction.named(
+        'fetchAdminDeletionBlockStatus',
+        arguments: {'userId': PageParam('userId')},
+        outputAs: 'deletionStatusInitResult',
+      ),
+      SetState(ff.Pages.accountDeletionMonitorPage.state.deletionBlockStatus, ActionOutput('deletionStatusInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: '退会ブロック状況'),
+      body: Column(
+        padding: EdgeInsets.all(16),
+        spacing: 12,
+        children: [
+          Text(PageParam('userNickname'), style: Styles.titleLarge),
+          Text(
+            CustomFunction(deletionBlockLabelFn, args: {'status': State(ff.Pages.accountDeletionMonitorPage.state.deletionBlockStatus)}),
+            style: Styles.bodyMedium,
+          ),
+          Divider(),
+          Text(
+            '手動オーバーライド：ブロック理由の有無に関わらず、このユーザーを強制退会させます。',
+            style: Styles.labelSmall,
+          ),
+          Button(
+            '強制退会（ブロックを無視）',
+            name: 'AdminForceDeleteOverrideButton',
+            variant: ButtonVariant.outlined,
+            onTap: [
+              CallCustomAction.named(
+                'callAdminForceDeleteUser',
+                arguments: {'userId': PageParam('userId')},
+                outputAs: 'forceDeleteOverrideResult',
+              ),
+              If(
+                ActionOutput('forceDeleteOverrideResult'),
+                then: [Snackbar('強制退会を実行しました。'), Navigate(userManagementPage, replaceRoute: true)],
+                orElse: [Snackbar('強制退会に失敗しました。')],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // FROZEN (2026-08-13, fresh-eyes re-review pass — ROOT CAUSE FOUND
+  // AND FIXED): this block was never frozen when the Task #24 block
+  // below (5-button reconstruction, key ListView_ezz6iswp) replaced it —
+  // meaning BOTH `ensureReplaced` calls were live simultaneously,
+  // targeting the same conceptual widget with two different hardcoded
+  // keys. Every push, THIS block ran first (rebuilding the list under a
+  // fresh key), so by the time the Task #24 block ran second, its own
+  // hardcoded `ListView_ezz6iswp` no longer matched anything live —
+  // `findByKey` silently resolved to nothing, cascading into
+  // "Custom action argument X is not set properly" / "Invalid value for
+  // argument item" validation failures on every subsequent push. This is
+  // the SAME bug class already documented elsewhere in this file
+  // (multiple structural mutations targeting one widget across separate
+  // pushes) — just manifesting as a hard validation failure instead of a
+  // silent content duplication this time. Confirmed via 4 isolated retry
+  // pushes that ruled out every OTHER change in this same pass before
+  // finding this. Do not re-enable — the Task #24 block below is now the
+  // sole source of truth for this list.
+  // // Full `ensureReplaced` reconstruction of UserManagementPage's own list —
+  // // same reason as the Task #18 reconstruction immediately above (a
+  // // per-row navigation button needs the itemBuilder closure's real `item`
+  // // variable, unavailable to `ItemRef()` on a newly-inserted sibling).
+  // // Reproduces the Task #18 landed content exactly (confirmed via
+  // // user_management_page.dart: ListView key is now `ListView_03wxfdpi`,
+  // // Column children are [Text, Row[freeze,forcedelete],
+  // // Button(AdminContentModerationNavButton)]) plus the new deletion-monitor
+  // // nav button.
+  // app.editPage(ff.Pages.userManagementPage, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('ListView_03wxfdpi'), // AdminUsersListView
+  //     ListView(
+  //       name: 'AdminUsersListView',
+  //       padding: EdgeInsets.all(16),
+  //       spacing: 8,
+  //       source: State(ff.Pages.userManagementPage.state.adminUsersList),
+  //       itemBuilder: (item) => Card(
+  //         child: Container(
+  //           padding: EdgeInsets.all(12),
+  //           child: Column(
+  //             crossAxis: CrossAxis.start,
+  //             spacing: 4,
+  //             children: [
+  //               Text(CustomFunction(adminUserItemLabelFn, args: {'item': item})),
+  //               Row(
+  //                 mainAxis: MainAxis.spaceBetween,
+  //                 children: [
+  //                   Button(
+  //                     '凍結/解除',
+  //                     name: 'AdminToggleFreezeButton',
+  //                     onTap: [
+  //                       CallCustomAction.named(
+  //                         'callAdminToggleFreeze',
+  //                         arguments: {
+  //                           'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+  //                           'freeze': Not(CustomFunction(adminUserIsFrozenFn, args: {'item': item})),
+  //                         },
+  //                         outputAs: 'adminToggleFreezeResult',
+  //                       ),
+  //                       CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult'),
+  //                       SetState(
+  //                         ff.Pages.userManagementPage.state.adminUsersList,
+  //                         ActionOutput('adminUsersRefetchResult'),
+  //                       ),
+  //                     ],
+  //                   ),
+  //                   Button(
+  //                     '強制退会',
+  //                     name: 'AdminForceDeleteButton',
+  //                     onTap: [
+  //                       CallCustomAction.named(
+  //                         'callAdminForceDeleteUser',
+  //                         arguments: {'userId': CustomFunction(adminUserIdFn, args: {'item': item})},
+  //                         outputAs: 'adminForceDeleteResult',
+  //                       ),
+  //                       CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult2'),
+  //                       SetState(
+  //                         ff.Pages.userManagementPage.state.adminUsersList,
+  //                         ActionOutput('adminUsersRefetchResult2'),
+  //                       ),
+  //                     ],
+  //                   ),
+  //                 ],
+  //               ),
+  //               Button(
+  //                 'コンテンツ管理',
+  //                 name: 'AdminContentModerationNavButton',
+  //                 onTap: [
+  //                   Navigate(
+  //                     userContentModerationPage,
+  //                     params: {
+  //                       'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+  //                       'userNickname': CustomFunction(adminUserNicknameFn, args: {'item': item}),
+  //                       'userAccountType': CustomFunction(adminUserAccountTypeFn, args: {'item': item}),
+  //                     },
+  //                   ),
+  //                 ],
+  //               ),
+  //               Button(
+  //                 '退会ブロック状況',
+  //                 name: 'AdminDeletionMonitorNavButton',
+  //                 onTap: [
+  //                   Navigate(
+  //                     accountDeletionMonitorPage,
+  //                     params: {
+  //                       'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+  //                       'userNickname': CustomFunction(adminUserNicknameFn, args: {'item': item}),
+  //                     },
+  //                   ),
+  //                 ],
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // Admin: consent-record viewer (IMPLEMENTATION_PLAN.md item 3). This
+  // project's actual data model — confirmed by reading auth.ts's
+  // completeOnboarding directly, not assumed from the plan's wording —
+  // only ever persists ONE combined consent timestamp (`users.consent_at`),
+  // gated on a single `consent_agreed` checkbox covering ToS + business-
+  // commission + privacy-policy together. There is no separate per-
+  // document-type consent field anywhere in this schema (confirmed: "NO
+  // ANALOG in the sister project... users-equivalent schema has no consent
+  // fields there either" per IMPLEMENTATION_PLAN.md's own gap analysis).
+  // Retrofitting 4 granular consent fields would mean redesigning the
+  // already-built, already-landed onboarding flow — a client-facing data-
+  // model change, a different task class than an admin VIEWER. Scoped here
+  // to what actually exists: a per-user viewer for the one real
+  // `consent_at` timestamp, reached the same way as every other per-user
+  // admin drill-down this session (params from UserManagementPage's list).
+  // ==========================================================================
+
+  // Original declaration frozen (feature build, unimplemented-features
+  // pass) — `fetchAdminUserConsent` already exists live; re-declaring via
+  // `app.customAction` fails once its payload changes. Now fetches all 4
+  // discrete consent timestamps (BasicInfoRegistration/`completeOnboarding`
+  // write these as of this same pass) instead of the one combined
+  // `consent_at` — no backend change needed, `adminGetUsers` already
+  // returns the full raw user document, so the 4 new fields were already
+  // present in its response.
+  //   app.customAction(
+  //     'fetchAdminUserConsent',
+  //     args: {'userId': string},
+  //     returns: string,
+  //     description: 'adminGetUsers Cloud Functionを呼び出し、指定ユーザーの同意日時（consent_at）を取得する。',
+  //     code: r'''
+  //   import 'package:cloud_functions/cloud_functions.dart';
+  //
+  //   Future<String> fetchAdminUserConsent(String? userId) async {
+  //     try {
+  //       final id = userId ?? '';
+  //       if (id.isEmpty) return '';
+  //       final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+  //           .httpsCallable('adminGetUsers');
+  //       final result = await callable.call({'user_id': id});
+  //       if (result.data is! Map || result.data['user'] is! Map) return '';
+  //       final m = result.data['user'] as Map;
+  //       final ts = m['consent_at'];
+  //       if (ts is Map && ts['_seconds'] != null) {
+  //         final dt = DateTime.fromMillisecondsSinceEpoch((ts['_seconds'] as int) * 1000);
+  //         return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  //       }
+  //       return '';
+  //     } catch (e) {
+  //       return '';
+  //     }
+  //   }
+  //   ''',
+  //   );
+
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'fetchAdminUserConsent',
+      code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+String _fmtTs(dynamic ts) {
+  if (ts is Map && ts['_seconds'] != null) {
+    final dt = DateTime.fromMillisecondsSinceEpoch((ts['_seconds'] as int) * 1000);
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+  return '';
+}
+
+Future<String> fetchAdminUserConsent(String? userId) async {
+  try {
+    final id = userId ?? '';
+    if (id.isEmpty) return '||||||';
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetUsers');
+    final result = await callable.call({'user_id': id});
+    if (result.data is! Map || result.data['user'] is! Map) return '||||||';
+    final m = result.data['user'] as Map;
+    final tos = _fmtTs(m['tos_agreed_at']);
+    final biz = _fmtTs(m['business_commission_agreed_at']);
+    final personal = _fmtTs(m['personal_data_agreed_at']);
+    final privacy = _fmtTs(m['privacy_policy_agreed_at']);
+    return '$tos|||$biz|||$personal|||$privacy';
+  } catch (e) {
+    return '||||||';
+  }
+}
+''',
+    );
+  });
+
+  final consentRecordLabelFn = CustomFunctionHandle(
+    name: 'consentRecordLabel',
+    args: {'data': string, 'index': int_, 'label': string},
+    returnType: string,
+  );
+
+  app.raw((project) {
+    updateCustomFunction(
+      project,
+      name: 'consentRecordLabel',
+      arguments: [
+        FFParameter(identifier: FFIdentifier(name: 'data', key: generateRandomAlphaNumericString()), dataType: _string),
+        FFParameter(identifier: FFIdentifier(name: 'index', key: generateRandomAlphaNumericString()), dataType: FFDataTypeV2(scalarType: FFBaseDataType.Integer)),
+        FFParameter(identifier: FFIdentifier(name: 'label', key: generateRandomAlphaNumericString()), dataType: _string),
+      ],
+      code: r'''
+final parts = (data ?? '').split('|||');
+final i = index ?? 0;
+final ts = (i >= 0 && i < parts.length) ? parts[i] : '';
+if (ts.isEmpty) return '$label: 同意記録がありません（オンボーディング未完了の可能性があります）。';
+return '$label: $ts';
+''',
+    );
+  });
+
+  // NOTE: `app.ensurePage(...)` is create-once — this whole call no-ops on
+  // rerun since `ConsentRecordPage` already exists live. Its inline `body:`
+  // below is still real Dart that must type-check even though it has no
+  // live effect anymore; kept as a static placeholder (not the stale
+  // `consentRecordLabelFn` call with the OLD `{'consentAt': ...}` arg
+  // shape, which would no longer match that function's updated signature
+  // above) — the REAL 4-row display is applied via the `editPage` call
+  // right after this one, which is what actually reaches the live page.
+  final consentRecordPage = app.ensurePage(
+    'ConsentRecordPage',
+    route: '/admin-consent-record',
+    description: '管理者用同意記録画面（利用規約・業務委託契約・個人情報の取り扱い・プライバシーポリシーへの個別同意日時を表示）。',
+    params: {
+      'userId': string.withDefault(''),
+      'userNickname': string.withDefault(''),
+    },
+    state: {'consentAtResult': string.withDefault('')},
+    onLoad: [
+      CallCustomAction.named(
+        'fetchAdminUserConsent',
+        arguments: {'userId': PageParam('userId')},
+        outputAs: 'consentInitResult',
+      ),
+      SetState(ff.Pages.consentRecordPage.state.consentAtResult, ActionOutput('consentInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: '同意記録'),
+      body: Column(
+        padding: EdgeInsets.all(16),
+        spacing: 12,
+        children: [
+          Text(PageParam('userNickname'), style: Styles.titleLarge),
+          Text('4項目の同意日時を個別に表示します。', style: Styles.labelMedium),
+          Text('読み込み中...', style: Styles.bodyMedium),
+        ],
+      ),
+    ),
+  );
+
+  // FIX (feature build, unimplemented-features pass): the page used to
+  // show ONE combined consent_at value with a subtitle explicitly stating
+  // "一括・単一チェックボックス" (batched, single checkbox) — both now
+  // inaccurate now that BasicInfoRegistration captures 4 independent
+  // consents. Replaced the stale subtitle and the single value Text with 4
+  // separate rows, one per document type.
+  app.editPage(ff.Pages.consentRecordPage, (page) {
+    page.update(page.findByKey('Text_2govu74m'), (patch) {
+      patch.text('利用規約・業務委託契約・個人情報の取り扱い・プライバシーポリシーへの個別同意日時');
+    });
+    page.ensureReplaced(
+      page.findByKey('Text_fo0e95xr'), // was: single combined consent_at value
+      Column(
+        name: 'ConsentRecordDetailColumn',
+        crossAxis: CrossAxis.start,
+        spacing: 4,
+        children: [
+          Text(
+            CustomFunction(
+              consentRecordLabelFn,
+              args: {'data': State(ff.Pages.consentRecordPage.state.consentAtResult), 'index': 0, 'label': '利用規約'},
+            ),
+            style: Styles.bodyMedium,
+          ),
+          Text(
+            CustomFunction(
+              consentRecordLabelFn,
+              args: {'data': State(ff.Pages.consentRecordPage.state.consentAtResult), 'index': 1, 'label': '業務委託契約'},
+            ),
+            style: Styles.bodyMedium,
+          ),
+          Text(
+            CustomFunction(
+              consentRecordLabelFn,
+              args: {'data': State(ff.Pages.consentRecordPage.state.consentAtResult), 'index': 2, 'label': '個人情報の取り扱い'},
+            ),
+            style: Styles.bodyMedium,
+          ),
+          Text(
+            CustomFunction(
+              consentRecordLabelFn,
+              args: {'data': State(ff.Pages.consentRecordPage.state.consentAtResult), 'index': 3, 'label': 'プライバシーポリシー'},
+            ),
+            style: Styles.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  });
+
+  app.editPage(ff.Pages.userManagementPage, (page) {
+    page.ensureReplaced(
+      page.findByKey('ListView_ezz6iswp'), // AdminUsersListView
+      ListView(
+        name: 'AdminUsersListView',
+        padding: EdgeInsets.all(16),
+        spacing: 8,
+        source: State(ff.Pages.userManagementPage.state.adminUsersList),
+        itemBuilder: (item) => Card(
+          child: Container(
+            padding: EdgeInsets.all(12),
+            child: Column(
+              crossAxis: CrossAxis.start,
+              spacing: 4,
+              children: [
+                Text(CustomFunction(adminUserItemLabelFn, args: {'item': item})),
+                Row(
+                  mainAxis: MainAxis.spaceBetween,
+                  children: [
+                    Button(
+                      '凍結/解除',
+                      name: 'AdminToggleFreezeButton',
+                      onTap: [
+                        CallCustomAction.named(
+                          'callAdminToggleFreeze',
+                          arguments: {
+                            'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                            'freeze': Not(CustomFunction(adminUserIsFrozenFn, args: {'item': item})),
+                          },
+                          outputAs: 'adminToggleFreezeResult',
+                        ),
+                        CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult'),
+                        SetState(
+                          ff.Pages.userManagementPage.state.adminUsersList,
+                          ActionOutput('adminUsersRefetchResult'),
+                        ),
+                      ],
+                    ),
+                    Button(
+                      '強制退会',
+                      name: 'AdminForceDeleteButton',
+                      onTap: [
+                        CallCustomAction.named(
+                          'callAdminForceDeleteUser',
+                          arguments: {'userId': CustomFunction(adminUserIdFn, args: {'item': item})},
+                          outputAs: 'adminForceDeleteResult',
+                        ),
+                        CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult2'),
+                        SetState(
+                          ff.Pages.userManagementPage.state.adminUsersList,
+                          ActionOutput('adminUsersRefetchResult2'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                Button(
+                  'コンテンツ管理',
+                  name: 'AdminContentModerationNavButton',
+                  onTap: [
+                    Navigate(
+                      userContentModerationPage,
+                      params: {
+                        'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                        'userNickname': CustomFunction(adminUserNicknameFn, args: {'item': item}),
+                        'userAccountType': CustomFunction(adminUserAccountTypeFn, args: {'item': item}),
+                      },
+                    ),
+                  ],
+                ),
+                Button(
+                  '退会ブロック状況',
+                  name: 'AdminDeletionMonitorNavButton',
+                  onTap: [
+                    Navigate(
+                      accountDeletionMonitorPage,
+                      params: {
+                        'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                        'userNickname': CustomFunction(adminUserNicknameFn, args: {'item': item}),
+                      },
+                    ),
+                  ],
+                ),
+                Button(
+                  '同意記録',
+                  name: 'AdminConsentRecordNavButton',
+                  onTap: [
+                    Navigate(
+                      consentRecordPage,
+                      params: {
+                        'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                        'userNickname': CustomFunction(adminUserNicknameFn, args: {'item': item}),
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  });
+
+  // ==========================================================================
+  // Admin: full ledger view + debt-history timeline (§3.8.14). Ledger
+  // summary reuses `adminGetLedger`'s own server-computed
+  // gross_total/net_transfer_total/platform_profit_total (already correctly
+  // deduped per-reservation across multi-cast rows, confirmed by reading
+  // computeLedgerSummary directly — not re-derived client-side, which would
+  // risk re-introducing the exact overcounting bug that function's own
+  // comments describe fixing). Debt-history timeline is a DIRECT client
+  // query (no new Cloud Function) — firestore.rules already grants admin
+  // unconditional read on `debt_history` (`allow read: if isAdmin() ||
+  // ...`), unlike the guest-facing debt-history view (Task #11), which is
+  // scoped to the caller's own uid.
+  // ==========================================================================
+
+  app.customAction(
+    'fetchAdminLedgerSummary',
+    returns: string,
+    description: 'adminGetLedger Cloud Functionを呼び出し、決済総額/送金実額/運営利益のサマリーを取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<String> fetchAdminLedgerSummary() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetLedger');
+    final result = await callable.call({'limit': 100});
+    if (result.data is! Map) return '0|||0|||0';
+    final data = result.data as Map;
+    return '${data['gross_total'] ?? 0}|||${data['net_transfer_total'] ?? 0}|||${data['platform_profit_total'] ?? 0}';
+  } catch (e) {
+    return '0|||0|||0';
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'fetchAdminLedgerEntries',
+    returns: listOf(string),
+    description: 'adminGetLedger Cloud Functionを呼び出し、台帳明細一覧（新しい順・最大100件）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminLedgerEntries() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetLedger');
+    final result = await callable.call({'limit': 100});
+    if (result.data is Map && result.data['entries'] is List) {
+      return (result.data['entries'] as List).map((e) {
+        final m = e as Map;
+        final type = m['type']?.toString() ?? '';
+        final grossAmount = m['gross_amount']?.toString() ?? '0';
+        final netTransfer = m['net_transfer']?.toString() ?? '0';
+        final status = m['status']?.toString() ?? '';
+        return '$type|||$grossAmount|||$netTransfer|||$status';
+      }).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'fetchAdminDebtHistoryAll',
+    returns: listOf(string),
+    description: '全ユーザーの負債履歴（debt_history）を新しい順に取得する（管理者は直接読み取り可能）。',
+    code: r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+Future<List<String>> fetchAdminDebtHistoryAll() async {
+  try {
+    final snap = await FirebaseFirestore.instance
+        .collection('debt_history')
+        .orderBy('created_at', descending: true)
+        .limit(50)
+        .get();
+    return snap.docs.map((d) {
+      final data = d.data();
+      final userId = (data['user_id']?.toString() ?? '').replaceAll('|||', '');
+      final amount = data['amount']?.toString() ?? '0';
+      final reason = (data['reason']?.toString() ?? '').replaceAll('|||', '');
+      return '$userId|||$amount|||$reason';
+    }).toList();
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  final adminLedgerSummaryLabelFn = app.customFunction(
+    'adminLedgerSummaryLabel',
+    args: {'summary': string},
+    returns: string,
+    description: '台帳サマリー文字列を表示用ラベルに整形する。',
+    code: r'''
+final parts = (summary ?? '').split('|||');
+if (parts.length < 3) return '';
+return '決済総額：¥${parts[0]}\n送金実額：¥${parts[1]}\n運営利益：¥${parts[2]}';
+''',
+  );
+
+  final adminLedgerEntryLabelFn = app.customFunction(
+    'adminLedgerEntryLabel',
+    args: {'item': string},
+    returns: string,
+    description: '台帳明細1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 4) return '';
+return '${parts[0]}　総額¥${parts[1]}　送金¥${parts[2]}　${parts[3]}';
+''',
+  );
+
+  final adminDebtHistoryItemLabelFn = app.customFunction(
+    'adminDebtHistoryItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: '全体負債履歴1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 3) return '';
+return 'ユーザー: ${parts[0]}　¥${parts[1]}　${parts[2]}';
+''',
+  );
+
+  final ledgerOversightPage = app.ensurePage(
+    'LedgerOversightPage',
+    route: '/admin-ledger',
+    description: '管理者用台帳オーバーサイト画面（決済総額/送金実額/運営利益サマリー、明細一覧、全体負債履歴）。',
+    state: {
+      'adminLedgerSummary': string.withDefault(''),
+      'adminLedgerEntriesList': listOf(string),
+      'adminDebtHistoryAllList': listOf(string),
+    },
+    onLoad: [
+      CallCustomAction.named('fetchAdminLedgerSummary', outputAs: 'ledgerSummaryInitResult'),
+      SetState(ff.Pages.ledgerOversightPage.state.adminLedgerSummary, ActionOutput('ledgerSummaryInitResult')),
+      CallCustomAction.named('fetchAdminLedgerEntries', outputAs: 'ledgerEntriesInitResult'),
+      SetState(ff.Pages.ledgerOversightPage.state.adminLedgerEntriesList, ActionOutput('ledgerEntriesInitResult')),
+      CallCustomAction.named('fetchAdminDebtHistoryAll', outputAs: 'debtHistoryAllInitResult'),
+      SetState(ff.Pages.ledgerOversightPage.state.adminDebtHistoryAllList, ActionOutput('debtHistoryAllInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: '台帳オーバーサイト'),
+      body: Column(
+        name: 'AdminLedgerListView',
+        padding: EdgeInsets.all(16),
+        spacing: 8,
+        scrollable: true,
+        children: [
+          Text(
+            CustomFunction(adminLedgerSummaryLabelFn, args: {'summary': State(ff.Pages.ledgerOversightPage.state.adminLedgerSummary)}),
+            style: Styles.titleMedium,
+          ),
+          Divider(),
+          Text('台帳明細', style: Styles.titleMedium),
+          ListView(
+            name: 'AdminLedgerEntriesListView',
+            shrinkWrap: true,
+            spacing: 4,
+            source: State(ff.Pages.ledgerOversightPage.state.adminLedgerEntriesList),
+            itemBuilder: (item) => Text(
+              CustomFunction(adminLedgerEntryLabelFn, args: {'item': item}),
+              style: Styles.bodySmall,
+            ),
+          ),
+          Divider(),
+          Text('負債履歴（全体）', style: Styles.titleMedium),
+          ListView(
+            name: 'AdminDebtHistoryAllListView',
+            shrinkWrap: true,
+            spacing: 4,
+            source: State(ff.Pages.ledgerOversightPage.state.adminDebtHistoryAllList),
+            itemBuilder: (item) => Text(
+              CustomFunction(adminDebtHistoryItemLabelFn, args: {'item': item}),
+              style: Styles.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // ── CSV export (IMPLEMENTATION_PLAN.md item 19's CSV-export half).
+  // Genuinely NEW capability — no CSV export exists anywhere in this
+  // project (confirmed by grep before building), unlike the sister
+  // project's own precedent (client-side, current-page-only). Same
+  // current-page-only scope here, surfaced explicitly in the label rather
+  // than silently inherited as a limitation (matching this project's own
+  // §3.8a instruction to "surface this as a decision, not an inherited
+  // limitation") — a true full-server-filtered export would need a new
+  // paginated/streaming backend endpoint, out of proportion for this pass
+  // given `adminGetLedger` itself already caps at 100 rows. No new pub
+  // package added — uses `Clipboard.setData` (built into
+  // `package:flutter/services.dart`) rather than a file-save/share plugin,
+  // avoiding new platform-permission surface for what both the negotiation
+  // history and the sister project treat as a nice-to-have, not a
+  // money-critical path.
+  app.customAction(
+    'callExportLedgerCsv',
+    args: {'entries': listOf(string)},
+    returns: bool_,
+    description: '台帳明細一覧（現在読み込み済みの行のみ）をCSV形式でクリップボードにコピーする。',
+    code: r'''
+import 'package:flutter/services.dart';
+
+Future<bool> callExportLedgerCsv(List<String>? entries) async {
+  try {
+    final rows = entries ?? <String>[];
+    if (rows.isEmpty) return false;
+    final buffer = StringBuffer('type,gross_amount,net_transfer,status\n');
+    for (final row in rows) {
+      final parts = row.split('|||');
+      final escaped = parts.map((p) => '"${p.replaceAll('"', '""')}"').join(',');
+      buffer.writeln(escaped);
+    }
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.editPage(ff.Pages.ledgerOversightPage, (page) {
+    page.ensureInsertedAfter(
+      page.findByKey('Text_lfxb8jhs'), // 台帳明細
+      Button(
+        'CSVをコピー（読み込み済みの行のみ）',
+        name: 'AdminExportLedgerCsvButton',
+        variant: ButtonVariant.outlined,
+        onTap: [
+          CallCustomAction.named(
+            'callExportLedgerCsv',
+            arguments: {'entries': State(ff.Pages.ledgerOversightPage.state.adminLedgerEntriesList)},
+            outputAs: 'exportCsvResult',
+          ),
+          If(
+            ActionOutput('exportCsvResult'),
+            then: [Snackbar('CSVをクリップボードにコピーしました。スプレッドシートに貼り付けてください。')],
+            orElse: [Snackbar('コピーする明細がありません。')],
+          ),
+        ],
+      ),
+    );
+  });
+
+  // FROZEN (2026-08-13, same cascading-duplication root cause — see the
+  // consolidated fix immediately below). Do not re-enable.
+  // app.editPage(ff.Pages.adminDashboardPage, (page) {
+  //   page.ensureInsertedAfter(
+  //     page.findByKey('Button_ecphn4d3'), // AdminUserManagementNavButton
+  //     Button(
+  //       '台帳オーバーサイト',
+  //       name: 'AdminLedgerOversightNavButton',
+  //       onTap: [Navigate(ledgerOversightPage)],
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // Admin: notification/moderation center + push-send capability
+  // (IMPLEMENTATION_PLAN.md item 16). Four sub-parts, per the item's own
+  // text: (A) push-send across the 5 existing お知らせ categories
+  // (matching/work/cocoten/stripe/admin), (B) raw Stripe webhook feed with
+  // log-drill-down, (C) report review + account-freeze action (the
+  // AdminReportReviewPage half deliberately deferred at Phase 7 — see the
+  // frozen comment above this block, "Deliberately NOT combined... building
+  // that combined action now would mean extending admin.ts speculatively"
+  // — no longer speculative, this IS that task), (D) SystemConfig constant
+  // editor (tax rate, chat_close_sec, etc.). Grouped under one new hub page
+  // (NotificationModerationCenterPage) rather than 3 more top-level
+  // AdminDashboardPage buttons, matching the spec's own "center" framing.
+  // ==========================================================================
+
+  // ── (C) AdminReportReviewPage: add account-freeze action ──
+  // New state field for the REPORTED user's id (distinct from
+  // `selectedReportId`, which is the report doc's own id) — needed because
+  // freezing operates on a user, not a report.
+  app.editPageState(ff.Pages.adminReportReviewPage, (state) {
+    state.ensureField('selectedReportedUserId', string.withDefault(''));
+  });
+
+  app.editPage(ff.Pages.adminReportReviewPage, (page) {
+    // Full reconstruction of the report-list ListView (current key
+    // confirmed via lib/flutterflow_project/pages/admin_report_review_page.dart:
+    // `ListView_ebh3oxlv`) — reproduces the existing "詳細を見る" behavior
+    // (set selectedReportId + fetch chat log) exactly, plus one new line
+    // capturing the reported user's id. Uses the itemBuilder closure's real
+    // `item` variable directly (same reason as every other per-row-button
+    // reconstruction this session — `ItemRef()` cannot supply this for
+    // logic defined outside the original itemBuilder).
+    page.ensureReplaced(
+      page.findByKey('ListView_ebh3oxlv'),
+      ListView(
+        name: 'PendingReportsListView',
+        spacing: 8,
+        source: State(ff.Pages.adminReportReviewPage.state.pendingReportsList),
+        itemBuilder: (item) => Card(
+          name: 'ReportCard',
+          child: Container(
+            padding: EdgeInsets.all(12),
+            child: Column(
+              crossAxis: CrossAxis.start,
+              spacing: 4,
+              children: [
+                Text(
+                  CustomFunction(splitFieldFn, args: {'data': item, 'index': 2}),
+                  style: Styles.titleSmall,
+                ),
+                Text(
+                  CustomFunction(splitFieldFn, args: {'data': item, 'index': 4}),
+                  style: Styles.labelSmall,
+                ),
+                Button(
+                  '詳細を見る',
+                  variant: ButtonVariant.outlined,
+                  onTap: [
+                    SetState(
+                      ff.Pages.adminReportReviewPage.state.selectedReportId,
+                      CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+                    ),
+                    SetState(
+                      'selectedReportedUserId',
+                      CustomFunction(splitFieldFn, args: {'data': item, 'index': 1}),
+                    ),
+                    CallCustomAction.named(
+                      'fetchReportChatLog',
+                      arguments: {
+                        'reportId': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+                      },
+                      outputAs: 'chatLogResult',
+                    ),
+                    SetState(
+                      ff.Pages.adminReportReviewPage.state.selectedReportChatLog,
+                      ActionOutput('chatLogResult'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // New freeze button, anchored once (first-ever structural insertion at
+    // this anchor — safe per the ensureInsertedAfter/cascading-duplication
+    // lesson documented above: only unsafe when MULTIPLE calls target the
+    // same anchor across separate pushes).
+    page.ensureInsertedAfter(
+      page.findByKey('Button_dzuv9r1c'), // 解決する
+      Button(
+        '対象ユーザーを凍結する',
+        name: 'AdminReportFreezeButton',
+        variant: ButtonVariant.outlined,
+        visible: Not(Equals(State(ff.Pages.adminReportReviewPage.state.selectedReportId), '')),
+        onTap: [
+          CallCustomAction.named(
+            'callAdminToggleFreeze',
+            arguments: {
+              'userId': State('selectedReportedUserId'),
+              'freeze': true,
+            },
+            outputAs: 'reportFreezeResult',
+          ),
+          If(
+            ActionOutput('reportFreezeResult'),
+            then: [Snackbar('対象ユーザーを凍結しました。')],
+            orElse: [Snackbar('凍結処理に失敗しました。')],
+          ),
+        ],
+      ),
+    );
+  });
+
+  // ── (A) Push-send composer ──
+  app.customAction(
+    'callAdminSendNotification',
+    args: {'category': string, 'title': string, 'body': string, 'target': string},
+    returns: string,
+    description: 'adminSendNotification Cloud Functionを呼び出し、お知らせを配信する。成功時は送信件数（文字列）、失敗時は空文字を返す。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<String> callAdminSendNotification(String? category, String? title, String? body, String? target) async {
+  try {
+    final cat = category ?? '';
+    final ttl = title ?? '';
+    final bdy = body ?? '';
+    if (cat.isEmpty || ttl.isEmpty || bdy.isEmpty) return '';
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminSendNotification');
+    final result = await callable.call({
+      'category': cat,
+      'title': ttl,
+      'body': bdy,
+      'target': (target == null || target.isEmpty) ? 'all' : target,
+    });
+    if (result.data is Map && result.data['success'] == true) {
+      return (result.data['sent_count'] ?? 0).toString();
+    }
+    return '';
+  } catch (e) {
+    return '';
+  }
+}
+''',
+  );
+
+  final notifCategoryLabelToKeyFn = app.customFunction(
+    'notifCategoryLabelToKey',
+    args: {'label': string},
+    returns: string,
+    description: 'お知らせカテゴリの日本語表示ラベルを内部キー（matching/work/cocoten/stripe/admin）に変換する。',
+    code: r'''
+switch (label) {
+  case 'マッチング':
+    return 'matching';
+  case 'ワーク':
+    return 'work';
+  case 'ココ店':
+    return 'cocoten';
+  case '決済':
+    return 'stripe';
+  case '運営':
+    return 'admin';
+  default:
+    return 'admin';
+}
+''',
+  );
+
+  final notifTargetLabelToKeyFn = app.customFunction(
+    'notifTargetLabelToKey',
+    args: {'label': string},
+    returns: string,
+    description: '配信対象の日本語表示ラベルを内部キー（all/guest/cast）に変換する。',
+    code: r'''
+switch (label) {
+  case 'ゲストのみ':
+    return 'guest';
+  case 'キャストのみ':
+    return 'cast';
+  default:
+    return 'all';
+}
+''',
+  );
+
+  final notificationCenterPage = app.ensurePage(
+    'NotificationCenterPage',
+    route: '/admin-notification-center',
+    description: '管理者用お知らせ配信画面（matching/work/cocoten/stripe/adminの5カテゴリで一斉配信）。',
+    state: {
+      'notifCategoryLabel': string.withDefault('運営'),
+      'notifTargetLabel': string.withDefault('全員'),
+      'notifTitle': string.withDefault(''),
+      'notifBody': string.withDefault(''),
+      'notifSendResult': string.withDefault(''),
+    },
+    body: Scaffold(
+      appBar: AppBar(title: 'お知らせ配信'),
+      body: Column(
+        padding: EdgeInsets.all(16),
+        spacing: 12,
+        children: [
+          Text('カテゴリ', style: Styles.labelMedium),
+          Dropdown(
+            options: const ['マッチング', 'ワーク', 'ココ店', '決済', '運営'],
+            value: State(ff.Pages.notificationCenterPage.state.notifCategoryLabel),
+            onChanged: SetState(ff.Pages.notificationCenterPage.state.notifCategoryLabel, const WidgetValue()),
+          ),
+          Text('配信対象', style: Styles.labelMedium),
+          Dropdown(
+            options: const ['全員', 'ゲストのみ', 'キャストのみ'],
+            value: State(ff.Pages.notificationCenterPage.state.notifTargetLabel),
+            onChanged: SetState(ff.Pages.notificationCenterPage.state.notifTargetLabel, const WidgetValue()),
+          ),
+          TextField(
+            hint: 'タイトル',
+            name: 'NotifTitleField',
+            onChanged: SetState(ff.Pages.notificationCenterPage.state.notifTitle, const TextValue()),
+          ),
+          TextField(
+            hint: '本文',
+            name: 'NotifBodyField',
+            onChanged: SetState(ff.Pages.notificationCenterPage.state.notifBody, const TextValue()),
+          ),
+          Button(
+            '配信する',
+            name: 'AdminSendNotificationButton',
+            onTap: [
+              CallCustomAction.named(
+                'callAdminSendNotification',
+                arguments: {
+                  'category': CustomFunction(notifCategoryLabelToKeyFn, args: {'label': State(ff.Pages.notificationCenterPage.state.notifCategoryLabel)}),
+                  'title': State(ff.Pages.notificationCenterPage.state.notifTitle),
+                  'body': State(ff.Pages.notificationCenterPage.state.notifBody),
+                  'target': CustomFunction(notifTargetLabelToKeyFn, args: {'label': State(ff.Pages.notificationCenterPage.state.notifTargetLabel)}),
+                },
+                outputAs: 'sendNotifResult',
+              ),
+              SetState(ff.Pages.notificationCenterPage.state.notifSendResult, ActionOutput('sendNotifResult')),
+              If(
+                Not(Equals(ActionOutput('sendNotifResult'), '')),
+                then: [Snackbar('配信しました。')],
+                orElse: [Snackbar('配信に失敗しました。タイトル・本文を確認してください。')],
+              ),
+            ],
+          ),
+          Text(
+            State(ff.Pages.notificationCenterPage.state.notifSendResult),
+            style: Styles.labelSmall,
+            visible: Not(Equals(State(ff.Pages.notificationCenterPage.state.notifSendResult), '')),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // ── (B) Raw Stripe webhook feed with drill-down ──
+  app.customAction(
+    'fetchAdminStripeLogs',
+    returns: listOf(string),
+    description: 'adminGetStripeLogs Cloud Functionを呼び出し、Stripe Webhookの生ログ（新しい順・最大50件）を取得する。',
+    code: r'''
+import 'dart:convert';
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminStripeLogs() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetStripeLogs');
+    final result = await callable.call({'limit': 50});
+    if (result.data is Map && result.data['logs'] is List) {
+      return (result.data['logs'] as List).map((r) {
+        final m = Map<String, dynamic>.from(r as Map);
+        final eventType = m['event_type']?.toString() ?? '';
+        final resId = m['res_id']?.toString() ?? '';
+        var dateLabel = '';
+        final ts = m['created_at'];
+        if (ts is Map && ts['_seconds'] != null) {
+          final dt = DateTime.fromMillisecondsSinceEpoch((ts['_seconds'] as int) * 1000);
+          dateLabel = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+        }
+        String rawJson;
+        try {
+          rawJson = jsonEncode(m['raw_data'] ?? {});
+        } catch (_) {
+          rawJson = '';
+        }
+        return '$eventType|||$resId|||$dateLabel|||$rawJson';
+      }).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  final stripeLogItemLabelFn = app.customFunction(
+    'stripeLogItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: 'Stripeログ1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 3) return '';
+final resPart = parts[1].isNotEmpty ? '　res: ${parts[1]}' : '';
+return '${parts[0]}$resPart\n${parts[2]}';
+''',
+  );
+
+  final stripeLogRawDataFn = app.customFunction(
+    'stripeLogRawData',
+    args: {'item': string},
+    returns: string,
+    description: 'Stripeログ1件分から生データ（JSON）部分を取り出す。',
+    code: r'''
+final idx = (item ?? '').indexOf('|||', (item ?? '').indexOf('|||', (item ?? '').indexOf('|||') + 3) + 3);
+if (idx == -1) return '';
+return item!.substring(idx + 3);
+''',
+  );
+
+  final stripeLogsPage = app.ensurePage(
+    'StripeLogsPage',
+    route: '/admin-stripe-logs',
+    description: '管理者用Stripe Webhook生ログ画面（新しい順・最大50件、生データのドリルダウン表示）。',
+    state: {'adminStripeLogsList': listOf(string)},
+    onLoad: [
+      CallCustomAction.named('fetchAdminStripeLogs', outputAs: 'stripeLogsInitResult'),
+      SetState(ff.Pages.stripeLogsPage.state.adminStripeLogsList, ActionOutput('stripeLogsInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'Stripeログ'),
+      body: ListView(
+        name: 'AdminStripeLogsListView',
+        padding: EdgeInsets.all(16),
+        spacing: 8,
+        source: State(ff.Pages.stripeLogsPage.state.adminStripeLogsList),
+        itemBuilder: (item) => Card(
+          child: Container(
+            padding: EdgeInsets.all(12),
+            child: Column(
+              crossAxis: CrossAxis.start,
+              spacing: 4,
+              children: [
+                Text(CustomFunction(stripeLogItemLabelFn, args: {'item': item})),
+                Button(
+                  '生データを見る',
+                  variant: ButtonVariant.outlined,
+                  onTap: [
+                    ShowDialog.message(
+                      title: 'Webhook生データ',
+                      message: CustomFunction(stripeLogRawDataFn, args: {'item': item}),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  // ── (D) SystemConfig constant editor ──
+  // `adminGetSystemConfig` already exists and spreads the raw
+  // `system_config/settings` doc fields (`...data`) before adding its own
+  // display-formatted/47-area fields (built for the separate service-area
+  // picker, out of scope here) — read the raw numeric fields directly
+  // rather than the percent-formatted display strings, which round-trip
+  // lossily. `adminUpdateSystemConfig` accepts a partial `settings` merge,
+  // so only non-empty edited fields are sent (blank = unchanged, matching
+  // this file's established TextField-can't-be-prefilled convention: show
+  // the current value read-only, edit field starts blank).
+  app.customAction(
+    'fetchAdminSystemConfigConstants',
+    returns: string,
+    description: 'adminGetSystemConfig Cloud Functionを呼び出し、主要な設定定数（税率・chat_close_sec等）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<String> fetchAdminSystemConfigConstants() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetSystemConfig');
+    final result = await callable.call({});
+    if (result.data is! Map) return '';
+    final d = result.data as Map;
+    final fields = [
+      'tax_rate', 'chat_close_sec', 'transport_fee_threshold_sec', 'transport_fee_amount',
+      'extension_limit_count', 'max_total_hours', 'default_cast_rate', 'security_staff_fee',
+      'transport_staff_fee', 'default_affiliate_rate', 'affiliate_min_days', 'affiliate_payment_day',
+    ];
+    return fields.map((f) => (d[f] ?? '').toString()).join('|||');
+  } catch (e) {
+    return '';
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminUpdateSystemConfigConstants',
+    args: {
+      'taxRate': string, 'chatCloseSec': string, 'transportFeeThresholdSec': string, 'transportFeeAmount': string,
+      'extensionLimitCount': string, 'maxTotalHours': string, 'defaultCastRate': string, 'securityStaffFee': string,
+      'transportStaffFee': string, 'defaultAffiliateRate': string, 'affiliateMinDays': string, 'affiliatePaymentDay': string,
+    },
+    returns: bool_,
+    description: 'adminUpdateSystemConfig Cloud Functionを呼び出し、入力された（空欄でない）設定定数のみを更新する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminUpdateSystemConfigConstants(
+  String? taxRate,
+  String? chatCloseSec,
+  String? transportFeeThresholdSec,
+  String? transportFeeAmount,
+  String? extensionLimitCount,
+  String? maxTotalHours,
+  String? defaultCastRate,
+  String? securityStaffFee,
+  String? transportStaffFee,
+  String? defaultAffiliateRate,
+  String? affiliateMinDays,
+  String? affiliatePaymentDay,
+) async {
+  try {
+    final settings = <String, dynamic>{};
+    void putNum(String key, String? raw) {
+      if (raw == null || raw.isEmpty) return;
+      final v = num.tryParse(raw);
+      if (v != null) settings[key] = v;
+    }
+    putNum('tax_rate', taxRate);
+    putNum('chat_close_sec', chatCloseSec);
+    putNum('transport_fee_threshold_sec', transportFeeThresholdSec);
+    putNum('transport_fee_amount', transportFeeAmount);
+    putNum('extension_limit_count', extensionLimitCount);
+    putNum('max_total_hours', maxTotalHours);
+    putNum('default_cast_rate', defaultCastRate);
+    putNum('security_staff_fee', securityStaffFee);
+    putNum('transport_staff_fee', transportStaffFee);
+    putNum('default_affiliate_rate', defaultAffiliateRate);
+    putNum('affiliate_min_days', affiliateMinDays);
+    putNum('affiliate_payment_day', affiliatePaymentDay);
+    if (settings.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminUpdateSystemConfig');
+    final result = await callable.call({'settings': settings});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  // FROZEN (2026-08-13, fresh-eyes re-review pass, CORRECTED): this custom
+  // function already exists live with different (buggy — nullable `index`
+  // compared without a null check, a real Dart compile error confirmed via
+  // `dart analyze`) code — `app.customFunction`/`ensureCustomFunction` is
+  // create-if-missing only, so re-declaring it with fixed code throws
+  // "different payload". An earlier attempt at this fix renamed to a new
+  // `sysConfigCurrentValueV2` function instead of updating this one in
+  // place — WRONG: the orphaned original function's buggy body was still
+  // physically present in `custom_functions.dart` after that push (`dart
+  // analyze` confirmed the SAME 2 errors still there), since Dart type-
+  // checks the whole compilation unit regardless of whether a top-level
+  // function is actually called — leaving the app still unable to build.
+  // The `CustomFunctionHandle`+`updateCustomFunction` attempt BEFORE that
+  // had seemed to cause an unrelated validation cascade, but that cascade's
+  // real root cause (a stale duplicate `ensureReplaced` block on
+  // UserManagementPage, unrelated to this function entirely — see the
+  // freeze note near that block) is now fixed, so retried this approach
+  // and it works. This is the correct fix: actually replace the buggy code
+  // in place via `updateCustomFunction`, not leave broken code orphaned.
+  // final sysConfigCurrentValueFn = app.customFunction(
+  //   'sysConfigCurrentValue',
+  //   args: {'data': string, 'index': int_},
+  //   returns: string,
+  //   description: '設定定数の一括取得文字列から指定インデックスの現在値を取り出す。',
+  //   code: r'''
+  // final parts = (data ?? '').split('|||');
+  // return (index >= 0 && index < parts.length) ? parts[index] : '';
+  // ''',
+  // );
+  final sysConfigCurrentValueFn = CustomFunctionHandle(
+    name: 'sysConfigCurrentValue',
+    args: {'data': string, 'index': int_},
+    returnType: string,
+  );
+
+  app.raw((project) {
+    updateCustomFunction(
+      project,
+      name: 'sysConfigCurrentValue',
+      code: r'''
+final parts = (data ?? '').split('|||');
+final i = index ?? -1;
+return (i >= 0 && i < parts.length) ? parts[i] : '';
+''',
+    );
+  });
+
+  final systemConfigPage = app.ensurePage(
+    'SystemConfigPage',
+    route: '/admin-system-config',
+    description: '管理者用システム設定定数エディタ（税率・chat_close_sec等12項目、空欄は変更なし）。',
+    state: {
+      'sysConfigCurrent': string.withDefault(''),
+      'sysConfigTaxRate': string.withDefault(''),
+      'sysConfigChatCloseSec': string.withDefault(''),
+      'sysConfigTransportFeeThresholdSec': string.withDefault(''),
+      'sysConfigTransportFeeAmount': string.withDefault(''),
+      'sysConfigExtensionLimitCount': string.withDefault(''),
+      'sysConfigMaxTotalHours': string.withDefault(''),
+      'sysConfigDefaultCastRate': string.withDefault(''),
+      'sysConfigSecurityStaffFee': string.withDefault(''),
+      'sysConfigTransportStaffFee': string.withDefault(''),
+      'sysConfigDefaultAffiliateRate': string.withDefault(''),
+      'sysConfigAffiliateMinDays': string.withDefault(''),
+      'sysConfigAffiliatePaymentDay': string.withDefault(''),
+    },
+    onLoad: [
+      CallCustomAction.named('fetchAdminSystemConfigConstants', outputAs: 'sysConfigInitResult'),
+      SetState(ff.Pages.systemConfigPage.state.sysConfigCurrent, ActionOutput('sysConfigInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'システム設定'),
+      body: Column(
+        name: 'SystemConfigColumn',
+        padding: EdgeInsets.all(16),
+        spacing: 10,
+        scrollable: true,
+        children: [
+          Text('空欄のまま保存すると、その項目は変更されません。', style: Styles.labelSmall),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 0}), style: Styles.labelSmall),
+          TextField(hint: '税率（例: 0.1）', name: 'SysConfigTaxRateField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigTaxRate, const TextValue())),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 1}), style: Styles.labelSmall),
+          TextField(hint: 'chat_close_sec（秒）', name: 'SysConfigChatCloseSecField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigChatCloseSec, const TextValue())),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 2}), style: Styles.labelSmall),
+          TextField(hint: '延長料金しきい値（秒）', name: 'SysConfigTransportFeeThresholdSecField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigTransportFeeThresholdSec, const TextValue())),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 3}), style: Styles.labelSmall),
+          TextField(hint: '交通費（円）', name: 'SysConfigTransportFeeAmountField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigTransportFeeAmount, const TextValue())),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 4}), style: Styles.labelSmall),
+          TextField(hint: '延長回数上限', name: 'SysConfigExtensionLimitCountField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigExtensionLimitCount, const TextValue())),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 5}), style: Styles.labelSmall),
+          TextField(hint: '最大合計時間', name: 'SysConfigMaxTotalHoursField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigMaxTotalHours, const TextValue())),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 6}), style: Styles.labelSmall),
+          TextField(hint: 'デフォルトキャスト報酬率', name: 'SysConfigDefaultCastRateField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigDefaultCastRate, const TextValue())),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 7}), style: Styles.labelSmall),
+          TextField(hint: '警備スタッフ報酬（円）', name: 'SysConfigSecurityStaffFeeField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigSecurityStaffFee, const TextValue())),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 8}), style: Styles.labelSmall),
+          TextField(hint: '送迎スタッフ報酬（円）', name: 'SysConfigTransportStaffFeeField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigTransportStaffFee, const TextValue())),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 9}), style: Styles.labelSmall),
+          TextField(hint: 'デフォルトアフィリエイト率', name: 'SysConfigDefaultAffiliateRateField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigDefaultAffiliateRate, const TextValue())),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 10}), style: Styles.labelSmall),
+          TextField(hint: 'アフィリエイト最低日数', name: 'SysConfigAffiliateMinDaysField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigAffiliateMinDays, const TextValue())),
+          Text(CustomFunction(sysConfigCurrentValueFn, args: {'data': State(ff.Pages.systemConfigPage.state.sysConfigCurrent), 'index': 11}), style: Styles.labelSmall),
+          TextField(hint: 'アフィリエイト支払日（1-28）', name: 'SysConfigAffiliatePaymentDayField', onChanged: SetState(ff.Pages.systemConfigPage.state.sysConfigAffiliatePaymentDay, const TextValue())),
+          Button(
+            '保存する',
+            name: 'AdminSaveSystemConfigButton',
+            onTap: [
+              CallCustomAction.named(
+                'callAdminUpdateSystemConfigConstants',
+                arguments: {
+                  'taxRate': State(ff.Pages.systemConfigPage.state.sysConfigTaxRate),
+                  'chatCloseSec': State(ff.Pages.systemConfigPage.state.sysConfigChatCloseSec),
+                  'transportFeeThresholdSec': State(ff.Pages.systemConfigPage.state.sysConfigTransportFeeThresholdSec),
+                  'transportFeeAmount': State(ff.Pages.systemConfigPage.state.sysConfigTransportFeeAmount),
+                  'extensionLimitCount': State(ff.Pages.systemConfigPage.state.sysConfigExtensionLimitCount),
+                  'maxTotalHours': State(ff.Pages.systemConfigPage.state.sysConfigMaxTotalHours),
+                  'defaultCastRate': State(ff.Pages.systemConfigPage.state.sysConfigDefaultCastRate),
+                  'securityStaffFee': State(ff.Pages.systemConfigPage.state.sysConfigSecurityStaffFee),
+                  'transportStaffFee': State(ff.Pages.systemConfigPage.state.sysConfigTransportStaffFee),
+                  'defaultAffiliateRate': State(ff.Pages.systemConfigPage.state.sysConfigDefaultAffiliateRate),
+                  'affiliateMinDays': State(ff.Pages.systemConfigPage.state.sysConfigAffiliateMinDays),
+                  'affiliatePaymentDay': State(ff.Pages.systemConfigPage.state.sysConfigAffiliatePaymentDay),
+                },
+                outputAs: 'saveSysConfigResult',
+              ),
+              CallCustomAction.named('fetchAdminSystemConfigConstants', outputAs: 'sysConfigRefetchResult'),
+              SetState(ff.Pages.systemConfigPage.state.sysConfigCurrent, ActionOutput('sysConfigRefetchResult')),
+              If(
+                ActionOutput('saveSysConfigResult'),
+                then: [Snackbar('設定を更新しました。')],
+                orElse: [Snackbar('変更がないか、更新に失敗しました。')],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // ── Hub page tying (A)/(B)/(D) together ──
+  final notificationModerationCenterPage = app.ensurePage(
+    'NotificationModerationCenterPage',
+    route: '/admin-notification-center-hub',
+    description: '管理者用通知・モデレーションセンター（お知らせ配信/Stripeログ/システム設定への入口）。',
+    body: Scaffold(
+      appBar: AppBar(title: '通知・モデレーションセンター'),
+      body: Column(
+        padding: EdgeInsets.all(16),
+        spacing: 12,
+        children: [
+          Button(
+            'お知らせ配信',
+            name: 'AdminNotificationCenterNavButton',
+            onTap: [Navigate(notificationCenterPage)],
+          ),
+          Button(
+            'Stripeログ',
+            name: 'AdminStripeLogsNavButton',
+            onTap: [Navigate(stripeLogsPage)],
+          ),
+          Button(
+            'システム設定',
+            name: 'AdminSystemConfigNavButton',
+            onTap: [Navigate(systemConfigPage)],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // ==========================================================================
+  // Admin: audit log + ProcessedEvents viewers (IMPLEMENTATION_PLAN.md
+  // items 17/18). Both backend functions (`adminGetAuditLogs`,
+  // `adminGetProcessedEvents`) already existed — only DSL was missing.
+  // `adminGetAuditLogs` already resolves each `admin_id` to a display
+  // nickname/email server-side (deduped), so the DSL only needs to render
+  // `admin_nickname`, not re-resolve it. Both are simple, small, read-only
+  // debugging viewers per the plan's own framing — no filters exposed in
+  // this pass (both backends support action/target_id/date-range and
+  // event_type filters respectively, but the plan doesn't call for
+  // filtering UI here, just visibility).
+  // ==========================================================================
+
+  app.customAction(
+    'fetchAdminAuditLogs',
+    returns: listOf(string),
+    description: 'adminGetAuditLogs Cloud Functionを呼び出し、監査ログ（新しい順・最大100件）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminAuditLogs() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetAuditLogs');
+    final result = await callable.call({'limit': 100});
+    if (result.data is Map && result.data['logs'] is List) {
+      return (result.data['logs'] as List).map((r) {
+        final m = r as Map;
+        final adminNickname = (m['admin_nickname']?.toString() ?? '').replaceAll('|||', '');
+        final action = m['action']?.toString() ?? '';
+        final targetType = m['target_type']?.toString() ?? '';
+        final targetId = m['target_id']?.toString() ?? '';
+        final reason = (m['reason']?.toString() ?? '').replaceAll('|||', '');
+        var dateLabel = '';
+        final ts = m['created_at'];
+        if (ts is Map && ts['_seconds'] != null) {
+          final dt = DateTime.fromMillisecondsSinceEpoch((ts['_seconds'] as int) * 1000);
+          dateLabel = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+        }
+        return '$adminNickname|||$action|||$targetType|||$targetId|||$reason|||$dateLabel';
+      }).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  final auditLogItemLabelFn = app.customFunction(
+    'auditLogItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: '監査ログ1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 6) return '';
+return '${parts[0]}　${parts[1]}\n対象: ${parts[2]}/${parts[3]}\n理由: ${parts[4]}\n${parts[5]}';
+''',
+  );
+
+  final auditLogPage = app.ensurePage(
+    'AuditLogPage',
+    route: '/admin-audit-log',
+    description: '管理者用監査ログ画面（すべての管理操作を新しい順に表示、最大100件）。',
+    state: {'auditLogsList': listOf(string)},
+    onLoad: [
+      CallCustomAction.named('fetchAdminAuditLogs', outputAs: 'auditLogsInitResult'),
+      SetState(ff.Pages.auditLogPage.state.auditLogsList, ActionOutput('auditLogsInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: '監査ログ'),
+      body: ListView(
+        name: 'AuditLogListView',
+        padding: EdgeInsets.all(16),
+        spacing: 8,
+        source: State(ff.Pages.auditLogPage.state.auditLogsList),
+        itemBuilder: (item) => Card(
+          child: Container(
+            padding: EdgeInsets.all(12),
+            child: Text(CustomFunction(auditLogItemLabelFn, args: {'item': item}), style: Styles.bodySmall),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  app.customAction(
+    'fetchAdminProcessedEvents',
+    returns: listOf(string),
+    description: 'adminGetProcessedEvents Cloud Functionを呼び出し、Stripe Webhook重複排除ログ（新しい順・最大100件）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminProcessedEvents() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetProcessedEvents');
+    final result = await callable.call({'limit': 100});
+    if (result.data is Map && result.data['events'] is List) {
+      return (result.data['events'] as List).map((r) {
+        final m = r as Map;
+        final id = m['id']?.toString() ?? '';
+        final eventType = m['event_type']?.toString() ?? '';
+        var dateLabel = '';
+        final ts = m['processed_at'];
+        if (ts is Map && ts['_seconds'] != null) {
+          final dt = DateTime.fromMillisecondsSinceEpoch((ts['_seconds'] as int) * 1000);
+          dateLabel = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+        }
+        return '$id|||$eventType|||$dateLabel';
+      }).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  final processedEventItemLabelFn = app.customFunction(
+    'processedEventItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: '処理済みイベント1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 3) return '';
+return '${parts[1]}\nevent_id: ${parts[0]}\n${parts[2]}';
+''',
+  );
+
+  final processedEventsPage = app.ensurePage(
+    'ProcessedEventsPage',
+    route: '/admin-processed-events',
+    description: '管理者用Stripe Webhook重複排除（ProcessedEvents）画面（デバッグ用、新しい順・最大100件）。',
+    state: {'processedEventsList': listOf(string)},
+    onLoad: [
+      CallCustomAction.named('fetchAdminProcessedEvents', outputAs: 'processedEventsInitResult'),
+      SetState(ff.Pages.processedEventsPage.state.processedEventsList, ActionOutput('processedEventsInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'ProcessedEvents'),
+      body: ListView(
+        name: 'ProcessedEventsListView',
+        padding: EdgeInsets.all(16),
+        spacing: 8,
+        source: State(ff.Pages.processedEventsPage.state.processedEventsList),
+        itemBuilder: (item) => Card(
+          child: Container(
+            padding: EdgeInsets.all(12),
+            child: Text(CustomFunction(processedEventItemLabelFn, args: {'item': item}), style: Styles.bodySmall),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  // ==========================================================================
+  // Admin: banner/content management + service-area master + CocoTen CRUD
+  // (IMPLEMENTATION_PLAN.md items 4/5/7). All three backend functions
+  // already existed with zero admin-UI call sites — confirmed by grep
+  // before writing any DSL, not assumed. `adminUpsertCocotenShop` already
+  // has correct "blank means unchanged on update" semantics; a matching gap
+  // in `adminUpsertBanner` (full-overwrite on every update, silently
+  // resetting untouched fields including `start_date`) was found and fixed
+  // in admin.ts directly above, before wiring this page, rather than
+  // building UI around a backend bug.
+  // ==========================================================================
+
+  // ── Banner management ──
+  app.customAction(
+    'fetchAllBanners',
+    returns: listOf(string),
+    description: 'banners コレクションを直接取得する（`allow read: if true` により管理者権限不要、表示順）。',
+    code: r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+Future<List<String>> fetchAllBanners() async {
+  try {
+    final snap = await FirebaseFirestore.instance
+        .collection('banners')
+        .orderBy('display_order')
+        .limit(100)
+        .get();
+    return snap.docs.map((d) {
+      final data = d.data();
+      final title = (data['title']?.toString() ?? '').replaceAll('|||', '');
+      final page = (data['page']?.toString() ?? '').replaceAll('|||', '');
+      final displayOrder = data['display_order']?.toString() ?? '0';
+      final active = data['active'] == true;
+      return '${d.id}|||$title|||$page|||$displayOrder|||$active';
+    }).toList();
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminUpsertBanner',
+    args: {
+      'bannerId': string, 'title': string, 'imageUrl': string, 'linkUrl': string,
+      'page': string, 'displayOrder': string, 'active': string,
+    },
+    returns: bool_,
+    description: 'adminUpsertBanner Cloud Functionを呼び出し、バナーを作成/更新する。activeは"true"/"false"/空文字（変更なし）。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminUpsertBanner(
+  String? bannerId,
+  String? title,
+  String? imageUrl,
+  String? linkUrl,
+  String? page,
+  String? displayOrder,
+  String? active,
+) async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminUpsertBanner');
+    final args = <String, dynamic>{};
+    if (bannerId != null && bannerId.isNotEmpty) args['banner_id'] = bannerId;
+    if (title != null && title.isNotEmpty) args['title'] = title;
+    if (imageUrl != null && imageUrl.isNotEmpty) args['image_url'] = imageUrl;
+    if (linkUrl != null && linkUrl.isNotEmpty) args['link_url'] = linkUrl;
+    if (page != null && page.isNotEmpty) args['page'] = page;
+    final parsedOrder = int.tryParse(displayOrder ?? '');
+    if (parsedOrder != null) args['display_order'] = parsedOrder;
+    if (active == 'true') args['active'] = true;
+    if (active == 'false') args['active'] = false;
+    final result = await callable.call(args);
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminDeleteBanner',
+    args: {'bannerId': string},
+    returns: bool_,
+    description: 'adminDeleteBanner Cloud Functionを呼び出し、バナーを削除する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminDeleteBanner(String? bannerId) async {
+  try {
+    final id = bannerId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminDeleteBanner');
+    final result = await callable.call({'banner_id': id, 'reason': '管理者によるバナー削除'});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  final boolToStringFn = app.customFunction(
+    'boolToString',
+    args: {'value': bool_},
+    returns: string,
+    description: 'bool値を"true"/"false"の文字列に変換する。',
+    code: r'''
+return (value == true).toString();
+''',
+  );
+
+  final bannerIdFn = app.customFunction(
+    'bannerId',
+    args: {'item': string},
+    returns: string,
+    description: 'バナー一覧1件分からIDを取り出す。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.isNotEmpty ? parts[0] : '';
+''',
+  );
+
+  final bannerItemLabelFn = app.customFunction(
+    'bannerItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: 'バナー一覧1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 5) return '';
+final activeLabel = parts[4] == 'true' ? '公開中' : '非公開';
+return '${parts[1]}（$activeLabel）\n表示先: ${parts[2]}　順序: ${parts[3]}';
+''',
+  );
+
+  final bannerIsActiveFn = app.customFunction(
+    'bannerIsActive',
+    args: {'item': string},
+    returns: bool_,
+    description: 'バナー一覧1件分が公開中かどうかを判定する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.length > 4 && parts[4] == 'true';
+''',
+  );
+
+  final bannerManagementPage = app.ensurePage(
+    'BannerManagementPage',
+    route: '/admin-banners',
+    description: '管理者用バナー・告知管理画面（一覧・新規作成・公開切替・削除）。',
+    state: {
+      'bannersList': listOf(string),
+      'newBannerTitle': string.withDefault(''),
+      'newBannerImageUrl': string.withDefault(''),
+      'newBannerLinkUrl': string.withDefault(''),
+      'newBannerPage': string.withDefault('home'),
+      'newBannerDisplayOrder': string.withDefault('0'),
+    },
+    onLoad: [
+      CallCustomAction.named('fetchAllBanners', outputAs: 'bannersInitResult'),
+      SetState(ff.Pages.bannerManagementPage.state.bannersList, ActionOutput('bannersInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'バナー・告知管理'),
+      body: Column(
+        name: 'BannerManagementColumn',
+        padding: EdgeInsets.all(16),
+        spacing: 10,
+        scrollable: true,
+        children: [
+          Text('新規バナーを追加', style: Styles.titleMedium),
+          TextField(hint: 'タイトル', name: 'NewBannerTitleField', onChanged: SetState(ff.Pages.bannerManagementPage.state.newBannerTitle, const TextValue())),
+          TextField(hint: '画像URL', name: 'NewBannerImageUrlField', onChanged: SetState(ff.Pages.bannerManagementPage.state.newBannerImageUrl, const TextValue())),
+          TextField(hint: 'リンクURL（任意）', name: 'NewBannerLinkUrlField', onChanged: SetState(ff.Pages.bannerManagementPage.state.newBannerLinkUrl, const TextValue())),
+          TextField(hint: '表示先ページ（例: home, cocoten）', name: 'NewBannerPageField', onChanged: SetState(ff.Pages.bannerManagementPage.state.newBannerPage, const TextValue())),
+          TextField(hint: '表示順（数値）', keyboard: Keyboard.number, name: 'NewBannerDisplayOrderField', onChanged: SetState(ff.Pages.bannerManagementPage.state.newBannerDisplayOrder, const TextValue())),
+          Button(
+            'バナーを追加',
+            name: 'AdminCreateBannerButton',
+            onTap: [
+              CallCustomAction.named(
+                'callAdminUpsertBanner',
+                arguments: {
+                  'bannerId': '',
+                  'title': State(ff.Pages.bannerManagementPage.state.newBannerTitle),
+                  'imageUrl': State(ff.Pages.bannerManagementPage.state.newBannerImageUrl),
+                  'linkUrl': State(ff.Pages.bannerManagementPage.state.newBannerLinkUrl),
+                  'page': State(ff.Pages.bannerManagementPage.state.newBannerPage),
+                  'displayOrder': State(ff.Pages.bannerManagementPage.state.newBannerDisplayOrder),
+                  'active': 'true',
+                },
+                outputAs: 'createBannerResult',
+              ),
+              CallCustomAction.named('fetchAllBanners', outputAs: 'bannersRefetchResult'),
+              SetState(ff.Pages.bannerManagementPage.state.bannersList, ActionOutput('bannersRefetchResult')),
+              If(
+                ActionOutput('createBannerResult'),
+                then: [Snackbar('バナーを追加しました。')],
+                orElse: [Snackbar('タイトル・画像URLを確認してください。')],
+              ),
+            ],
+          ),
+          Divider(),
+          Text('既存バナー', style: Styles.titleMedium),
+          ListView(
+            name: 'BannersListView',
+            shrinkWrap: true,
+            spacing: 8,
+            source: State(ff.Pages.bannerManagementPage.state.bannersList),
+            itemBuilder: (item) => Card(
+              child: Container(
+                padding: EdgeInsets.all(12),
+                child: Column(
+                  crossAxis: CrossAxis.start,
+                  spacing: 4,
+                  children: [
+                    Text(CustomFunction(bannerItemLabelFn, args: {'item': item})),
+                    Row(
+                      mainAxis: MainAxis.spaceBetween,
+                      children: [
+                        Button(
+                          '公開/非公開切替',
+                          variant: ButtonVariant.outlined,
+                          onTap: [
+                            CallCustomAction.named(
+                              'callAdminUpsertBanner',
+                              arguments: {
+                                'bannerId': CustomFunction(bannerIdFn, args: {'item': item}),
+                                'title': '',
+                                'imageUrl': '',
+                                'linkUrl': '',
+                                'page': '',
+                                'displayOrder': '',
+                                'active': CustomFunction(
+                                  boolToStringFn,
+                                  args: {'value': Not(CustomFunction(bannerIsActiveFn, args: {'item': item}))},
+                                ),
+                              },
+                              outputAs: 'toggleBannerResult',
+                            ),
+                            CallCustomAction.named('fetchAllBanners', outputAs: 'bannersRefetchResult2'),
+                            SetState(ff.Pages.bannerManagementPage.state.bannersList, ActionOutput('bannersRefetchResult2')),
+                          ],
+                        ),
+                        Button(
+                          '削除',
+                          variant: ButtonVariant.outlined,
+                          onTap: [
+                            CallCustomAction.named(
+                              'callAdminDeleteBanner',
+                              arguments: {'bannerId': CustomFunction(bannerIdFn, args: {'item': item})},
+                              outputAs: 'deleteBannerResult',
+                            ),
+                            CallCustomAction.named('fetchAllBanners', outputAs: 'bannersRefetchResult3'),
+                            SetState(ff.Pages.bannerManagementPage.state.bannersList, ActionOutput('bannersRefetchResult3')),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // ── CocoTen venue CRUD ──
+  app.customAction(
+    'fetchAdminCocotenShops',
+    returns: listOf(string),
+    description: 'adminGetCocotenShops Cloud Functionを呼び出し、CocoTen店舗一覧（名前順・最大200件）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminCocotenShops() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetCocotenShops');
+    final result = await callable.call({});
+    if (result.data is Map && result.data['shops'] is List) {
+      return (result.data['shops'] as List).map((r) {
+        final m = r as Map;
+        final id = m['id']?.toString() ?? '';
+        final name = (m['name']?.toString() ?? '').replaceAll('|||', '');
+        final genre = (m['genre']?.toString() ?? '').replaceAll('|||', '');
+        final prefecture = (m['prefecture']?.toString() ?? '').replaceAll('|||', '');
+        final active = m['active'] == true;
+        return '$id|||$name|||$genre|||$prefecture|||$active';
+      }).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminUpsertCocotenShop',
+    args: {
+      'shopId': string, 'name': string, 'genre': string, 'prefecture': string,
+      'city': string, 'townBlock': string, 'building': string, 'active': string,
+    },
+    returns: bool_,
+    description: 'adminUpsertCocotenShop Cloud Functionを呼び出し、CocoTen店舗を作成/更新する（空欄は変更なし）。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminUpsertCocotenShop(
+  String? shopId,
+  String? name,
+  String? genre,
+  String? prefecture,
+  String? city,
+  String? townBlock,
+  String? building,
+  String? active,
+) async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminUpsertCocotenShop');
+    final args = <String, dynamic>{};
+    if (shopId != null && shopId.isNotEmpty) args['shop_id'] = shopId;
+    if (name != null && name.isNotEmpty) args['name'] = name;
+    if (genre != null && genre.isNotEmpty) args['genre'] = genre;
+    if (prefecture != null && prefecture.isNotEmpty) args['prefecture'] = prefecture;
+    if (city != null && city.isNotEmpty) args['city'] = city;
+    if (townBlock != null && townBlock.isNotEmpty) args['town_block'] = townBlock;
+    if (building != null && building.isNotEmpty) args['building'] = building;
+    if (active == 'true') args['active'] = true;
+    if (active == 'false') args['active'] = false;
+    final result = await callable.call(args);
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminDeleteCocotenShop',
+    args: {'shopId': string},
+    returns: bool_,
+    description: 'adminDeleteCocotenShop Cloud Functionを呼び出し、CocoTen店舗を削除する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminDeleteCocotenShop(String? shopId) async {
+  try {
+    final id = shopId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminDeleteCocotenShop');
+    final result = await callable.call({'shop_id': id, 'reason': '管理者による店舗削除'});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  final adminShopIdFn = app.customFunction(
+    'adminShopId',
+    args: {'item': string},
+    returns: string,
+    description: 'CocoTen店舗一覧1件分からIDを取り出す。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.isNotEmpty ? parts[0] : '';
+''',
+  );
+
+  final adminShopItemLabelFn = app.customFunction(
+    'adminShopItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: 'CocoTen店舗一覧1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 5) return '';
+final activeLabel = parts[4] == 'true' ? '公開中' : '非公開';
+return '${parts[1]}（$activeLabel）\n${parts[2]}　${parts[3]}';
+''',
+  );
+
+  final adminShopIsActiveFn = app.customFunction(
+    'adminShopIsActive',
+    args: {'item': string},
+    returns: bool_,
+    description: 'CocoTen店舗一覧1件分が公開中かどうかを判定する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+return parts.length > 4 && parts[4] == 'true';
+''',
+  );
+
+  // ==========================================================================
+  // CocoTen venue photos + genre/tag master (unimplemented-features pass,
+  // IMPLEMENTATION_PLAN.md §3.8 item 7's remaining gap — `guest_benefits`/
+  // `menu` persistence was already fixed server-side in an earlier task,
+  // just never reachable from the admin UI; this closes that plus photos
+  // plus the genre master, all three in one pass).
+  //
+  // Photo: `adminUpsertCocotenShop` now accepts `photo_url` (a single
+  // value, matching the live `photos: ImagePath` schema field — see the
+  // backend comment). Upload reuses the exact proven `pickAndUploadImage`
+  // mechanism (image_picker + firebase_storage, already a pub dependency)
+  // with a shop-scoped storage path instead of `users/$uid/...`.
+  //
+  // Genre master: a real admin-editable list now lives in
+  // `system_config/settings.cocoten_genres`, validated server-side on
+  // every `adminUpsertCocotenShop` call. Deliberately NOT a `DropDown`
+  // bound to this live list — project_rules.md documents 3 separate
+  // confirmed FlutterFlow `DropDown` binding bugs, and task #30's own
+  // prefecture picker already had to abandon `DropDown` for a bottom-sheet
+  // component for the same reason. The admin form shows the current valid
+  // values as reference text and types into the same plain `TextField` as
+  // before; the backend is the actual enforcement point.
+  //
+  // Details (menu/guest_benefits/photo) are edited via a SEPARATE action
+  // (`callAdminUpdateCocotenShopDetails`) rather than extending
+  // `callAdminUpsertCocotenShop`'s own argument list — deliberately, to
+  // avoid the documented "changing an already-live custom action's
+  // argument list and rewiring its calling widget in the same push" bug
+  // class (project_rules.md). The backend's existing "blank means
+  // unchanged" merge logic on `adminUpsertCocotenShop` already supports a
+  // details-only partial update perfectly (same call, just shop_id +
+  // menu + guest_benefits + photo_url, everything else blank/omitted).
+  // Per-row inputs (not per-row TextFields, which this project's own
+  // established pattern avoids inside a dynamic ListView itemBuilder —
+  // see ReservationOversightPage's shared reason/amount fields above the
+  // list) - one shared details form, applied to whichever shop's "詳細を
+  // 更新" button is tapped, mirroring that exact precedent.
+  // ==========================================================================
+
+  app.customAction(
+    'pickAndUploadShopPhoto',
+    returns: string,
+    description: 'CocoTen店舗の写真を選択してFirebase Storageにアップロードし、ダウンロードURLを返す。',
+    code: r'''
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+
+Future<String?> pickAndUploadShopPhoto() async {
+  try {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (picked == null) return null;
+    final ref = FirebaseStorage.instance.ref(
+      'cocoten_shops/shop_${DateTime.now().millisecondsSinceEpoch}.jpg',
+    );
+    await ref.putFile(File(picked.path));
+    return await ref.getDownloadURL();
+  } catch (e) {
+    return null;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminUpdateCocotenShopDetails',
+    args: {'shopId': string, 'menu': string, 'guestBenefits': string, 'photoUrl': string},
+    returns: bool_,
+    description: 'adminUpsertCocotenShop Cloud Functionを呼び出し、店舗のメニュー/特典/写真のみを更新する（空欄は変更なし）。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminUpdateCocotenShopDetails(
+  String? shopId,
+  String? menu,
+  String? guestBenefits,
+  String? photoUrl,
+) async {
+  try {
+    final id = shopId ?? '';
+    if (id.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminUpsertCocotenShop');
+    final args = <String, dynamic>{'shop_id': id};
+    if (menu != null && menu.isNotEmpty) args['menu'] = menu;
+    if (guestBenefits != null && guestBenefits.isNotEmpty) args['guest_benefits'] = guestBenefits;
+    if (photoUrl != null && photoUrl.isNotEmpty) args['photo_url'] = photoUrl;
+    final result = await callable.call(args);
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'fetchAdminCocotenGenres',
+    returns: listOf(string),
+    description: 'adminGetCocotenGenres Cloud Functionを呼び出し、ジャンルマスタ一覧を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminCocotenGenres() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetCocotenGenres');
+    final result = await callable.call({});
+    if (result.data is Map && result.data['genres'] is List) {
+      return (result.data['genres'] as List).map((g) => g.toString()).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  // Both add/remove take the CURRENT full list + the one value to change,
+  // do the transform in Dart (no DSL primitive for list add/remove exists),
+  // call the backend with the full new list, and return that new list so
+  // the caller can `SetState` directly from the action's own output —
+  // matching this project's established "mutate then refetch-and-recache"
+  // convention without needing a separate refetch round-trip.
+  app.customAction(
+    'callAdminAddCocotenGenre',
+    args: {'genres': listOf(string), 'newGenre': string},
+    returns: listOf(string),
+    description: 'ジャンルマスタに1件追加し、adminUpdateCocotenGenres Cloud Functionを呼び出す。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> callAdminAddCocotenGenre(List<String>? genres, String? newGenre) async {
+  final current = genres ?? <String>[];
+  final trimmed = (newGenre ?? '').trim();
+  if (trimmed.isEmpty || current.contains(trimmed)) return current;
+  final updated = [...current, trimmed];
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminUpdateCocotenGenres');
+    final result = await callable.call({'genres': updated, 'reason': '管理者によるジャンル追加'});
+    if (result.data is Map && result.data['genres'] is List) {
+      return (result.data['genres'] as List).map((g) => g.toString()).toList();
+    }
+    return current;
+  } catch (e) {
+    return current;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminRemoveCocotenGenre',
+    args: {'genres': listOf(string), 'toRemove': string},
+    returns: listOf(string),
+    description: 'ジャンルマスタから1件削除し、adminUpdateCocotenGenres Cloud Functionを呼び出す。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> callAdminRemoveCocotenGenre(List<String>? genres, String? toRemove) async {
+  final current = genres ?? <String>[];
+  final updated = current.where((g) => g != toRemove).toList();
+  if (updated.isEmpty) return current; // backend rejects an empty list — keep at least 1
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminUpdateCocotenGenres');
+    final result = await callable.call({'genres': updated, 'reason': '管理者によるジャンル削除'});
+    if (result.data is Map && result.data['genres'] is List) {
+      return (result.data['genres'] as List).map((g) => g.toString()).toList();
+    }
+    return current;
+  } catch (e) {
+    return current;
+  }
+}
+''',
+  );
+
+  final genreListDisplayFn = app.customFunction(
+    'genreListDisplay',
+    args: {'genres': listOf(string)},
+    returns: string,
+    description: 'ジャンルマスタ一覧を「利用可能なジャンル: A、B、C」形式の表示用文字列に整形する。',
+    code: r'''
+final list = genres ?? <String>[];
+if (list.isEmpty) return '利用可能なジャンル: (読み込み中)';
+return '利用可能なジャンル: ${list.join('、')}';
+''',
+  );
+
+  final cocotenGenreMasterPage = app.ensurePage(
+    'CocotenGenreMasterPage',
+    route: '/admin-cocoten-genres',
+    description: '管理者用ジャンルマスタ管理画面（CocoTen店舗のジャンル一覧を追加/削除）。',
+    state: {
+      'genresList': listOf(string),
+      'newGenreName': string.withDefault(''),
+    },
+    onLoad: [
+      CallCustomAction.named('fetchAdminCocotenGenres', outputAs: 'genresInitResult'),
+      SetState(ff.Pages.cocotenGenreMasterPage.state.genresList, ActionOutput('genresInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'ジャンルマスタ管理'),
+      body: Column(
+        name: 'CocotenGenreMasterColumn',
+        padding: EdgeInsets.all(16),
+        spacing: 10,
+        scrollable: true,
+        children: [
+          Text('CocoTen店舗のジャンル一覧。ここで管理した値のみ店舗登録時に使用できます。', style: Styles.labelSmall),
+          TextField(hint: '新しいジャンル名', name: 'NewGenreNameField', onChanged: SetState(ff.Pages.cocotenGenreMasterPage.state.newGenreName, const TextValue())),
+          Button(
+            '追加',
+            name: 'AdminAddGenreButton',
+            onTap: [
+              CallCustomAction.named(
+                'callAdminAddCocotenGenre',
+                arguments: {
+                  'genres': State(ff.Pages.cocotenGenreMasterPage.state.genresList),
+                  'newGenre': State(ff.Pages.cocotenGenreMasterPage.state.newGenreName),
+                },
+                outputAs: 'addGenreResult',
+              ),
+              SetState(ff.Pages.cocotenGenreMasterPage.state.genresList, ActionOutput('addGenreResult')),
+            ],
+          ),
+          Divider(),
+          ListView(
+            name: 'GenreMasterListView',
+            shrinkWrap: true,
+            spacing: 6,
+            source: State(ff.Pages.cocotenGenreMasterPage.state.genresList),
+            itemBuilder: (item) => Row(
+              name: 'GenreMasterRow',
+              mainAxis: MainAxis.spaceBetween,
+              children: [
+                Text(item),
+                Button(
+                  '削除',
+                  name: 'AdminRemoveGenreButton',
+                  variant: ButtonVariant.outlined,
+                  onTap: [
+                    CallCustomAction.named(
+                      'callAdminRemoveCocotenGenre',
+                      arguments: {
+                        'genres': State(ff.Pages.cocotenGenreMasterPage.state.genresList),
+                        'toRemove': item,
+                      },
+                      outputAs: 'removeGenreResult',
+                    ),
+                    SetState(ff.Pages.cocotenGenreMasterPage.state.genresList, ActionOutput('removeGenreResult')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  final cocotenManagementPage = app.ensurePage(
+    'CocotenManagementPage',
+    route: '/admin-cocoten',
+    description: '管理者用CocoTen店舗管理画面（一覧・新規作成・公開切替・削除・写真/メニュー/特典編集）。',
+    state: {
+      'adminShopsList': listOf(string),
+      'newShopName': string.withDefault(''),
+      'newShopGenre': string.withDefault(''),
+      'newShopPrefecture': string.withDefault(''),
+      'newShopCity': string.withDefault(''),
+      'newShopTownBlock': string.withDefault(''),
+      'newShopBuilding': string.withDefault(''),
+    },
+    onLoad: [
+      CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsInitResult'),
+      SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'CocoTen店舗管理'),
+      body: Column(
+        name: 'CocotenManagementColumn',
+        padding: EdgeInsets.all(16),
+        spacing: 10,
+        scrollable: true,
+        children: [
+          Text('新規店舗を追加', style: Styles.titleMedium),
+          TextField(hint: '店舗名', name: 'NewShopNameField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopName, const TextValue())),
+          TextField(hint: 'ジャンル', name: 'NewShopGenreField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopGenre, const TextValue())),
+          TextField(hint: '都道府県', name: 'NewShopPrefectureField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopPrefecture, const TextValue())),
+          TextField(hint: '市区町村', name: 'NewShopCityField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopCity, const TextValue())),
+          TextField(hint: '町名番地', name: 'NewShopTownBlockField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopTownBlock, const TextValue())),
+          TextField(hint: '建物名', name: 'NewShopBuildingField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopBuilding, const TextValue())),
+          Button(
+            '店舗を追加',
+            name: 'AdminCreateShopButton',
+            onTap: [
+              CallCustomAction.named(
+                'callAdminUpsertCocotenShop',
+                arguments: {
+                  'shopId': '',
+                  'name': State(ff.Pages.cocotenManagementPage.state.newShopName),
+                  'genre': State(ff.Pages.cocotenManagementPage.state.newShopGenre),
+                  'prefecture': State(ff.Pages.cocotenManagementPage.state.newShopPrefecture),
+                  'city': State(ff.Pages.cocotenManagementPage.state.newShopCity),
+                  'townBlock': State(ff.Pages.cocotenManagementPage.state.newShopTownBlock),
+                  'building': State(ff.Pages.cocotenManagementPage.state.newShopBuilding),
+                  'active': 'true',
+                },
+                outputAs: 'createShopResult',
+              ),
+              CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult'),
+              SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult')),
+              If(
+                ActionOutput('createShopResult'),
+                then: [Snackbar('店舗を追加しました。')],
+                orElse: [Snackbar('店舗名を確認してください。')],
+              ),
+            ],
+          ),
+          Divider(),
+          Text('既存店舗', style: Styles.titleMedium),
+          ListView(
+            name: 'AdminShopsListView',
+            shrinkWrap: true,
+            spacing: 8,
+            source: State(ff.Pages.cocotenManagementPage.state.adminShopsList),
+            itemBuilder: (item) => Card(
+              child: Container(
+                padding: EdgeInsets.all(12),
+                child: Column(
+                  crossAxis: CrossAxis.start,
+                  spacing: 4,
+                  children: [
+                    Text(CustomFunction(adminShopItemLabelFn, args: {'item': item})),
+                    Row(
+                      mainAxis: MainAxis.spaceBetween,
+                      children: [
+                        Button(
+                          '公開/非公開切替',
+                          variant: ButtonVariant.outlined,
+                          onTap: [
+                            CallCustomAction.named(
+                              'callAdminUpsertCocotenShop',
+                              arguments: {
+                                'shopId': CustomFunction(adminShopIdFn, args: {'item': item}),
+                                'name': '',
+                                'genre': '',
+                                'prefecture': '',
+                                'city': '',
+                                'townBlock': '',
+                                'building': '',
+                                'active': CustomFunction(
+                                  boolToStringFn,
+                                  args: {'value': Not(CustomFunction(adminShopIsActiveFn, args: {'item': item}))},
+                                ),
+                              },
+                              outputAs: 'toggleShopResult',
+                            ),
+                            CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult2'),
+                            SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult2')),
+                          ],
+                        ),
+                        Button(
+                          '削除',
+                          variant: ButtonVariant.outlined,
+                          onTap: [
+                            CallCustomAction.named(
+                              'callAdminDeleteCocotenShop',
+                              arguments: {'shopId': CustomFunction(adminShopIdFn, args: {'item': item})},
+                              outputAs: 'deleteShopResult',
+                            ),
+                            CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult3'),
+                            SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult3')),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  app.editPageState(ff.Pages.cocotenManagementPage, (state) {
+    state.ensureField('cocotenGenresList', listOf(string));
+    state.ensureField('detailsShopId', string.withDefault(''));
+    state.ensureField('detailsMenu', string.withDefault(''));
+    state.ensureField('detailsGuestBenefits', string.withDefault(''));
+    state.ensureField('detailsPhotoUrl', string.withDefault(''));
+  });
+
+  app.editPage(ff.Pages.cocotenManagementPage, (page) {
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsInitResult'),
+        SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsInitResult')),
+        CallCustomAction.named('fetchAdminCocotenGenres', outputAs: 'cocotenGenresInitResult'),
+        SetState('cocotenGenresList', ActionOutput('cocotenGenresInitResult')),
+      ],
+    );
+    page.ensureReplaced(
+      page.findByKey('Column_k13ogftr'), // CocotenManagementColumn
+      Column(
+        name: 'CocotenManagementColumn',
+        padding: EdgeInsets.all(16),
+        spacing: 10,
+        scrollable: true,
+        children: [
+          Text('新規店舗を追加', style: Styles.titleMedium),
+          Row(
+            name: 'CocotenGenreMasterLinkRow',
+            mainAxis: MainAxis.spaceBetween,
+            children: [
+              Text(
+                CustomFunction(genreListDisplayFn, args: {'genres': State('cocotenGenresList')}),
+                style: Styles.labelSmall,
+              ),
+              Button(
+                'ジャンルマスタ管理',
+                name: 'AdminCocotenGenreMasterNavButton',
+                variant: ButtonVariant.outlined,
+                onTap: [Navigate(cocotenGenreMasterPage)],
+              ),
+            ],
+          ),
+          TextField(hint: '店舗名', name: 'NewShopNameField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopName, const TextValue())),
+          TextField(hint: 'ジャンル（上記マスタのいずれかを入力）', name: 'NewShopGenreField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopGenre, const TextValue())),
+          TextField(hint: '都道府県', name: 'NewShopPrefectureField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopPrefecture, const TextValue())),
+          TextField(hint: '市区町村', name: 'NewShopCityField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopCity, const TextValue())),
+          TextField(hint: '町名番地', name: 'NewShopTownBlockField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopTownBlock, const TextValue())),
+          TextField(hint: '建物名', name: 'NewShopBuildingField', onChanged: SetState(ff.Pages.cocotenManagementPage.state.newShopBuilding, const TextValue())),
+          Button(
+            '店舗を追加',
+            name: 'AdminCreateShopButton',
+            onTap: [
+              CallCustomAction.named(
+                'callAdminUpsertCocotenShop',
+                arguments: {
+                  'shopId': '',
+                  'name': State(ff.Pages.cocotenManagementPage.state.newShopName),
+                  'genre': State(ff.Pages.cocotenManagementPage.state.newShopGenre),
+                  'prefecture': State(ff.Pages.cocotenManagementPage.state.newShopPrefecture),
+                  'city': State(ff.Pages.cocotenManagementPage.state.newShopCity),
+                  'townBlock': State(ff.Pages.cocotenManagementPage.state.newShopTownBlock),
+                  'building': State(ff.Pages.cocotenManagementPage.state.newShopBuilding),
+                  'active': 'true',
+                },
+                outputAs: 'createShopResult',
+              ),
+              CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult'),
+              SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult')),
+              If(
+                ActionOutput('createShopResult'),
+                then: [Snackbar('店舗を追加しました。')],
+                orElse: [Snackbar('店舗名・ジャンルを確認してください。')],
+              ),
+            ],
+          ),
+          Divider(),
+          Text('詳細編集（メニュー・特典・写真）', style: Styles.titleMedium),
+          Text('下の一覧から店舗の「この店舗に反映」ボタンで、入力した内容をその店舗に反映します。', style: Styles.labelSmall),
+          TextField(hint: 'メニュー情報', name: 'DetailsMenuField', onChanged: SetState('detailsMenu', const TextValue())),
+          TextField(hint: 'ゲスト用特典', name: 'DetailsGuestBenefitsField', onChanged: SetState('detailsGuestBenefits', const TextValue())),
+          Row(
+            name: 'DetailsPhotoRow',
+            mainAxis: MainAxis.spaceBetween,
+            children: [
+              Button(
+                '写真を選択してアップロード',
+                name: 'AdminUploadShopPhotoButton',
+                variant: ButtonVariant.outlined,
+                onTap: [
+                  CallCustomAction.named('pickAndUploadShopPhoto', outputAs: 'uploadShopPhotoResult'),
+                  CallCustomAction.named(
+                    'isNonEmptyString',
+                    arguments: {'value': ActionOutput('uploadShopPhotoResult')},
+                    outputAs: 'uploadShopPhotoSucceeded',
+                  ),
+                  If(
+                    ActionOutput('uploadShopPhotoSucceeded'),
+                    then: [
+                      SetState('detailsPhotoUrl', ActionOutput('uploadShopPhotoResult')),
+                      Snackbar('写真をアップロードしました。'),
+                    ],
+                    orElse: [Snackbar('写真のアップロードに失敗しました。')],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Image(
+            State('detailsPhotoUrl'),
+            name: 'DetailsPhotoPreviewImage',
+            visible: Not(Equals(State('detailsPhotoUrl'), '')),
+            width: 120,
+            height: 120,
+          ),
+          Divider(),
+          Text('既存店舗', style: Styles.titleMedium),
+          ListView(
+            name: 'AdminShopsListView',
+            shrinkWrap: true,
+            spacing: 8,
+            source: State(ff.Pages.cocotenManagementPage.state.adminShopsList),
+            itemBuilder: (item) => Card(
+              child: Container(
+                padding: EdgeInsets.all(12),
+                child: Column(
+                  crossAxis: CrossAxis.start,
+                  spacing: 4,
+                  children: [
+                    Text(CustomFunction(adminShopItemLabelFn, args: {'item': item})),
+                    Row(
+                      mainAxis: MainAxis.spaceBetween,
+                      children: [
+                        Button(
+                          '公開/非公開切替',
+                          variant: ButtonVariant.outlined,
+                          onTap: [
+                            CallCustomAction.named(
+                              'callAdminUpsertCocotenShop',
+                              arguments: {
+                                'shopId': CustomFunction(adminShopIdFn, args: {'item': item}),
+                                'name': '',
+                                'genre': '',
+                                'prefecture': '',
+                                'city': '',
+                                'townBlock': '',
+                                'building': '',
+                                'active': CustomFunction(
+                                  boolToStringFn,
+                                  args: {'value': Not(CustomFunction(adminShopIsActiveFn, args: {'item': item}))},
+                                ),
+                              },
+                              outputAs: 'toggleShopResult',
+                            ),
+                            CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult2'),
+                            SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult2')),
+                          ],
+                        ),
+                        Button(
+                          '削除',
+                          variant: ButtonVariant.outlined,
+                          onTap: [
+                            CallCustomAction.named(
+                              'callAdminDeleteCocotenShop',
+                              arguments: {'shopId': CustomFunction(adminShopIdFn, args: {'item': item})},
+                              outputAs: 'deleteShopResult',
+                            ),
+                            CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult3'),
+                            SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult3')),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Button(
+                      'この店舗に反映（メニュー・特典・写真）',
+                      name: 'AdminApplyShopDetailsButton',
+                      variant: ButtonVariant.outlined,
+                      onTap: [
+                        CallCustomAction.named(
+                          'callAdminUpdateCocotenShopDetails',
+                          arguments: {
+                            'shopId': CustomFunction(adminShopIdFn, args: {'item': item}),
+                            'menu': State('detailsMenu'),
+                            'guestBenefits': State('detailsGuestBenefits'),
+                            'photoUrl': State('detailsPhotoUrl'),
+                          },
+                          outputAs: 'applyDetailsResult',
+                        ),
+                        CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult4'),
+                        SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult4')),
+                        If(
+                          ActionOutput('applyDetailsResult'),
+                          then: [Snackbar('店舗の詳細を更新しました。')],
+                          orElse: [Snackbar('更新に失敗しました。')],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  });
+
+  // ── Service-area master (prefecture-level activate/deactivate,
+  // the admin-picker half explicitly deferred at Phase 3 — see
+  // "Decided with the user: ship a STATIC Dropdown... this specific
+  // dropdown does not yet consume it live" above). Scoped to the REAL 10
+  // launch prefectures actually seeded in config.ts's
+  // SYSTEM_DEFAULTS.service_areas — NOT the sister-project-derived 47-flag
+  // surface adminGetSystemConfig also returns (built for a different,
+  // broader picker there; this project's own backing data only has 10
+  // entries, so a 47-checkbox UI here would silently do nothing for the
+  // other 37). Checkbox bound to a PAGE-STATE field populated on load, NOT
+  // the widget's own native backing field — same fix already proven for
+  // the documented Switch.adaptive eager-initState trap
+  // (project_rules.md/PROJECT_KNOWLEDGE.md §139), reused proactively here
+  // rather than re-discovering the same bug a third time. Save always
+  // sends the FULL 10-entry array (Firestore's `merge:true` on
+  // `adminUpdateSystemConfig` REPLACES array fields wholesale, doesn't
+  // deep-merge) — never a partial array, which would silently deactivate
+  // every unlisted prefecture (the exact "data-destructive" bug class
+  // already documented for this same field shape).
+  // ──
+  app.customAction(
+    'fetchAdminServiceAreas',
+    returns: string,
+    description: 'adminGetSystemConfig Cloud Functionを呼び出し、実際に登録されている10launch県のactive状態を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<String> fetchAdminServiceAreas() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetSystemConfig');
+    final result = await callable.call({});
+    if (result.data is! Map) return 'false|||false|||false|||false|||false|||false|||false|||false|||false|||false';
+    final d = result.data as Map;
+    final keys = [
+      'area_tokyo_active', 'area_kanagawa_active', 'area_chiba_active', 'area_aichi_active',
+      'area_kyoto_active', 'area_osaka_active', 'area_hyogo_active', 'area_okayama_active',
+      'area_hiroshima_active', 'area_fukuoka_active',
+    ];
+    return keys.map((k) => (d[k] == true).toString()).join('|||');
+  } catch (e) {
+    return 'false|||false|||false|||false|||false|||false|||false|||false|||false|||false';
+  }
+}
+''',
+  );
+
+  // FROZEN (confirmed landed — original `app.customAction(...)` create-if-
+  // missing declaration, kept for history). Superseded by the
+  // `app.raw(updateCustomAction(...))` call below, which fixes a real
+  // latent data-destruction bug this original version had: see that
+  // block's own comment for the full explanation.
+  // app.customAction(
+  //   'callAdminUpdateServiceAreas',
+  //   args: {
+  //     'tokyo': bool_, 'kanagawa': bool_, 'chiba': bool_, 'aichi': bool_, 'kyoto': bool_,
+  //     'osaka': bool_, 'hyogo': bool_, 'okayama': bool_, 'hiroshima': bool_, 'fukuoka': bool_,
+  //   },
+  //   returns: bool_,
+  //   description: 'adminUpdateSystemConfig Cloud Functionを呼び出し、10launch県のservice_areas配列を全件書き換える。',
+  //   code: r'''
+  // import 'package:cloud_functions/cloud_functions.dart';
+  //
+  // Future<bool> callAdminUpdateServiceAreas(
+  //   bool? tokyo, bool? kanagawa, bool? chiba, bool? aichi, bool? kyoto,
+  //   bool? osaka, bool? hyogo, bool? okayama, bool? hiroshima, bool? fukuoka,
+  // ) async {
+  //   try {
+  //     final serviceAreas = [
+  //       {'name': '東京都', 'prefecture': '東京都', 'active': tokyo ?? false},
+  //       {'name': '神奈川県', 'prefecture': '神奈川県', 'active': kanagawa ?? false},
+  //       {'name': '千葉県', 'prefecture': '千葉県', 'active': chiba ?? false},
+  //       {'name': '愛知県', 'prefecture': '愛知県', 'active': aichi ?? false},
+  //       {'name': '京都府', 'prefecture': '京都府', 'active': kyoto ?? false},
+  //       {'name': '大阪府', 'prefecture': '大阪府', 'active': osaka ?? false},
+  //       {'name': '兵庫県', 'prefecture': '兵庫県', 'active': hyogo ?? false},
+  //       {'name': '岡山県', 'prefecture': '岡山県', 'active': okayama ?? false},
+  //       {'name': '広島県', 'prefecture': '広島県', 'active': hiroshima ?? false},
+  //       {'name': '福岡県', 'prefecture': '福岡県', 'active': fukuoka ?? false},
+  //     ];
+  //     final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+  //         .httpsCallable('adminUpdateSystemConfig');
+  //     final result = await callable.call({'settings': {'service_areas': serviceAreas}});
+  //     return result.data is Map && result.data['success'] == true;
+  //   } catch (e) {
+  //     return false;
+  //   }
+  // }
+  // ''',
+  // );
+
+  // FIX (unimplemented-features pass, municipality/GPS task): the frozen
+  // version above rebuilds every `service_areas` entry from scratch with
+  // ONLY `name`/`prefecture`/`active` — `adminUpdateSystemConfig`'s
+  // `set(settings, {merge:true})` REPLACES the whole `service_areas`
+  // ARRAY FIELD wholesale (Firestore doesn't deep-merge array elements),
+  // so simply toggling one checkbox and saving would have SILENTLY WIPED
+  // every prefecture's `lat`/`lng`/`municipalities` (added by this same
+  // task, config.ts) on every future save — a real, caught-before-ship
+  // data-destruction bug, not a hypothetical. Fixed: fetch the CURRENT
+  // full array first via `adminGetSystemConfig` (already returns
+  // `service_areas` verbatim via its own raw `...data` spread), then only
+  // overwrite `active` per entry, spreading every other existing field
+  // (lat/lng/municipalities) through unchanged. Code-only change, same
+  // 10-bool argument list as the frozen version above, so this is safe to
+  // land in the same push as the calling widget (no argument-list/
+  // same-push race — that bug class only applies to argument LIST
+  // changes, see the frozen block earlier in this file).
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'callAdminUpdateServiceAreas',
+      code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminUpdateServiceAreas(
+  bool? tokyo, bool? kanagawa, bool? chiba, bool? aichi, bool? kyoto,
+  bool? osaka, bool? hyogo, bool? okayama, bool? hiroshima, bool? fukuoka,
+) async {
+  try {
+    final activeMap = <String, bool>{
+      '東京都': tokyo ?? false,
+      '神奈川県': kanagawa ?? false,
+      '千葉県': chiba ?? false,
+      '愛知県': aichi ?? false,
+      '京都府': kyoto ?? false,
+      '大阪府': osaka ?? false,
+      '兵庫県': hyogo ?? false,
+      '岡山県': okayama ?? false,
+      '広島県': hiroshima ?? false,
+      '福岡県': fukuoka ?? false,
+    };
+
+    final getCallable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetSystemConfig');
+    final getResult = await getCallable.call({});
+    final currentAreas = (getResult.data is Map && getResult.data['service_areas'] is List)
+        ? (getResult.data['service_areas'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList()
+        : <Map<String, dynamic>>[];
+
+    final serviceAreas = activeMap.entries.map((entry) {
+      final existing = currentAreas.firstWhere(
+        (a) => a['prefecture'] == entry.key,
+        orElse: () => <String, dynamic>{},
+      );
+      return {
+        ...existing,
+        'name': entry.key,
+        'prefecture': entry.key,
+        'active': entry.value,
+      };
+    }).toList();
+
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminUpdateSystemConfig');
+    final result = await callable.call({'settings': {'service_areas': serviceAreas}});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+    );
+  });
+
+  // FROZEN (2026-08-13, fresh-eyes re-review pass, CORRECTED): same
+  // "different payload" issue as sysConfigCurrentValueFn above, and same
+  // corrected resolution — see that block's own comment for the full
+  // story (a renamed-V2-function attempt left the orphaned original's
+  // buggy code still physically compiled into `custom_functions.dart`,
+  // still breaking the build; `CustomFunctionHandle`+`updateCustomFunction`
+  // is the correct fix, now that its earlier apparent failure's real root
+  // cause — an unrelated stale duplicate `ensureReplaced` block on
+  // UserManagementPage — is fixed).
+  // final serviceAreaFlagFn = app.customFunction(
+  //   'serviceAreaFlag',
+  //   args: {'data': string, 'index': int_},
+  //   returns: bool_,
+  //   description: '10県分のactive状態文字列から指定インデックスの値を取り出す。',
+  //   code: r'''
+  // final parts = (data ?? '').split('|||');
+  // return index >= 0 && index < parts.length && parts[index] == 'true';
+  // ''',
+  // );
+  final serviceAreaFlagFn = CustomFunctionHandle(
+    name: 'serviceAreaFlag',
+    args: {'data': string, 'index': int_},
+    returnType: bool_,
+  );
+
+  app.raw((project) {
+    updateCustomFunction(
+      project,
+      name: 'serviceAreaFlag',
+      code: r'''
+final parts = (data ?? '').split('|||');
+final i = index ?? -1;
+return i >= 0 && i < parts.length && parts[i] == 'true';
+''',
+    );
+  });
+
+  final serviceAreaPage = app.ensurePage(
+    'ServiceAreaPage',
+    route: '/admin-service-areas',
+    description: '管理者用サービス提供エリア設定画面（10launch県の有効/無効切替）。',
+    state: {
+      'serviceAreasCurrent': string.withDefault(''),
+      'saTokyo': bool_.withDefault(false),
+      'saKanagawa': bool_.withDefault(false),
+      'saChiba': bool_.withDefault(false),
+      'saAichi': bool_.withDefault(false),
+      'saKyoto': bool_.withDefault(false),
+      'saOsaka': bool_.withDefault(false),
+      'saHyogo': bool_.withDefault(false),
+      'saOkayama': bool_.withDefault(false),
+      'saHiroshima': bool_.withDefault(false),
+      'saFukuoka': bool_.withDefault(false),
+    },
+    onLoad: [
+      CallCustomAction.named('fetchAdminServiceAreas', outputAs: 'serviceAreasInitResult'),
+      SetState(ff.Pages.serviceAreaPage.state.serviceAreasCurrent, ActionOutput('serviceAreasInitResult')),
+      SetState(ff.Pages.serviceAreaPage.state.saTokyo, CustomFunction(serviceAreaFlagFn, args: {'data': ActionOutput('serviceAreasInitResult'), 'index': 0})),
+      SetState(ff.Pages.serviceAreaPage.state.saKanagawa, CustomFunction(serviceAreaFlagFn, args: {'data': ActionOutput('serviceAreasInitResult'), 'index': 1})),
+      SetState(ff.Pages.serviceAreaPage.state.saChiba, CustomFunction(serviceAreaFlagFn, args: {'data': ActionOutput('serviceAreasInitResult'), 'index': 2})),
+      SetState(ff.Pages.serviceAreaPage.state.saAichi, CustomFunction(serviceAreaFlagFn, args: {'data': ActionOutput('serviceAreasInitResult'), 'index': 3})),
+      SetState(ff.Pages.serviceAreaPage.state.saKyoto, CustomFunction(serviceAreaFlagFn, args: {'data': ActionOutput('serviceAreasInitResult'), 'index': 4})),
+      SetState(ff.Pages.serviceAreaPage.state.saOsaka, CustomFunction(serviceAreaFlagFn, args: {'data': ActionOutput('serviceAreasInitResult'), 'index': 5})),
+      SetState(ff.Pages.serviceAreaPage.state.saHyogo, CustomFunction(serviceAreaFlagFn, args: {'data': ActionOutput('serviceAreasInitResult'), 'index': 6})),
+      SetState(ff.Pages.serviceAreaPage.state.saOkayama, CustomFunction(serviceAreaFlagFn, args: {'data': ActionOutput('serviceAreasInitResult'), 'index': 7})),
+      SetState(ff.Pages.serviceAreaPage.state.saHiroshima, CustomFunction(serviceAreaFlagFn, args: {'data': ActionOutput('serviceAreasInitResult'), 'index': 8})),
+      SetState(ff.Pages.serviceAreaPage.state.saFukuoka, CustomFunction(serviceAreaFlagFn, args: {'data': ActionOutput('serviceAreasInitResult'), 'index': 9})),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'サービス提供エリア'),
+      body: Column(
+        name: 'ServiceAreaColumn',
+        padding: EdgeInsets.all(16),
+        spacing: 4,
+        scrollable: true,
+        children: [
+          Checkbox(label: '東京都', name: 'SaTokyoCheckbox', value: State(ff.Pages.serviceAreaPage.state.saTokyo), onChanged: SetState(ff.Pages.serviceAreaPage.state.saTokyo, const WidgetValue())),
+          Checkbox(label: '神奈川県', name: 'SaKanagawaCheckbox', value: State(ff.Pages.serviceAreaPage.state.saKanagawa), onChanged: SetState(ff.Pages.serviceAreaPage.state.saKanagawa, const WidgetValue())),
+          Checkbox(label: '千葉県', name: 'SaChibaCheckbox', value: State(ff.Pages.serviceAreaPage.state.saChiba), onChanged: SetState(ff.Pages.serviceAreaPage.state.saChiba, const WidgetValue())),
+          Checkbox(label: '愛知県', name: 'SaAichiCheckbox', value: State(ff.Pages.serviceAreaPage.state.saAichi), onChanged: SetState(ff.Pages.serviceAreaPage.state.saAichi, const WidgetValue())),
+          Checkbox(label: '京都府', name: 'SaKyotoCheckbox', value: State(ff.Pages.serviceAreaPage.state.saKyoto), onChanged: SetState(ff.Pages.serviceAreaPage.state.saKyoto, const WidgetValue())),
+          Checkbox(label: '大阪府', name: 'SaOsakaCheckbox', value: State(ff.Pages.serviceAreaPage.state.saOsaka), onChanged: SetState(ff.Pages.serviceAreaPage.state.saOsaka, const WidgetValue())),
+          Checkbox(label: '兵庫県', name: 'SaHyogoCheckbox', value: State(ff.Pages.serviceAreaPage.state.saHyogo), onChanged: SetState(ff.Pages.serviceAreaPage.state.saHyogo, const WidgetValue())),
+          Checkbox(label: '岡山県', name: 'SaOkayamaCheckbox', value: State(ff.Pages.serviceAreaPage.state.saOkayama), onChanged: SetState(ff.Pages.serviceAreaPage.state.saOkayama, const WidgetValue())),
+          Checkbox(label: '広島県', name: 'SaHiroshimaCheckbox', value: State(ff.Pages.serviceAreaPage.state.saHiroshima), onChanged: SetState(ff.Pages.serviceAreaPage.state.saHiroshima, const WidgetValue())),
+          Checkbox(label: '福岡県', name: 'SaFukuokaCheckbox', value: State(ff.Pages.serviceAreaPage.state.saFukuoka), onChanged: SetState(ff.Pages.serviceAreaPage.state.saFukuoka, const WidgetValue())),
+          Button(
+            '保存する',
+            name: 'AdminSaveServiceAreasButton',
+            onTap: [
+              CallCustomAction.named(
+                'callAdminUpdateServiceAreas',
+                arguments: {
+                  'tokyo': State(ff.Pages.serviceAreaPage.state.saTokyo),
+                  'kanagawa': State(ff.Pages.serviceAreaPage.state.saKanagawa),
+                  'chiba': State(ff.Pages.serviceAreaPage.state.saChiba),
+                  'aichi': State(ff.Pages.serviceAreaPage.state.saAichi),
+                  'kyoto': State(ff.Pages.serviceAreaPage.state.saKyoto),
+                  'osaka': State(ff.Pages.serviceAreaPage.state.saOsaka),
+                  'hyogo': State(ff.Pages.serviceAreaPage.state.saHyogo),
+                  'okayama': State(ff.Pages.serviceAreaPage.state.saOkayama),
+                  'hiroshima': State(ff.Pages.serviceAreaPage.state.saHiroshima),
+                  'fukuoka': State(ff.Pages.serviceAreaPage.state.saFukuoka),
+                },
+                outputAs: 'saveServiceAreasResult',
+              ),
+              If(
+                ActionOutput('saveServiceAreasResult'),
+                then: [Snackbar('保存しました。')],
+                orElse: [Snackbar('保存に失敗しました。')],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // ==========================================================================
+  // Municipality-level service areas + GPS coordinates (unimplemented-
+  // features pass, IMPLEMENTATION_PLAN.md §3.8 item 5's remaining gap —
+  // "add/edit municipalities and their representative GPS coordinates,
+  // the concrete mechanism that makes §3.2.2's 'expand areas later
+  // without a redeploy' requirement real"). Each `service_areas` entry
+  // (config.ts) now also carries `lat`/`lng` (prefecture-representative
+  // point) and a `municipalities: [{name, lat, lng}]` array, admin-managed
+  // here via `adminAddServiceAreaMunicipality`/`adminRemoveServiceAreaMunicipality`.
+  //
+  // Genuinely wired to a real consumer, not inert admin data entry: the
+  // Home-ranking GPS-fallback chain (`fetchDiscoveryCasts`, below) now
+  // reads this SAME live data through a new guest-callable
+  // (`getServiceAreaCoordinates`) instead of a hardcoded static Dart
+  // table, and additionally tries a municipality-level match (guest's own
+  // `city` field) before falling back to the prefecture's own point —
+  // strictly more precise than before, same ultimate Tokyo fallback.
+  //
+  // Prefecture selection is a plain validated `TextField` (typed against
+  // the known 10 launch prefectures, listed as reference text), NOT a
+  // `DropDown` — same reasoning as task #43's genre master: this
+  // project's own project_rules.md documents 3 separate confirmed
+  // FlutterFlow `DropDown` binding bugs, and task #30's prefecture picker
+  // already had to abandon `DropDown` for a bottom-sheet component for
+  // the same class of reason.
+  // ==========================================================================
+
+  app.customAction(
+    'fetchAdminServiceAreaMunicipalities',
+    args: {'prefecture': string},
+    returns: listOf(string),
+    description: '指定した都道府県の市区町村一覧（名前+緯度経度）を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminServiceAreaMunicipalities(String? prefecture) async {
+  try {
+    final pref = prefecture ?? '';
+    if (pref.isEmpty) return <String>[];
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetSystemConfig');
+    final result = await callable.call({});
+    if (result.data is! Map || result.data['service_areas'] is! List) return <String>[];
+    for (final raw in result.data['service_areas'] as List) {
+      final area = raw as Map;
+      if (area['prefecture']?.toString() != pref) continue;
+      if (area['municipalities'] is! List) return <String>[];
+      return (area['municipalities'] as List).map((raw2) {
+        final m = raw2 as Map;
+        final name = (m['name']?.toString() ?? '').replaceAll('|||', '');
+        final lat = m['lat']?.toString() ?? '';
+        final lng = m['lng']?.toString() ?? '';
+        return '$name|||$lat|||$lng';
+      }).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminAddServiceAreaMunicipality',
+    args: {'prefecture': string, 'name': string, 'lat': string, 'lng': string},
+    returns: bool_,
+    description: 'adminAddServiceAreaMunicipality Cloud Functionを呼び出し、市区町村を1件追加する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminAddServiceAreaMunicipality(
+  String? prefecture,
+  String? name,
+  String? lat,
+  String? lng,
+) async {
+  try {
+    final latVal = double.tryParse(lat ?? '');
+    final lngVal = double.tryParse(lng ?? '');
+    if (prefecture == null || prefecture.isEmpty) return false;
+    if (name == null || name.trim().isEmpty) return false;
+    if (latVal == null || lngVal == null) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminAddServiceAreaMunicipality');
+    final result = await callable.call({
+      'prefecture': prefecture,
+      'name': name.trim(),
+      'lat': latVal,
+      'lng': lngVal,
+      'reason': '管理者による市区町村追加',
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.customAction(
+    'callAdminRemoveServiceAreaMunicipality',
+    args: {'prefecture': string, 'municipalityName': string},
+    returns: bool_,
+    description: 'adminRemoveServiceAreaMunicipality Cloud Functionを呼び出し、市区町村を1件削除する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callAdminRemoveServiceAreaMunicipality(String? prefecture, String? municipalityName) async {
+  try {
+    if (prefecture == null || prefecture.isEmpty) return false;
+    if (municipalityName == null || municipalityName.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminRemoveServiceAreaMunicipality');
+    final result = await callable.call({
+      'prefecture': prefecture,
+      'municipality_name': municipalityName,
+      'reason': '管理者による市区町村削除',
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  final municipalityItemLabelFn = app.customFunction(
+    'municipalityItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: '市区町村1件分（名前|||緯度|||経度）を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 3) return '';
+return '${parts[0]}（緯度${parts[1]}・経度${parts[2]}）';
+''',
+  );
+
+  final serviceAreaMunicipalitiesPage = app.ensurePage(
+    'ServiceAreaMunicipalitiesPage',
+    route: '/admin-service-area-municipalities',
+    description: '管理者用市区町村マスタ管理画面（都道府県ごとの市区町村と代表座標を追加/削除）。',
+    state: {
+      'municipalityPrefecture': string.withDefault(''),
+      'municipalitiesList': listOf(string),
+      'newMunicipalityName': string.withDefault(''),
+      'newMunicipalityLat': string.withDefault(''),
+      'newMunicipalityLng': string.withDefault(''),
+    },
+    body: Scaffold(
+      appBar: AppBar(title: '市区町村マスタ管理'),
+      body: Column(
+        name: 'ServiceAreaMunicipalitiesColumn',
+        padding: EdgeInsets.all(16),
+        spacing: 10,
+        scrollable: true,
+        children: [
+          Text(
+            '対象の都道府県名（東京都・神奈川県・千葉県・愛知県・京都府・大阪府・兵庫県・岡山県・広島県・福岡県のいずれか）を入力してください。',
+            style: Styles.labelSmall,
+          ),
+          TextField(hint: '都道府県', name: 'MunicipalityPrefectureField', onChanged: SetState(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture, const TextValue())),
+          Button(
+            '市区町村一覧を読み込む',
+            name: 'AdminLoadMunicipalitiesButton',
+            onTap: [
+              CallCustomAction.named(
+                'fetchAdminServiceAreaMunicipalities',
+                arguments: {'prefecture': State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture)},
+                outputAs: 'municipalitiesLoadResult',
+              ),
+              SetState(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalitiesList, ActionOutput('municipalitiesLoadResult')),
+            ],
+          ),
+          Divider(),
+          Text('新しい市区町村を追加', style: Styles.titleMedium),
+          TextField(hint: '市区町村名（例: 渋谷区）', name: 'NewMunicipalityNameField', onChanged: SetState(ff.Pages.serviceAreaMunicipalitiesPage.state.newMunicipalityName, const TextValue())),
+          TextField(hint: '緯度（例: 35.6580）', name: 'NewMunicipalityLatField', onChanged: SetState(ff.Pages.serviceAreaMunicipalitiesPage.state.newMunicipalityLat, const TextValue())),
+          TextField(hint: '経度（例: 139.7016）', name: 'NewMunicipalityLngField', onChanged: SetState(ff.Pages.serviceAreaMunicipalitiesPage.state.newMunicipalityLng, const TextValue())),
+          Button(
+            '追加',
+            name: 'AdminAddMunicipalityButton',
+            onTap: [
+              CallCustomAction.named(
+                'callAdminAddServiceAreaMunicipality',
+                arguments: {
+                  'prefecture': State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture),
+                  'name': State(ff.Pages.serviceAreaMunicipalitiesPage.state.newMunicipalityName),
+                  'lat': State(ff.Pages.serviceAreaMunicipalitiesPage.state.newMunicipalityLat),
+                  'lng': State(ff.Pages.serviceAreaMunicipalitiesPage.state.newMunicipalityLng),
+                },
+                outputAs: 'addMunicipalityResult',
+              ),
+              CallCustomAction.named(
+                'fetchAdminServiceAreaMunicipalities',
+                arguments: {'prefecture': State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture)},
+                outputAs: 'municipalitiesRefetchResult',
+              ),
+              SetState(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalitiesList, ActionOutput('municipalitiesRefetchResult')),
+              If(
+                ActionOutput('addMunicipalityResult'),
+                then: [Snackbar('市区町村を追加しました。')],
+                orElse: [Snackbar('追加に失敗しました。都道府県名・緯度経度を確認してください。')],
+              ),
+            ],
+          ),
+          Divider(),
+          Text('登録済みの市区町村', style: Styles.titleMedium),
+          ListView(
+            name: 'MunicipalitiesListView',
+            shrinkWrap: true,
+            spacing: 6,
+            source: State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalitiesList),
+            itemBuilder: (item) => Row(
+              name: 'MunicipalityRow',
+              mainAxis: MainAxis.spaceBetween,
+              children: [
+                Text(CustomFunction(municipalityItemLabelFn, args: {'item': item})),
+                Button(
+                  '削除',
+                  name: 'AdminRemoveMunicipalityButton',
+                  variant: ButtonVariant.outlined,
+                  onTap: [
+                    CallCustomAction.named(
+                      'callAdminRemoveServiceAreaMunicipality',
+                      arguments: {
+                        'prefecture': State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture),
+                        'municipalityName': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+                      },
+                      outputAs: 'removeMunicipalityResult',
+                    ),
+                    CallCustomAction.named(
+                      'fetchAdminServiceAreaMunicipalities',
+                      arguments: {'prefecture': State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture)},
+                      outputAs: 'municipalitiesRefetchResult2',
+                    ),
+                    SetState(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalitiesList, ActionOutput('municipalitiesRefetchResult2')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  app.editPage(ff.Pages.serviceAreaPage, (page) {
+    page.ensureInsertedAfter(
+      page.findByKey('Button_8akzo6do'), // AdminSaveServiceAreasButton
+      Button(
+        '市区町村マスタ管理',
+        name: 'AdminServiceAreaMunicipalitiesNavButton',
+        variant: ButtonVariant.outlined,
+        onTap: [Navigate(serviceAreaMunicipalitiesPage)],
+      ),
+    );
+  });
+
+  // ==========================================================================
+  // Admin: home-ranking monitoring (IMPLEMENTATION_PLAN.md §3.8 item 6 —
+  // "verify the online/distance/login-recency sort and the GPS-fallback
+  // path are actually behaving as specified, an observability requirement,
+  // not just a feature"). Found genuinely missing during a fresh-eyes
+  // re-review of the whole admin panel — confirmed zero admin page or
+  // backend surface touched this anywhere before now. New
+  // `adminGetHomeRankingDiagnostics` (admin.ts) deliberately does NOT reuse
+  // `getDiscoveryCasts` (auth.ts) as-is — that function's own response
+  // only ever returns `id|||nickname|||photoUrl|||isOnline`, discarding
+  // the raw `dist`/`lastLoginMs` values it computes internally, so a
+  // caller can see the FINAL sorted order but never verify WHY a cast
+  // landed where it did. The new function mirrors the exact same filter +
+  // haversine distance formula + 3-tier sort comparator but returns every
+  // raw computed value (rank position, isOnline, distance in km or
+  // "fallback" when the cast has no location, last-login ISO timestamp)
+  // so an admin can genuinely confirm the sort is behaving correctly.
+  // ==========================================================================
+
+  app.customAction(
+    'fetchAdminHomeRankingDiagnostics',
+    args: {'lat': string, 'lng': string},
+    returns: listOf(string),
+    description: 'adminGetHomeRankingDiagnostics Cloud Functionを呼び出し、Home表示順の診断データを取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchAdminHomeRankingDiagnostics(String? lat, String? lng) async {
+  try {
+    final parsedLat = double.tryParse(lat ?? '') ?? 35.6812; // 東京駅 fallback
+    final parsedLng = double.tryParse(lng ?? '') ?? 139.7671;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetHomeRankingDiagnostics');
+    final result = await callable.call({'lat': parsedLat, 'lng': parsedLng});
+    if (result.data is Map && result.data['items'] is List) {
+      return (result.data['items'] as List).map((e) => e.toString()).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  final rankingDiagnosticItemLabelFn = app.customFunction(
+    'rankingDiagnosticItemLabel',
+    args: {'item': string},
+    returns: string,
+    description: 'Home表示順診断1件分を表示用ラベルに整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+if (parts.length < 5) return '';
+final onlineLabel = parts[2] == 'true' ? 'オンライン' : 'オフライン';
+final lastLogin = parts[4].isEmpty ? '(記録なし)' : parts[4];
+return '#${parts[0]}　${parts[1]}\n$onlineLabel　距離: ${parts[3]}km　最終ログイン: $lastLogin';
+''',
+  );
+
+  final homeRankingDiagnosticsPage = app.ensurePage(
+    'HomeRankingDiagnosticsPage',
+    route: '/admin-home-ranking',
+    description: '管理者用Home表示順診断画面（オンライン→距離→最終ログイン順の3段階ソートを実データで検証）。',
+    state: {
+      'rankingDiagLat': string.withDefault(''),
+      'rankingDiagLng': string.withDefault(''),
+      'rankingDiagList': listOf(string),
+    },
+    onLoad: [
+      CallCustomAction.named(
+        'fetchAdminHomeRankingDiagnostics',
+        arguments: {'lat': State(ff.Pages.homeRankingDiagnosticsPage.state.rankingDiagLat), 'lng': State(ff.Pages.homeRankingDiagnosticsPage.state.rankingDiagLng)},
+        outputAs: 'rankingDiagInitResult',
+      ),
+      SetState(ff.Pages.homeRankingDiagnosticsPage.state.rankingDiagList, ActionOutput('rankingDiagInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'Home表示順診断'),
+      body: Column(
+        name: 'HomeRankingDiagnosticsColumn',
+        padding: EdgeInsets.all(16),
+        spacing: 10,
+        scrollable: true,
+        children: [
+          Text(
+            '基準座標（空欄で東京駅を使用）。承認済みキャストを オンライン→距離→最終ログイン の順でソートし、根拠となる生データを表示します。',
+            style: Styles.labelSmall,
+          ),
+          TextField(hint: '緯度（例: 35.6812）', name: 'RankingDiagLatField', onChanged: SetState(ff.Pages.homeRankingDiagnosticsPage.state.rankingDiagLat, const TextValue())),
+          TextField(hint: '経度（例: 139.7671）', name: 'RankingDiagLngField', onChanged: SetState(ff.Pages.homeRankingDiagnosticsPage.state.rankingDiagLng, const TextValue())),
+          Button(
+            '再取得する',
+            name: 'AdminFetchRankingDiagButton',
+            onTap: [
+              CallCustomAction.named(
+                'fetchAdminHomeRankingDiagnostics',
+                arguments: {'lat': State(ff.Pages.homeRankingDiagnosticsPage.state.rankingDiagLat), 'lng': State(ff.Pages.homeRankingDiagnosticsPage.state.rankingDiagLng)},
+                outputAs: 'rankingDiagRefetchResult',
+              ),
+              SetState(ff.Pages.homeRankingDiagnosticsPage.state.rankingDiagList, ActionOutput('rankingDiagRefetchResult')),
+            ],
+          ),
+          Divider(),
+          ListView(
+            name: 'RankingDiagnosticsListView',
+            shrinkWrap: true,
+            spacing: 6,
+            source: State(ff.Pages.homeRankingDiagnosticsPage.state.rankingDiagList),
+            itemBuilder: (item) => Card(
+              child: Container(
+                padding: EdgeInsets.all(10),
+                child: Text(CustomFunction(rankingDiagnosticItemLabelFn, args: {'item': item}), style: Styles.bodySmall),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // ==========================================================================
+  // Admin: historical activity-aggregation reporting (unimplemented-features
+  // pass, IMPLEMENTATION_PLAN.md §3.8 item 19's last open sub-item — rank/tier
+  // is [WON'T BUILD] per §4.3, CSV export is already [PARTIAL] on
+  // LedgerOversightPage). `adminGetDashboardStats` (backend) only ever
+  // answers "today" / a fixed rolling 5-month revenue chart — this adds a
+  // real admin-chosen daily/monthly trend report (new registrations split
+  // guest/cast, reservations created/completed/cancelled, captured revenue)
+  // backed by the new `adminGetActivityReport` Cloud Function (admin.ts).
+  // ==========================================================================
+
+  final activityReportRowLabelFn = app.customFunction(
+    'activityReportRowLabel',
+    args: {'item': string, 'index': int_},
+    returns: string,
+    description: 'アクティビティレポート1行分（期間|||新規ゲスト|||新規キャスト|||予約作成|||完了|||取消|||売上）から指定列を表示用文字列に整形する。',
+    code: r'''
+final parts = (item ?? '').split('|||');
+final i = index ?? 0;
+if (i < 0 || i >= parts.length) return '';
+if (i == 6) return '¥${parts[6]}';
+return parts[i];
+''',
+  );
+
+  app.customAction(
+    'fetchActivityReport',
+    args: {'granularity': string, 'periods': int_},
+    returns: listOf(string),
+    description: 'adminGetActivityReport Cloud Functionを呼び出し、期間別アクティビティ集計を取得する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<List<String>> fetchActivityReport(String? granularity, int? periods) async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('adminGetActivityReport');
+    final result = await callable.call({
+      'granularity': granularity ?? 'daily',
+      'periods': periods ?? 0,
+    });
+    if (result.data is! Map || result.data['rows'] is! List) return <String>[];
+    final rows = (result.data['rows'] as List).cast<Map>();
+    return rows.map((r) {
+      return [
+        r['label'],
+        r['newGuests'],
+        r['newCasts'],
+        r['reservationsCreated'],
+        r['reservationsCompleted'],
+        r['reservationsCancelled'],
+        r['revenue'],
+      ].join('|||');
+    }).toList();
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
+  // Same Clipboard/CSV pattern already proven for LedgerOversightPage's
+  // export (see `callExportLedgerCsv` above) — client-side, currently-
+  // displayed-rows-only, no new pub package.
+  app.customAction(
+    'callExportActivityReportCsv',
+    args: {'rows': listOf(string)},
+    returns: bool_,
+    description: 'アクティビティレポート（現在表示中の行）をCSV形式でクリップボードにコピーする。',
+    code: r'''
+import 'package:flutter/services.dart';
+
+Future<bool> callExportActivityReportCsv(List<String>? rows) async {
+  try {
+    final data = rows ?? <String>[];
+    if (data.isEmpty) return false;
+    final buffer = StringBuffer('period,new_guests,new_casts,reservations_created,reservations_completed,reservations_cancelled,revenue\n');
+    for (final row in data) {
+      final parts = row.split('|||');
+      final escaped = parts.map((p) => '"${p.replaceAll('"', '""')}"').join(',');
+      buffer.writeln(escaped);
+    }
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  final activityReportPage = app.ensurePage(
+    'ActivityReportPage',
+    route: '/admin-activity-report',
+    description: '管理者用アクティビティレポート画面（日別/月別の新規登録・予約・売上推移）。',
+    state: {
+      'activityReportGranularity': string.withDefault('daily'),
+      'activityReportRows': listOf(string),
+    },
+    onLoad: [
+      CallCustomAction.named(
+        'fetchActivityReport',
+        arguments: {'granularity': 'daily', 'periods': 0},
+        outputAs: 'activityReportInitResult',
+      ),
+      SetState(ff.Pages.activityReportPage.state.activityReportRows, ActionOutput('activityReportInitResult')),
+    ],
+    body: Scaffold(
+      appBar: AppBar(title: 'アクティビティレポート'),
+      body: Column(
+        name: 'ActivityReportColumn',
+        padding: EdgeInsets.all(16),
+        spacing: 8,
+        scrollable: true,
+        children: [
+          Row(
+            name: 'ActivityReportGranularityRow',
+            spacing: 8,
+            children: [
+              Button(
+                '日別（直近30日）',
+                name: 'ActivityReportDailyButton',
+                onTap: [
+                  SetState(ff.Pages.activityReportPage.state.activityReportGranularity, 'daily'),
+                  CallCustomAction.named(
+                    'fetchActivityReport',
+                    arguments: {'granularity': 'daily', 'periods': 0},
+                    outputAs: 'activityReportDailyResult',
+                  ),
+                  SetState(ff.Pages.activityReportPage.state.activityReportRows, ActionOutput('activityReportDailyResult')),
+                ],
+              ),
+              Button(
+                '月別（直近12ヶ月）',
+                name: 'ActivityReportMonthlyButton',
+                variant: ButtonVariant.outlined,
+                onTap: [
+                  SetState(ff.Pages.activityReportPage.state.activityReportGranularity, 'monthly'),
+                  CallCustomAction.named(
+                    'fetchActivityReport',
+                    arguments: {'granularity': 'monthly', 'periods': 0},
+                    outputAs: 'activityReportMonthlyResult',
+                  ),
+                  SetState(ff.Pages.activityReportPage.state.activityReportRows, ActionOutput('activityReportMonthlyResult')),
+                ],
+              ),
+            ],
+          ),
+          Divider(),
+          Row(
+            name: 'ActivityReportHeaderRow',
+            spacing: 8,
+            children: [
+              Text('期間', style: Styles.labelSmall),
+              Text('新規G', style: Styles.labelSmall),
+              Text('新規C', style: Styles.labelSmall),
+              Text('予約', style: Styles.labelSmall),
+              Text('完了', style: Styles.labelSmall),
+              Text('取消', style: Styles.labelSmall),
+              Text('売上', style: Styles.labelSmall),
+            ],
+          ),
+          ListView(
+            name: 'ActivityReportListView',
+            shrinkWrap: true,
+            spacing: 4,
+            source: State(ff.Pages.activityReportPage.state.activityReportRows),
+            itemBuilder: (item) => Row(
+              name: 'ActivityReportRowItem',
+              spacing: 8,
+              children: [
+                Text(CustomFunction(activityReportRowLabelFn, args: {'item': item, 'index': 0}), style: Styles.bodySmall),
+                Text(CustomFunction(activityReportRowLabelFn, args: {'item': item, 'index': 1}), style: Styles.bodySmall),
+                Text(CustomFunction(activityReportRowLabelFn, args: {'item': item, 'index': 2}), style: Styles.bodySmall),
+                Text(CustomFunction(activityReportRowLabelFn, args: {'item': item, 'index': 3}), style: Styles.bodySmall),
+                Text(CustomFunction(activityReportRowLabelFn, args: {'item': item, 'index': 4}), style: Styles.bodySmall),
+                Text(CustomFunction(activityReportRowLabelFn, args: {'item': item, 'index': 5}), style: Styles.bodySmall),
+                Text(CustomFunction(activityReportRowLabelFn, args: {'item': item, 'index': 6}), style: Styles.bodySmall),
+              ],
+            ),
+          ),
+          Divider(),
+          Button(
+            'CSVをコピー（表示中の行）',
+            name: 'AdminExportActivityReportCsvButton',
+            variant: ButtonVariant.outlined,
+            onTap: [
+              CallCustomAction.named(
+                'callExportActivityReportCsv',
+                arguments: {'rows': State(ff.Pages.activityReportPage.state.activityReportRows)},
+                outputAs: 'exportActivityReportCsvResult',
+              ),
+              If(
+                ActionOutput('exportActivityReportCsvResult'),
+                then: [Snackbar('CSVをクリップボードにコピーしました。スプレッドシートに貼り付けてください。')],
+                orElse: [Snackbar('コピーする行がありません。')],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // ==========================================================================
+  // Admin: CSV export expansion beyond LedgerOversightPage (unimplemented-
+  // features pass, IMPLEMENTATION_PLAN.md §3.8 item 19's own note: "Not yet
+  // added to other list pages (UserManagementPage, AuditLogPage, etc.) — the
+  // pattern is now proven and reusable if broader coverage is wanted
+  // later"). Same `Clipboard.setData` shape as `callExportLedgerCsv`/
+  // `callExportActivityReportCsv` on every page below — client-side,
+  // currently-loaded-rows-only (each page's own fetch already caps at
+  // 50-100 rows server-side), no new pub package.
+  //
+  // StripeLogsPage deliberately EXCLUDED: its row format's 4th field
+  // (`rawJson`, the full Stripe webhook payload) is arbitrary external JSON
+  // that could itself contain the literal substring `|||` (this project's
+  // own delimited-row convention), which would corrupt a naive
+  // `row.split('|||')` CSV builder — confirmed by reading
+  // `fetchAdminStripeLogs`/`stripeLogRawDataFn` directly, which already
+  // avoid `.split('|||')` for that exact reason (indexOf-based substring
+  // extraction instead). Not worth the added parsing complexity for this
+  // pass; disclosed, not silently dropped.
+  //
+  // Layout note: `UserManagementPage`/`AuditLogPage`/`ProcessedEventsPage`/
+  // `WithdrawalQueuePage` all have their `ListView` as the page's entire
+  // `Scaffold.body` (no wrapping `Column`, unlike `LedgerOversightPage`/
+  // `ActivityReportPage`) — adding a button above the list means wrapping in
+  // `Column(children: [Button, Divider, Expanded(ListView)])`. `ensureReplaced`
+  // on the ListView is safe for this even though the replacement's TYPE
+  // changes (ListView -> Column): confirmed by reading the SDK's own
+  // `_ReplaceOp`/`_ReplaceAlreadyAppliedNoop` source (`edit.dart`) — the
+  // first run replaces by key regardless of type, and every later run
+  // self-heals by matching the REPLACEMENT widget's own name+type (not the
+  // original anchor's), so a stable new Column name guarantees idempotent
+  // reruns. `ReservationOversightPage` got only a single `ensureInsertedBefore`
+  // on its existing Divider below (no reconstruction) — on the WRONG
+  // assumption, never actually verified against live state, that it already
+  // had a Column+Divider+Expanded(ListView) shape. It did NOT: its `ListView`
+  // sat directly in a `Column(mainAxisSize: MainAxisSize.min)` with no
+  // `Expanded` ancestor and no `shrinkWrap`, which throws Flutter's "Vertical
+  // viewport was given unbounded height" on every page load. FIXED in a
+  // later block, several thousand lines below (search "BUG FIX
+  // (post-implementation re-review" for the full incident writeup) — left
+  // this comment corrected in place rather than silently rewritten, so the
+  // original wrong reasoning and the fix are both visible in this file's
+  // own history.
+  // ==========================================================================
+
+  app.customAction(
+    'callExportUsersCsv',
+    args: {'rows': listOf(string)},
+    returns: bool_,
+    description: 'ユーザー一覧（現在読み込み済みの行のみ）をCSV形式でクリップボードにコピーする。',
+    code: r'''
+import 'package:flutter/services.dart';
+
+Future<bool> callExportUsersCsv(List<String>? rows) async {
+  try {
+    final data = rows ?? <String>[];
+    if (data.isEmpty) return false;
+    final buffer = StringBuffer('id,nickname,account_type,approval_status,is_frozen\n');
+    for (final row in data) {
+      final parts = row.split('|||');
+      final escaped = parts.map((p) => '"${p.replaceAll('"', '""')}"').join(',');
+      buffer.writeln(escaped);
+    }
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.editPage(ff.Pages.userManagementPage, (page) {
+    page.ensureReplaced(
+      page.findByKey('ListView_3u51kl2l'), // AdminUsersListView
+      Column(
+        name: 'AdminUsersWithExportColumn',
+        spacing: 8,
+        children: [
+          Button(
+            'CSVをコピー（読み込み済みの行のみ）',
+            name: 'AdminExportUsersCsvButton',
+            variant: ButtonVariant.outlined,
+            onTap: [
+              CallCustomAction.named(
+                'callExportUsersCsv',
+                arguments: {'rows': State(ff.Pages.userManagementPage.state.adminUsersList)},
+                outputAs: 'exportUsersCsvResult',
+              ),
+              If(
+                ActionOutput('exportUsersCsvResult'),
+                then: [Snackbar('CSVをクリップボードにコピーしました。スプレッドシートに貼り付けてください。')],
+                orElse: [Snackbar('コピーする行がありません。')],
+              ),
+            ],
+          ),
+          Divider(),
+          Expanded(
+            ListView(
+              name: 'AdminUsersListView',
+              padding: EdgeInsets.all(16),
+              spacing: 8,
+              source: State(ff.Pages.userManagementPage.state.adminUsersList),
+              itemBuilder: (item) => Card(
+                child: Container(
+                  padding: EdgeInsets.all(12),
+                  child: Column(
+                    crossAxis: CrossAxis.start,
+                    spacing: 4,
+                    children: [
+                      Text(CustomFunction(adminUserItemLabelFn, args: {'item': item})),
+                      Row(
+                        mainAxis: MainAxis.spaceBetween,
+                        children: [
+                          Button(
+                            '凍結/解除',
+                            name: 'AdminToggleFreezeButton',
+                            onTap: [
+                              CallCustomAction.named(
+                                'callAdminToggleFreeze',
+                                arguments: {
+                                  'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                                  'freeze': Not(CustomFunction(adminUserIsFrozenFn, args: {'item': item})),
+                                },
+                                outputAs: 'adminToggleFreezeResult',
+                              ),
+                              CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult'),
+                              SetState(
+                                ff.Pages.userManagementPage.state.adminUsersList,
+                                ActionOutput('adminUsersRefetchResult'),
+                              ),
+                            ],
+                          ),
+                          Button(
+                            '強制退会',
+                            name: 'AdminForceDeleteButton',
+                            onTap: [
+                              CallCustomAction.named(
+                                'callAdminForceDeleteUser',
+                                arguments: {'userId': CustomFunction(adminUserIdFn, args: {'item': item})},
+                                outputAs: 'adminForceDeleteResult',
+                              ),
+                              CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult2'),
+                              SetState(
+                                ff.Pages.userManagementPage.state.adminUsersList,
+                                ActionOutput('adminUsersRefetchResult2'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Button(
+                        'コンテンツ管理',
+                        name: 'AdminContentModerationNavButton',
+                        onTap: [
+                          Navigate(
+                            userContentModerationPage,
+                            params: {
+                              'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                              'userNickname': CustomFunction(adminUserNicknameFn, args: {'item': item}),
+                              'userAccountType': CustomFunction(adminUserAccountTypeFn, args: {'item': item}),
+                            },
+                          ),
+                        ],
+                      ),
+                      Button(
+                        '退会ブロック状況',
+                        name: 'AdminDeletionMonitorNavButton',
+                        onTap: [
+                          Navigate(
+                            accountDeletionMonitorPage,
+                            params: {
+                              'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                              'userNickname': CustomFunction(adminUserNicknameFn, args: {'item': item}),
+                            },
+                          ),
+                        ],
+                      ),
+                      Button(
+                        '同意記録',
+                        name: 'AdminConsentRecordNavButton',
+                        onTap: [
+                          Navigate(
+                            consentRecordPage,
+                            params: {
+                              'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                              'userNickname': CustomFunction(adminUserNicknameFn, args: {'item': item}),
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  });
+
+  app.customAction(
+    'callExportAuditLogCsv',
+    args: {'rows': listOf(string)},
+    returns: bool_,
+    description: '監査ログ一覧（現在読み込み済みの行のみ）をCSV形式でクリップボードにコピーする。',
+    code: r'''
+import 'package:flutter/services.dart';
+
+Future<bool> callExportAuditLogCsv(List<String>? rows) async {
+  try {
+    final data = rows ?? <String>[];
+    if (data.isEmpty) return false;
+    final buffer = StringBuffer('admin_nickname,action,target_type,target_id,reason,date\n');
+    for (final row in data) {
+      final parts = row.split('|||');
+      final escaped = parts.map((p) => '"${p.replaceAll('"', '""')}"').join(',');
+      buffer.writeln(escaped);
+    }
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.editPage(ff.Pages.auditLogPage, (page) {
+    page.ensureReplaced(
+      page.findByKey('ListView_c4h7cqh5'), // AuditLogListView
+      Column(
+        name: 'AuditLogWithExportColumn',
+        spacing: 8,
+        children: [
+          Button(
+            'CSVをコピー（読み込み済みの行のみ）',
+            name: 'AdminExportAuditLogCsvButton',
+            variant: ButtonVariant.outlined,
+            onTap: [
+              CallCustomAction.named(
+                'callExportAuditLogCsv',
+                arguments: {'rows': State(ff.Pages.auditLogPage.state.auditLogsList)},
+                outputAs: 'exportAuditLogCsvResult',
+              ),
+              If(
+                ActionOutput('exportAuditLogCsvResult'),
+                then: [Snackbar('CSVをクリップボードにコピーしました。スプレッドシートに貼り付けてください。')],
+                orElse: [Snackbar('コピーする行がありません。')],
+              ),
+            ],
+          ),
+          Divider(),
+          Expanded(
+            ListView(
+              name: 'AuditLogListView',
+              padding: EdgeInsets.all(16),
+              spacing: 8,
+              source: State(ff.Pages.auditLogPage.state.auditLogsList),
+              itemBuilder: (item) => Card(
+                child: Container(
+                  padding: EdgeInsets.all(12),
+                  child: Text(CustomFunction(auditLogItemLabelFn, args: {'item': item}), style: Styles.bodySmall),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  });
+
+  app.customAction(
+    'callExportProcessedEventsCsv',
+    args: {'rows': listOf(string)},
+    returns: bool_,
+    description: 'ProcessedEvents一覧（現在読み込み済みの行のみ）をCSV形式でクリップボードにコピーする。',
+    code: r'''
+import 'package:flutter/services.dart';
+
+Future<bool> callExportProcessedEventsCsv(List<String>? rows) async {
+  try {
+    final data = rows ?? <String>[];
+    if (data.isEmpty) return false;
+    final buffer = StringBuffer('id,event_type,date\n');
+    for (final row in data) {
+      final parts = row.split('|||');
+      final escaped = parts.map((p) => '"${p.replaceAll('"', '""')}"').join(',');
+      buffer.writeln(escaped);
+    }
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.editPage(ff.Pages.processedEventsPage, (page) {
+    page.ensureReplaced(
+      page.findByKey('ListView_ooz23w41'), // ProcessedEventsListView
+      Column(
+        name: 'ProcessedEventsWithExportColumn',
+        spacing: 8,
+        children: [
+          Button(
+            'CSVをコピー（読み込み済みの行のみ）',
+            name: 'AdminExportProcessedEventsCsvButton',
+            variant: ButtonVariant.outlined,
+            onTap: [
+              CallCustomAction.named(
+                'callExportProcessedEventsCsv',
+                arguments: {'rows': State(ff.Pages.processedEventsPage.state.processedEventsList)},
+                outputAs: 'exportProcessedEventsCsvResult',
+              ),
+              If(
+                ActionOutput('exportProcessedEventsCsvResult'),
+                then: [Snackbar('CSVをクリップボードにコピーしました。スプレッドシートに貼り付けてください。')],
+                orElse: [Snackbar('コピーする行がありません。')],
+              ),
+            ],
+          ),
+          Divider(),
+          Expanded(
+            ListView(
+              name: 'ProcessedEventsListView',
+              padding: EdgeInsets.all(16),
+              spacing: 8,
+              source: State(ff.Pages.processedEventsPage.state.processedEventsList),
+              itemBuilder: (item) => Card(
+                child: Container(
+                  padding: EdgeInsets.all(12),
+                  child: Text(CustomFunction(processedEventItemLabelFn, args: {'item': item}), style: Styles.bodySmall),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  });
+
+  app.customAction(
+    'callExportWithdrawalQueueCsv',
+    args: {'rows': listOf(string)},
+    returns: bool_,
+    description: '出金申請キュー一覧（現在読み込み済みの行のみ）をCSV形式でクリップボードにコピーする。',
+    code: r'''
+import 'package:flutter/services.dart';
+
+Future<bool> callExportWithdrawalQueueCsv(List<String>? rows) async {
+  try {
+    final data = rows ?? <String>[];
+    if (data.isEmpty) return false;
+    final buffer = StringBuffer('id,user_id,status,stripe_balance,debt_total\n');
+    for (final row in data) {
+      final parts = row.split('|||');
+      final escaped = parts.map((p) => '"${p.replaceAll('"', '""')}"').join(',');
+      buffer.writeln(escaped);
+    }
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.editPage(ff.Pages.withdrawalQueuePage, (page) {
+    page.ensureReplaced(
+      page.findByKey('ListView_2uywnqgp'), // AdminPayoutRequestsListView
+      Column(
+        name: 'AdminPayoutRequestsWithExportColumn',
+        spacing: 8,
+        children: [
+          Button(
+            'CSVをコピー（読み込み済みの行のみ）',
+            name: 'AdminExportWithdrawalQueueCsvButton',
+            variant: ButtonVariant.outlined,
+            onTap: [
+              CallCustomAction.named(
+                'callExportWithdrawalQueueCsv',
+                arguments: {'rows': State(ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList)},
+                outputAs: 'exportWithdrawalQueueCsvResult',
+              ),
+              If(
+                ActionOutput('exportWithdrawalQueueCsvResult'),
+                then: [Snackbar('CSVをクリップボードにコピーしました。スプレッドシートに貼り付けてください。')],
+                orElse: [Snackbar('コピーする行がありません。')],
+              ),
+            ],
+          ),
+          Divider(),
+          Expanded(
+            ListView(
+              name: 'AdminPayoutRequestsListView',
+              padding: EdgeInsets.all(16),
+              spacing: 8,
+              source: State(ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList),
+              itemBuilder: (item) => Card(
+                child: Container(
+                  padding: EdgeInsets.all(12),
+                  child: Column(
+                    crossAxis: CrossAxis.start,
+                    spacing: 4,
+                    children: [
+                      Text(CustomFunction(adminPayoutItemLabelFn, args: {'item': item})),
+                      Row(
+                        mainAxis: MainAxis.spaceBetween,
+                        children: [
+                          Button(
+                            '承認',
+                            name: 'AdminApprovePayoutButton',
+                            onTap: [
+                              CallCustomAction.named(
+                                'callAdminApprovePayout',
+                                arguments: {
+                                  'requestId': CustomFunction(adminPayoutRequestIdFn, args: {'item': item}),
+                                  'action': 'approve',
+                                },
+                                outputAs: 'adminApprovePayoutResult',
+                              ),
+                              CallCustomAction.named('fetchAdminPayoutRequests', outputAs: 'payoutRequestsRefetchResult'),
+                              SetState(ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList, ActionOutput('payoutRequestsRefetchResult')),
+                            ],
+                          ),
+                          Button(
+                            '保留',
+                            name: 'AdminHoldPayoutButton',
+                            onTap: [
+                              CallCustomAction.named(
+                                'callAdminApprovePayout',
+                                arguments: {
+                                  'requestId': CustomFunction(adminPayoutRequestIdFn, args: {'item': item}),
+                                  'action': 'on_hold',
+                                },
+                                outputAs: 'adminHoldPayoutResult',
+                              ),
+                              CallCustomAction.named('fetchAdminPayoutRequests', outputAs: 'payoutRequestsRefetchResult2'),
+                              SetState(ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList, ActionOutput('payoutRequestsRefetchResult2')),
+                            ],
+                          ),
+                          Button(
+                            '却下',
+                            name: 'AdminRejectPayoutButton',
+                            onTap: [
+                              CallCustomAction.named(
+                                'callAdminApprovePayout',
+                                arguments: {
+                                  'requestId': CustomFunction(adminPayoutRequestIdFn, args: {'item': item}),
+                                  'action': 'rejected',
+                                },
+                                outputAs: 'adminRejectPayoutResult',
+                              ),
+                              CallCustomAction.named('fetchAdminPayoutRequests', outputAs: 'payoutRequestsRefetchResult3'),
+                              SetState(ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList, ActionOutput('payoutRequestsRefetchResult3')),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  });
+
+  app.customAction(
+    'callExportReservationOversightCsv',
+    args: {'rows': listOf(string)},
+    returns: bool_,
+    description: '予約オーバーサイト一覧（現在読み込み済みの行のみ）をCSV形式でクリップボードにコピーする。',
+    code: r'''
+import 'package:flutter/services.dart';
+
+Future<bool> callExportReservationOversightCsv(List<String>? rows) async {
+  try {
+    final data = rows ?? <String>[];
+    if (data.isEmpty) return false;
+    final buffer = StringBuffer('id,status,guest_id,total_amount,thirty_min_rule_applied\n');
+    for (final row in data) {
+      final parts = row.split('|||');
+      final escaped = parts.map((p) => '"${p.replaceAll('"', '""')}"').join(',');
+      buffer.writeln(escaped);
+    }
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
+  app.editPage(ff.Pages.reservationOversightPage, (page) {
+    page.ensureInsertedBefore(
+      page.findByKey('Divider_pjhq7dzq'),
+      Button(
+        'CSVをコピー（読み込み済みの行のみ）',
+        name: 'AdminExportReservationOversightCsvButton',
+        variant: ButtonVariant.outlined,
+        onTap: [
+          CallCustomAction.named(
+            'callExportReservationOversightCsv',
+            arguments: {'rows': State(ff.Pages.reservationOversightPage.state.adminReservationsList)},
+            outputAs: 'exportReservationOversightCsvResult',
+          ),
+          If(
+            ActionOutput('exportReservationOversightCsvResult'),
+            then: [Snackbar('CSVをクリップボードにコピーしました。スプレッドシートに貼り付けてください。')],
+            orElse: [Snackbar('コピーする行がありません。')],
+          ),
+        ],
+      ),
+    );
+  });
+
+  // ==========================================================================
+  // BUG FIX (post-implementation re-review, comprehensive adversarial audit):
+  // the comment that used to sit above the CSV block just above THIS one
+  // claimed "ReservationOversightPage itself already has a Column+Divider+
+  // Expanded(ListView) shape" — that claim was never actually verified
+  // against live state and was FALSE. Confirmed directly via
+  // generated_code/lib/reservation_oversight_page/reservation_oversight_page_widget.dart:
+  // `AdminReservationsListView` (live key `ListView_zjzzlzdq`, confirmed via
+  // lib/flutterflow_project/pages/reservation_oversight_page.dart) sits
+  // directly inside a `Column(mainAxisSize: MainAxisSize.min)` with NO
+  // `Expanded`/`Flexible` ancestor and no `shrinkWrap: true` on the ListView
+  // itself. `Column` gives non-flex children UNBOUNDED main-axis height
+  // regardless of `mainAxisSize` — a `ListView` (needs bounded height along
+  // its scroll axis unless `shrinkWrap: true`) laid out this way throws
+  // Flutter's "Vertical viewport was given unbounded height" assertion at
+  // render time, on EVERY page load (`onLoad` always populates
+  // `adminReservationsList`, so the ListView is never empty-and-skipped).
+  // This predates this session (traced to the `ensureReplaced` a few
+  // thousand lines above this comment, frozen, which originally built this
+  // exact itemBuilder as a plain `ListView` when adding the 延長・報酬詳細
+  // button) — not introduced by the CSV-export work above, but that work's
+  // own comment incorrectly asserted this page was already safe, which is
+  // why the fix wasn't applied at the time. Fixed now: `ensureReplaced` on
+  // the ListView, wrapping it in `Expanded` — reproducing its full current
+  // live itemBuilder content EXACTLY (verified via generated_code, not the
+  // stale original `app.ensurePage` declaration, which predates the later
+  // 延長・報酬詳細 button addition and would have silently dropped it).
+  // ==========================================================================
+
+  app.editPage(ff.Pages.reservationOversightPage, (page) {
+    page.ensureReplaced(
+      page.findByKey('ListView_zjzzlzdq'), // AdminReservationsListView
+      Expanded(
+        ListView(
+          name: 'AdminReservationsListView',
+          padding: EdgeInsets.all(16),
+          spacing: 8,
+          source: State(ff.Pages.reservationOversightPage.state.adminReservationsList),
+          itemBuilder: (item) => Card(
+            child: Container(
+              padding: EdgeInsets.all(12),
+              child: Column(
+                crossAxis: CrossAxis.start,
+                spacing: 4,
+                children: [
+                  Text(CustomFunction(adminReservationItemLabelFn, args: {'item': item})),
+                  Row(
+                    mainAxis: MainAxis.spaceBetween,
+                    children: [
+                      Button(
+                        '強制キャンセル',
+                        name: 'AdminForceCancelButton',
+                        onTap: [
+                          CallCustomAction.named(
+                            'callAdminForceCancel',
+                            arguments: {
+                              'resId': CustomFunction(adminResIdFn, args: {'item': item}),
+                              'reason': State(ff.Pages.reservationOversightPage.state.adminActionReason),
+                            },
+                            outputAs: 'adminForceCancelResult',
+                          ),
+                          CallCustomAction.named('fetchAdminReservations', outputAs: 'adminResRefetchResult'),
+                          SetState(
+                            ff.Pages.reservationOversightPage.state.adminReservationsList,
+                            ActionOutput('adminResRefetchResult'),
+                          ),
+                        ],
+                      ),
+                      Button(
+                        '手動返金',
+                        name: 'AdminManualRefundButton',
+                        onTap: [
+                          CallCustomAction.named(
+                            'callAdminManualRefund',
+                            arguments: {
+                              'resId': CustomFunction(adminResIdFn, args: {'item': item}),
+                              'amount': State(ff.Pages.reservationOversightPage.state.adminRefundAmount),
+                              'reason': State(ff.Pages.reservationOversightPage.state.adminActionReason),
+                            },
+                            outputAs: 'adminManualRefundResult',
+                          ),
+                          CallCustomAction.named('fetchAdminReservations', outputAs: 'adminResRefetchResult2'),
+                          SetState(
+                            ff.Pages.reservationOversightPage.state.adminReservationsList,
+                            ActionOutput('adminResRefetchResult2'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  Button(
+                    '延長・報酬詳細',
+                    name: 'AdminExtensionOversightNavButton',
+                    onTap: [
+                      Navigate(
+                        ff.Pages.extensionOversightPage,
+                        params: {'resId': CustomFunction(adminResIdFn, args: {'item': item})},
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        name: 'AdminReservationsListExpanded',
+      ),
+    );
+  });
+
+  // ==========================================================================
+  // FIX (2026-08-13, Task #20 follow-up): root cause of the AdminDashboardPage
+  // nav-button duplication above. Five separate tasks (#13, #15, #16, #19,
+  // #20) each called `page.ensureInsertedAfter(page.findByKey('Button_ecphn4d3'),
+  // ...)` targeting the SAME fixed anchor (the original AdminUserManagementNavButton).
+  // Because the whole DSL file re-executes top-to-bottom on every push, all
+  // prior insertAfter calls re-run alongside each new one. `ensureInsertedAfter`
+  // always inserts its widget directly adjacent to the anchor, so each new
+  // call pushes the PREVIOUS calls' buttons one position further from the
+  // anchor. On the next push, an earlier call's own idempotency check (is my
+  // widget already the anchor's immediate next sibling?) then sees a
+  // DIFFERENT button in that slot — not a match — and re-inserts itself.
+  // This cascades: every push after a second button joins the same anchor
+  // duplicates every earlier button anchored there. Confirmed directly via
+  // lib/flutterflow_project/pages/admin_dashboard_page.dart: 21 total
+  // children for 9 intended unique buttons before this fix.
+  //
+  // NEW LESSON (extends the existing `ensureInsertedAfter` vs
+  // `ensureInsertedBefore` guidance in this file/PROJECT_KNOWLEDGE.md):
+  // `ensureInsertedAfter` is only safe when each call targets a DISTINCT,
+  // stable anchor (e.g. "insert after the widget I inserted last time") —
+  // NOT when multiple independent calls across separate pushes all anchor
+  // to the same original widget. Going forward, any page that accumulates
+  // more than one structural insertion over time (like this admin nav menu)
+  // must use a single `ensureReplaced` reconstruction that is EXTENDED in
+  // place on each new push, not a growing chain of `ensureInsertedAfter`
+  // calls against a fixed anchor.
+  //
+  // Fix: single `ensureReplaced` on the body Column (current key confirmed
+  // via admin_dashboard_page.dart: `Column_cjy1idk1`), reconstructing the
+  // full, deduplicated button list exactly once. Any FUTURE admin-dashboard
+  // nav button must be added by editing THIS block, not by adding another
+  // `ensureInsertedAfter` call.
+  // ==========================================================================
+
+  app.editPage(ff.Pages.adminDashboardPage, (page) {
+    page.ensureReplaced(
+      page.findByKey('Column_cjy1idk1'),
+      Column(
+        name: 'AdminDashboardMenuColumn',
+        padding: EdgeInsets.all(16),
+        spacing: 12,
+        children: [
+          Button(
+            'ユーザー管理',
+            name: 'AdminUserManagementNavButton',
+            onTap: [Navigate(userManagementPage)],
+          ),
+          Button(
+            '台帳オーバーサイト',
+            name: 'AdminLedgerOversightNavButton',
+            onTap: [Navigate(ledgerOversightPage)],
+          ),
+          Button(
+            '出金申請キュー',
+            name: 'AdminWithdrawalQueueNavButton',
+            onTap: [Navigate(withdrawalQueuePage)],
+          ),
+          Button(
+            'ワーク投稿管理',
+            name: 'AdminWorkPostManagementNavButton',
+            onTap: [Navigate(workPostManagementPage)],
+          ),
+          Button(
+            'チャットオーバーサイト',
+            name: 'AdminChatOversightNavButton',
+            onTap: [Navigate(chatOversightPage)],
+          ),
+          Button(
+            '予約オーバーサイト',
+            name: 'AdminReservationOversightNavButton',
+            onTap: [Navigate(reservationOversightPage)],
+          ),
+          Button(
+            'KYC審査',
+            name: 'AdminKycReviewNavButton',
+            onTap: [Navigate(ff.Pages.kycReviewPage)],
+          ),
+          Button(
+            '通報レビュー',
+            name: 'AdminReportReviewNavButton',
+            onTap: [Navigate(ff.Pages.adminReportReviewPage)],
+          ),
+          Button(
+            'アフィリエイト管理',
+            name: 'AdminAffiliateManagementNavButton',
+            onTap: [Navigate(ff.Pages.adminAffiliateManagement)],
+          ),
+          Button(
+            '通知・モデレーションセンター',
+            name: 'AdminNotificationModerationCenterNavButton',
+            onTap: [Navigate(notificationModerationCenterPage)],
+          ),
+          Button(
+            '監査ログ',
+            name: 'AdminAuditLogNavButton',
+            onTap: [Navigate(auditLogPage)],
+          ),
+          Button(
+            'ProcessedEvents',
+            name: 'AdminProcessedEventsNavButton',
+            onTap: [Navigate(processedEventsPage)],
+          ),
+          Button(
+            'バナー・告知管理',
+            name: 'AdminBannerManagementNavButton',
+            onTap: [Navigate(bannerManagementPage)],
+          ),
+          Button(
+            'CocoTen店舗管理',
+            name: 'AdminCocotenManagementNavButton',
+            onTap: [Navigate(cocotenManagementPage)],
+          ),
+          Button(
+            'サービス提供エリア',
+            name: 'AdminServiceAreaNavButton',
+            onTap: [Navigate(serviceAreaPage)],
+          ),
+          Button(
+            'Home表示順診断',
+            name: 'AdminHomeRankingDiagnosticsNavButton',
+            onTap: [Navigate(homeRankingDiagnosticsPage)],
+          ),
+          Button(
+            'アクティビティレポート',
+            name: 'AdminActivityReportNavButton',
+            onTap: [Navigate(activityReportPage)],
+          ),
+        ],
+      ),
+    );
+  });
+
+  // ==========================================================================
+  // Dead back-arrow icon, systemic across 8 pages (comprehensive project-
+  // wide review round 2, CONFIRMED). `grep -rl "Icons.arrow_back"
+  // generated_code/lib/` found exactly these 8 files, each with the SAME
+  // structure: an `Icon(Icons.arrow_back, ...)` rendered in the AppBar with
+  // NO `InkWell`/`GestureDetector`/`onTap` wrapper at all — tapping it does
+  // nothing. The only tappable element nearby on each of these pages is the
+  // adjacent 40×40 logo `InkWell`, which does something else entirely (on
+  // several of these pages, confirmed elsewhere in this review round, the
+  // logo actually signs the user out). A user mid-flow (e.g. filling out a
+  // KYC form or a reservation) taps the visually obvious back arrow
+  // expecting to go back a step; nothing happens, and the only other
+  // visible control may log them out and lose their in-progress state.
+  // Fixed by wiring each icon's ON_TAP to `NavigateBack()` — genuinely
+  // "go back," matching what the icon has always visually promised. Every
+  // target Icon key confirmed via the typed SDK (each is the first child
+  // of the AppBar title Row, immediately before the logo Image, matching
+  // the exact structure this whole fix is based on) before being wired.
+  // ==========================================================================
+
+  app.editPage(ff.Pages.kyc, (page) {
+    page.ensureActions(
+      page.findByKey('Icon_7f5t6rr5'),
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [NavigateBack()],
+    );
+  });
+  app.editPage(ff.Pages.paymentConfirm, (page) {
+    page.ensureActions(
+      page.findByKey('Icon_shry4uqy'),
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [NavigateBack()],
+    );
+  });
+  app.editPage(ff.Pages.extensionPayment, (page) {
+    page.ensureActions(
+      page.findByKey('Icon_w27y1h4h'),
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [NavigateBack()],
+    );
+  });
+  app.editPage(ff.Pages.affiliate, (page) {
+    page.ensureActions(
+      page.findByKey('Icon_6pfigm2l'),
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [NavigateBack()],
+    );
+  });
+  app.editPage(ff.Pages.castProfile, (page) {
+    page.ensureActions(
+      page.findByKey('Icon_s7gxbstb'),
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [NavigateBack()],
+    );
+  });
+  app.editPage(ff.Pages.macchaChats, (page) {
+    page.ensureActions(
+      page.findByKey('Icon_rtfa55ss'),
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [NavigateBack()],
+    );
+  });
+  app.editPage(ff.Pages.reservationDetail, (page) {
+    page.ensureActions(
+      page.findByKey('Icon_ojmnzskm'),
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [NavigateBack()],
+    );
+  });
+  app.editPage(ff.Pages.reservationForm, (page) {
+    page.ensureActions(
+      page.findByKey('Icon_1ll7h40h'),
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [NavigateBack()],
+    );
+  });
+
+  // ==========================================================================
+  // Feature build (unimplemented-features pass): group-invite-specific
+  // accept/decline for cast (§3.5.9/§3.6.7). The BACKEND logic
+  // (`respondToReservation`) already correctly tracks each invited cast's
+  // own response independently and only finalizes once every cast_id has
+  // accepted (PROJECT_KNOWLEDGE.md §71/§72) — confirmed by reading it in
+  // full before starting, not assumed from the task's own framing. The
+  // actual gap was entirely client-side: `ApproveButton`/`DeclineButton`
+  // always showed the SAME generic "承諾しました" Snackbar regardless of
+  // whether this cast's accept just finalized the booking or was only
+  // recorded while other invited casts are still pending, and nothing on
+  // the page showed this was even a group invite in the first place.
+  // ==========================================================================
+
+  app.editPage(ff.Pages.reservationDetail, (page) {
+    // ON_TAP already existed on both buttons (confirmed via the typed SDK
+    // AND via generated_code — `actions.callRespondToReservation(...)`,
+    // wired through a mechanism that predates this DSL's own involvement
+    // with this page, not a `CallCustomAction.named(...)` call anywhere in
+    // this script's own text). `ensureActions` is documented as safe for
+    // wholesale-replacing an EXISTING trigger chain regardless of how it
+    // originated (this project's own established rule) — reproducing it
+    // here rather than trying to walk/patch an origin this session can't
+    // fully trace.
+    page.ensureActions(
+      page.findByKey('Button_ejb4ehm1'), // ApproveButton
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'callRespondToReservation',
+          arguments: {'resId': PageParam('resId'), 'accept': true},
+          outputAs: 'respondResult',
+        ),
+        If(
+          ActionOutput('respondResult'),
+          then: [
+            CallCustomAction.named(
+              'fetchRespondOutcomeMessage',
+              arguments: {'resId': PageParam('resId'), 'accept': true},
+              outputAs: 'outcomeMessage',
+            ),
+            Snackbar(ActionOutput('outcomeMessage')),
+            NavigateBack(),
+          ],
+          orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Button_vokkqeru'), // DeclineButton
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        // Distinct output-variable names from ApproveButton's chain above —
+        // confirmed required (not just good hygiene): `flutterflow ai run`
+        // rejected `respondResult`/`outcomeMessage` reused here with
+        // "Action ... has an output variable with the same name as that of
+        // another widget" — this project's own established rule that
+        // action-output names must be unique PAGE-WIDE, not just
+        // per-trigger, applies across sibling widgets' own chains too.
+        CallCustomAction.named(
+          'callRespondToReservation',
+          arguments: {'resId': PageParam('resId'), 'accept': false},
+          outputAs: 'declineResult',
+        ),
+        If(
+          ActionOutput('declineResult'),
+          then: [
+            CallCustomAction.named(
+              'fetchRespondOutcomeMessage',
+              arguments: {'resId': PageParam('resId'), 'accept': false},
+              outputAs: 'declineOutcomeMessage',
+            ),
+            Snackbar(ActionOutput('declineOutcomeMessage')),
+            NavigateBack(),
+          ],
+          orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+        ),
+      ],
+    );
+    // Group-invite status indicator, inserted directly above the approve/
+    // decline row so it's the last thing a cast sees before deciding.
+    // `visible:` gates on the label being non-empty (customFunction above
+    // already returns '' for a non-group-invite reservation), matching
+    // this project's own established `Not(Equals(..., ''))` idiom for
+    // "hide when there's nothing to show" used elsewhere in this file.
+    page.ensureInsertedBefore(
+      page.findByKey('Row_llse1xzq'), // ApproveDeclineRow
+      Text(
+        CustomFunction(reservationDetailGroupInviteLabelFn, args: {'data': State('resDetailData')}),
+        style: Styles.bodySmall,
+        color: Colors.secondaryText,
+        visible: Not(
+          Equals(
+            CustomFunction(reservationDetailGroupInviteLabelFn, args: {'data': State('resDetailData')}),
+            '',
+          ),
+        ),
+        name: 'ReservationDetailGroupInviteStatus',
+      ),
+    );
+  });
+
+  // ==========================================================================
+  // Feature build (unimplemented-features pass): §3.1.8's 4 discrete
+  // required consents (ToS, business-commission clause, personal-data
+  // handling, privacy policy) — only ToS and Privacy Policy had dedicated
+  // viewer pages (Phase 11 slice 3); the other 2 document types had none.
+  // Built matching that exact same established pattern (same placeholder
+  // legal text, same explicit "[法務レビュー待ち]" disclosure — real legal
+  // content is a legal-drafting deliverable, not something to fabricate
+  // here, same reasoning already applied to the first 2 documents).
+  // ==========================================================================
+
+  // FROZEN (confirmed landed — both pages exist live, verified via
+  // lib/flutterflow_project/pages/{business_commission_agreement,
+  // personal_data_handling}.dart and generated_code) — `app.ensurePage(...)`
+  // is idempotent (won't error if left live) but would silently no-op any
+  // future edit to these pages' bodies, same discipline as every other
+  // `ensurePage` call in this file. Any future change must go through
+  // `app.editPage(ff.Pages.<name>, ...)` instead. The checkbox column below
+  // now uses `ff.Pages.*` (the real typed handles, regenerated after this
+  // push) instead of these locally-captured variables, which were only
+  // needed within the run that created them.
+  // const consentLegalPlaceholderText =
+  //     '本規約の内容は法務レビュー待ちです。最終版が確定次第、本画面に反映されます。';
+  //
+  // final businessCommissionAgreementPage = app.ensurePage(
+  //   'BusinessCommissionAgreement',
+  //   route: '/business-commission-agreement',
+  //   description: '業務委託契約ページ（キャスト/スタッフとプラットフォーム間の業務委託条項）。',
+  //   body: Scaffold(
+  //     appBar: AppBar(title: '業務委託契約'),
+  //     body: Column(
+  //       padding: 16,
+  //       children: [
+  //         Text(
+  //           '本契約は、プラットフォームとキャスト/スタッフとの間の業務委託関係（報酬、代行受領スキームに基づく支払い、キャンセル時の取り扱いなどを含む）を定めるものです。',
+  //           style: Styles.labelSmall,
+  //         ),
+  //         Text(consentLegalPlaceholderText, style: Styles.bodyMedium),
+  //       ],
+  //     ),
+  //   ),
+  // );
+  //
+  // final personalDataHandlingPage = app.ensurePage(
+  //   'PersonalDataHandling',
+  //   route: '/personal-data-handling',
+  //   description: '個人情報の取り扱いページ（KYC書類・決済情報等の取得目的と管理方法）。',
+  //   body: Scaffold(
+  //     appBar: AppBar(title: '個人情報の取り扱いについて'),
+  //     body: Column(
+  //       padding: 16,
+  //       children: [
+  //         Text(
+  //           '本人確認書類、決済情報、位置情報など、本サービスの提供に必要な個人情報の取得目的・利用範囲・管理方法について定めるものです。',
+  //           style: Styles.labelSmall,
+  //         ),
+  //         Text(consentLegalPlaceholderText, style: Styles.bodyMedium),
+  //       ],
+  //     ),
+  //   ),
+  // );
+
+  // Replaces the single "利用規約・個人情報の取り扱いに同意します" checkbox
+  // with 4 independent ones, each pairable with a "詳細" (view details) link
+  // to its own document — matching §3.1.8's literal requirement ("all four
+  // required") rather than the one-checkbox simplification this page
+  // shipped with originally.
+  app.editPage(ff.Pages.basicInfoRegistration, (page) {
+    page.ensureReplaced(
+      page.findByKey('Row_0u3ys8k0'), // was: single ConsentCheckbox + label
+      Column(
+        name: 'ConsentCheckboxColumn',
+        crossAxis: CrossAxis.start,
+        spacing: 8,
+        children: [
+          Row(
+            crossAxis: CrossAxis.center,
+            children: [
+              Checkbox(
+                label: '利用規約に同意します',
+                value: State('agreedTos'),
+                onChanged: SetState('agreedTos', const WidgetValue()),
+                name: 'AgreedTosCheckbox',
+              ),
+              Button('詳細', variant: ButtonVariant.text, onTap: [Navigate(ff.Pages.termsOfService)]),
+            ],
+          ),
+          Row(
+            crossAxis: CrossAxis.center,
+            children: [
+              Checkbox(
+                label: '業務委託契約に同意します',
+                value: State('agreedBusinessCommission'),
+                onChanged: SetState('agreedBusinessCommission', const WidgetValue()),
+                name: 'AgreedBusinessCommissionCheckbox',
+              ),
+              Button('詳細', variant: ButtonVariant.text, onTap: [Navigate(ff.Pages.businessCommissionAgreement)]),
+            ],
+          ),
+          Row(
+            crossAxis: CrossAxis.center,
+            children: [
+              Checkbox(
+                label: '個人情報の取り扱いに同意します',
+                value: State('agreedPersonalData'),
+                onChanged: SetState('agreedPersonalData', const WidgetValue()),
+                name: 'AgreedPersonalDataCheckbox',
+              ),
+              Button('詳細', variant: ButtonVariant.text, onTap: [Navigate(ff.Pages.personalDataHandling)]),
+            ],
+          ),
+          Row(
+            crossAxis: CrossAxis.center,
+            children: [
+              Checkbox(
+                label: 'プライバシーポリシーに同意します',
+                value: State('agreedPrivacyPolicy'),
+                onChanged: SetState('agreedPrivacyPolicy', const WidgetValue()),
+                name: 'AgreedPrivacyPolicyCheckbox',
+              ),
+              Button('詳細', variant: ButtonVariant.text, onTap: [Navigate(ff.Pages.privacyPolicy)]),
+            ],
+          ),
+        ],
+      ),
+    );
+  });
+
+  // ==========================================================================
+  // Feature build (unimplemented-features pass): "チャットを見る" button on
+  // WorkPostManagementPage's post list, visible only for partner_recruit
+  // posts with a real recruitment chat (`adminWorkPostHasChatFn`). Full
+  // `ensureReplaced` of the whole ListView (not just an `ensureInsertedAfter`
+  // of one new button) — a newly-inserted widget has no access to the
+  // itemBuilder closure's own `item` variable (same reason every other
+  // per-row-button addition in this file does a full reconstruction, not a
+  // bare insert), so wiring a per-item Navigate param needs the whole
+  // itemBuilder rebuilt.
+  // ==========================================================================
+
+  // FROZEN (confirmed landed — "チャットを見る" button live, verified via
+  // generated_code/lib/work_post_management_page/
+  // work_post_management_page_widget.dart) — `ensureReplaced` has no dedup
+  // guard, so leaving it live risked reassigning a fresh key to this
+  // ListView on every future unrelated push.
+  // app.editPage(ff.Pages.workPostManagementPage, (page) {
+  //   page.ensureReplaced(
+  //     page.findByKey('ListView_c4wugagd'), // AdminWorkPostsListView
+  //     ListView(
+  //       name: 'AdminWorkPostsListView',
+  //       padding: EdgeInsets.all(16),
+  //       spacing: 8,
+  //       source: State(ff.Pages.workPostManagementPage.state.adminWorkPostsList),
+  //       itemBuilder: (item) => Card(
+  //         child: Container(
+  //           padding: EdgeInsets.all(12),
+  //           child: Column(
+  //             crossAxis: CrossAxis.start,
+  //             spacing: 4,
+  //             children: [
+  //               Text(CustomFunction(adminWorkPostItemLabelFn, args: {'item': item})),
+  //               Button(
+  //                 '停止する',
+  //                 name: 'AdminCloseWorkPostButton',
+  //                 onTap: [
+  //                   CallCustomAction.named(
+  //                     'callAdminCloseWorkPost',
+  //                     arguments: {'postId': CustomFunction(adminWorkPostIdFn, args: {'item': item})},
+  //                     outputAs: 'adminCloseWorkPostResult',
+  //                   ),
+  //                   CallCustomAction.named('fetchAdminWorkPosts', outputAs: 'adminWorkPostsRefetchResult2'),
+  //                   SetState(ff.Pages.workPostManagementPage.state.adminWorkPostsList, ActionOutput('adminWorkPostsRefetchResult2')),
+  //                 ],
+  //               ),
+  //               Button(
+  //                 'チャットを見る',
+  //                 name: 'AdminViewRecruitmentChatButton',
+  //                 variant: ButtonVariant.outlined,
+  //                 visible: CustomFunction(adminWorkPostHasChatFn, args: {'item': item}),
+  //                 onTap: [
+  //                   Navigate(
+  //                     ff.Pages.adminRecruitmentChatPage,
+  //                     params: {'postId': CustomFunction(adminWorkPostIdFn, args: {'item': item})},
+  //                   ),
+  //                 ],
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // });
+
+  // ==========================================================================
+  // Native push notifications (FCM) infrastructure (unimplemented-features
+  // pass, IMPLEMENTATION_PLAN.md's original-outreach item, never in the
+  // later formal spec but never withdrawn — see §1.2's "as much as
+  // possible" instruction). Before writing any code, investigated whether
+  // this SDK's own documented `Actions.triggerPushNotificationToUser`
+  // (CLAUDE.md's Integrations section) was actually usable — traced the
+  // package's export graph directly (`.flutterflow/sdk/flutterflow_ai/lib/
+  // flutterflow_ai.dart` and every file it exports) and confirmed
+  // `Actions` (declared in `src/ui/actions.dart`) is NOT reachable from
+  // this public barrel at all — it's exported only via
+  // `src/internal_sdk.dart`, whose own doc comment reads "Internal
+  // FlutterFlow AI surface for package tests and maintainer tooling," and
+  // that file itself is exported nowhere. Confirmed, not assumed: `Actions`
+  // is genuinely not a resolvable symbol from this project's `dsl/edit.dart`
+  // today.
+  //
+  // Real infrastructure built instead, entirely via this project's own
+  // established "custom code authoring" mechanism (pub dependency + custom
+  // action, CLAUDE.md's own documented path for capabilities the native
+  // DSL surface doesn't cover) PLUS a server-side send via
+  // `admin.messaging()` (firebase-admin, already a dependency, zero new
+  // backend deps) — see `firebase/functions/src/config.ts`'s
+  // `sendPushNotification` for the full architecture rationale, including
+  // why server-side sending is not just a workaround but the objectively
+  // more correct choice here (most of this app's notification-triggering
+  // events are server-only/webhook/scheduled paths with no live client
+  // present at all, e.g. Stripe webhooks — a client-side-only trigger
+  // mechanism could never have reached those regardless of the export
+  // problem above).
+  //
+  // This block is CLIENT-SIDE half only: request permission, get the
+  // device's FCM token, persist it to `users/{uid}.fcm_token` (the SAME
+  // field `sendPushNotification` reads server-side). Wired into MyPage's
+  // ON_INIT_STATE (not HomePage's — elsewhere in this file HomePage's own
+  // ON_INIT_STATE chain is flagged as delicate/risky to touch a second
+  // time; MyPage carries no such warning and is visited routinely by every
+  // logged-in user).
+  // ==========================================================================
+
+  app.pubDependency('firebase_messaging', '15.2.5');
+
+  app.customAction(
+    'registerFcmToken',
+    returns: bool_,
+    description: 'プッシュ通知の許可をリクエストし、FCMトークンを取得してユーザードキュメントに保存する。',
+    code: r'''
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '/auth/firebase_auth/auth_util.dart';
+
+Future<bool> registerFcmToken() async {
+  try {
+    final uid = currentUserUid;
+    if (uid.isEmpty) return false;
+
+    final messaging = FirebaseMessaging.instance;
+    final settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+        settings.authorizationStatus != AuthorizationStatus.provisional) {
+      return false;
+    }
+
+    final token = await messaging.getToken();
+    if (token == null || token.isEmpty) return false;
+
+    await FirebaseFirestore.instance.collection('users').doc(uid).update({
+      'fcm_token': token,
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
 }

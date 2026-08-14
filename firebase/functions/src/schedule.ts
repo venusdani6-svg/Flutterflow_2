@@ -206,6 +206,22 @@ export function reservedSlotsQuery(resId: string): FirebaseFirestore.Query {
 }
 
 /**
+ * Every `schedule_slots` doc locked by ONE specific extension (as opposed to
+ * `reservedSlotsQuery`, which matches every slot the whole reservation
+ * holds, base window included). Extension-locked docs carry BOTH `res_id`
+ * (so a full-reservation release — cancellation, expiry — still sweeps them
+ * up for free via `reservedSlotsQuery`, no special-casing needed there) and
+ * `ext_id` (so a single extension can be released on its own, e.g. when that
+ * extension's own payment fails/gets cancelled, without touching the base
+ * reservation's or any OTHER extension's locks). Single-field equality
+ * query, auto-indexed, no composite index required — same reasoning as
+ * `reservedSlotsQuery` above.
+ */
+export function extensionSlotsQuery(extId: string): FirebaseFirestore.Query {
+  return db.collection("schedule_slots").where("ext_id", "==", extId);
+}
+
+/**
  * Non-transactional release for the one low-stakes call site that doesn't
  * need transactional atomicity with a reservation-status write
  * (`handlePaymentIntentFailed`, which fires pre-authorization in the

@@ -1,6 +1,6 @@
 # icoccha Firestore Schema Definition
 # Version: 1.0 (MVP)
-# Last updated: 2026-03-27
+# Last updated: 2026-08-13 (drift reconciliation — see PROJECT_KNOWLEDGE.md §69/§77 for the audit trail; every addition below is confirmed against an actual writer in firebase/functions/src, not inferred)
 
 ## Collections Overview
 
@@ -16,6 +16,8 @@ Path: `/users/{uid}`
 | password_hash | string | (managed by Firebase Auth) |
 | account_type | string | "guest" / "cast" |
 | role | string | "user" / "admin" |
+| role_admin | string | Alternate admin-gate field, "admin" — `verifyAdmin`/`verifyAdminV1` accept `role`, `role_admin`, OR `roleAdmin` interchangeably (drift confirmed 2026-08, no single canonical field) |
+| roleAdmin | string | Same as `role_admin` above — third accepted spelling, not a typo, both checked in code |
 | staff_type | string | "none" / "security" / "transport" / "both" |
 | gender | string | 性別 |
 | occupation | string | 職業 |
@@ -50,6 +52,7 @@ Path: `/users/{uid}`
 | stripe_account_id | string | Stripe Connected Account ID |
 | stripe_customer_id | string | Stripe Customer ID (ゲスト用) |
 | is_stripe_restricted | boolean | Stripe Connectアカウントが `Restricted` 状態かどうか。`account.updated` Webhookが同期 (§6 defect #4) |
+| fcm_token | string | ネイティブプッシュ通知用FCMデバイストークン。2026-08-14実装、クライアント側`registerFcmToken`（dsl/edit.dart）が権限許可時に書き込み、サーバー側`sendPushNotification`（config.ts）が読み取ってプッシュ送信。無効化されたトークンは自動的にクリアされる |
 | stripe_onboarding_submitted_at | timestamp | `submitConnectOnboarding` 呼び出し日時 (§6 defect #5) |
 | stripe_charges_enabled | boolean | Stripe `Account.charges_enabled` のミラー |
 | stripe_payouts_enabled | boolean | Stripe `Account.payouts_enabled` のミラー |
@@ -61,10 +64,14 @@ Path: `/users/{uid}`
 | updated_at | timestamp | 最終更新日時 |
 | is_active | boolean | アカウント有効フラグ |
 | is_frozen | boolean | アカウント凍結フラグ |
+| left_at | timestamp | 退会日時 (`requestWithdrawal`/`adminForceDeleteUser`が設定) |
+| frozen_at | timestamp | 凍結日時 (`adminToggleFreeze`が設定) |
 | blocked_users | array<string> | ブロックしたユーザーUIDs |
-| admin_role | string | "super_admin" / "prefecture_admin" (管理者のみ) |
-| admin_permissions | map | 機能別権限フラグ (管理者のみ) |
-| managed_prefectures | array<string> | 管轄都道府県 (都道府県別管理者のみ) |
+| admin_role | string | "super_admin" / "prefecture_admin" (管理者のみ・未使用、将来拡張用に予約) |
+| admin_permissions | map | 機能別権限フラグ (管理者のみ・未使用、将来拡張用に予約) |
+| managed_prefectures | array<string> | 管轄都道府県 (都道府県別管理者のみ・未使用、将来拡張用に予約) |
+| is_agreed | boolean | クライアント側 (`signup_page_widget.dart`) が直接書き込む同意フラグ。**Cloud Functionからは一切読まれない** — 実際の同意ゲートは`completeOnboarding`の`consent_agreed`引数由来の`consent_at`のみ。混同注意 (vestigial, 2026-08確認) |
+| agreed_at | timestamp | 上記`is_agreed`と同様、クライアント側のみが書き込み、バックエンドは未使用 |
 
 ### 2. Reservations (予約)
 Path: `/reservations/{res_id}`
@@ -85,6 +92,11 @@ Path: `/reservations/{res_id}`
 | meeting_point_address | string | 待ち合わせ場所住所 (no guest-facing input yet; admin-dashboard-editable via `adminUpdateReservationLocation`) |
 | group_invite | boolean | グループお誘い希望 |
 | group_size | number | グループ希望人数 |
+| cast_responses | map<string,string> | キャストUIDごとの応答状況 ("pending"/"accepted"/"declined")。全員が"accepted"になって初めてグループ予約が"confirmed"になる (2026-08追加、複数キャスト予約の個別承諾トラッキング用) |
+| needs_security | boolean | 警備スタッフを希望（未手配の場合のみtrue） |
+| needs_transport | boolean | 送迎スタッフを希望（未手配の場合のみtrue） |
+| guest_confirmed_meetup | boolean | ゲスト側の合流確認フラグ (`confirmMeetup`が両者一致で書き込み) |
+| cast_confirmed_meetup | boolean | キャスト側の合流確認フラグ (`confirmMeetup`が両者一致で書き込み) |
 | details | string | 内容詳細 (300文字) |
 | base_amount | number | 基本料金 |
 | transport_fee | number | タクシー代 (0 or 5000) |
@@ -101,12 +113,10 @@ Path: `/reservations/{res_id}`
 | created_at | timestamp | 作成日時 |
 | updated_at | timestamp | 更新日時 |
 
-**Status values:**
+**Status values (re-verified 2026-08 by grepping every literal `status: "..."` write across the whole backend — only these 9 are ever actually written; `cast_pending`/`waiting` documented below were never real and are removed):**
 - `request_pending` - リクエスト中 (与信確保待ち)
 - `authorized` - 与信確保済み (requires_capture)
-- `cast_pending` - キャスト承諾待ち
 - `confirmed` - 確定決済済 (キャスト承諾)
-- `waiting` - 合流待ち
 - `in_progress` - 交流中
 - `completion_pending` - 完了報告待ち
 - `review_pending` - 評価待ち (capture実行済み)
@@ -123,8 +133,10 @@ Path: `/reservations/{res_id}/extensions/{ext_id}`
 | payment_intent_id | string | Stripe PaymentIntent ID |
 | amount | number | 延長料金 |
 | duration_minutes | number | 延長時間 |
+| slot_start | timestamp | この延長分の予約枠開始時刻（元予約開始 + それまでの延長分）。`schedule_slots`ロックの起点として使用 (2026-08追加) |
 | status | string | "authorized" / "captured" / "cancelled" |
 | created_at | timestamp | 作成日時 |
+| updated_at | timestamp | 更新日時 (`captureAuthorizedExtensions`/`cancelExtensionPayment`が書き込み) |
 
 ### 4. Ledger (台帳)
 Path: `/ledger/{ledger_id}`
@@ -152,6 +164,8 @@ Path: `/ledger/{ledger_id}`
 ### 5. DebtHistory (負債履歴)
 Path: `/debt_history/{id}`
 
+`firestore.rules`: `allow read: if isAdmin() || (isSignedIn() && resource.data.user_id == request.auth.uid)` — 管理者は全ユーザー分を直接クライアントクエリで読み取り可能 (`LedgerOversightPage`)。本人は自分の分のみ (`WalletPage`)。
+
 | Field | Type | Description |
 |-------|------|-------------|
 | user_id | string | 対象ユーザーID |
@@ -170,6 +184,7 @@ Path: `/schedule_slots/{slot_id}`
 | start_at | timestamp | 開始時刻 |
 | end_at | timestamp | 終了時刻 |
 | status | string | "available" / "unavailable" / "reserved" |
+| res_id | string | ロックの原因となった予約ID (`reserved`時のみ設定、`autoReleaseOrphanedSlots`が参照) |
 
 ### 7. PairHistory (ペア履歴)
 Path: `/pair_history/{pair_key}`
@@ -213,6 +228,8 @@ Path: `/chat_rooms/{room_id}`
 | res_id | string | 予約ID |
 | participants | array<string> | 参加者UIDs |
 | active | boolean | アクティブフラグ |
+| last_message | string | 最新メッセージ本文 (`sendChatMessage`が書き込み、`getMyMatchaList`のプレビュー表示に使用) |
+| last_message_time | timestamp | 最新メッセージ送信日時 |
 | created_at | timestamp | 作成日時 |
 | closed_at | timestamp | 閉鎖日時 |
 
@@ -240,11 +257,13 @@ Path: `/reviews/{review_id}`
 | created_at | timestamp | 作成日時 |
 
 ### 12. Favorites (お気に入り)
-Path: `/users/{uid}/favorites/{fav_id}`
+Path: `/users/{uid}/favorites/{cast_id}` (ドキュメントIDはキャストUID自体、`fav_id`という別IDは存在しない)
+
+`firestore.rules`: `allow read, write: if false` — 直接クライアントアクセスは禁止、`addFavorite`/`removeFavorite`/`getFavoriteCasts`/`isCastFavorited` (auth.ts, Admin SDK) 経由のみ。
 
 | Field | Type | Description |
 |-------|------|-------------|
-| cast_id | string | キャストUID |
+| cast_id | string | キャストUID (ドキュメントIDと同一) |
 | created_at | timestamp | 登録日時 |
 
 ### 13. Notifications (通知)
@@ -317,7 +336,11 @@ Path: `/banners/{banner_id}`
 | page | string | 表示ページ ("home" / "cocoten") |
 | display_order | number | 表示順 |
 | active | boolean | 有効フラグ |
+| advertiser | string | 広告主名 |
+| display_days | number | 表示日数 (0=無期限) |
+| start_date | timestamp | 表示開始日時 |
 | created_at | timestamp | 作成日時 |
+| updated_at | timestamp | 更新日時 |
 
 ### 19. CocotenShops (ココ店)
 Path: `/cocoten_shops/{shop_id}`
@@ -325,15 +348,20 @@ Path: `/cocoten_shops/{shop_id}`
 | Field | Type | Description |
 |-------|------|-------------|
 | name | string | 店舗名 |
-| genre | string | ジャンル |
-| tags | array<string> | タグ |
-| address | string | 住所 |
-| location | geopoint | 座標 |
-| photos | array<string> | 写真URLs |
+| genre | string | ジャンル (`system_config/settings.cocoten_genres`マスタリストに対しサーバー側で検証、2026-08-14実装 — 実際のFlutterFlow側スキーマはこの1フィールドのみ) |
+| prefecture | string | 都道府県 (実際の入力元フィールド。`address`はこれら4項目から自動生成) |
+| city | string | 市区町村 |
+| town_block | string | 町名番地 |
+| building | string | 建物名 |
+| address | string | 住所 (prefecture+city+town_block+buildingを結合して自動生成、2026-08修正 — 以前は常に空文字だった) |
+| tags | array<string> | タグ — **未実装、書き込まれることはない** (disclosed gap) |
+| location | geopoint | 座標 — **未実装、書き込まれることはない** (地図/ジオコーディング機能が存在しないため) |
+| photos | string | 写真URL — 実際のFlutterFlow側スキーマは単一`ImagePath`型（このドキュメント旧版のarray<string>は誤り）。2026-08-14実装、Firebase Storage経由でアップロード、`cocoten_shops/{allPaths}`にadmin書き込み限定 |
 | menu | string | メニュー情報 |
 | guest_benefits | string | ゲスト用特典 |
 | active | boolean | 有効フラグ |
 | created_at | timestamp | 作成日時 |
+| updated_at | timestamp | 更新日時 |
 
 ### 20. WorkPosts (お仕事掲示板)
 Path: `/work_posts/{post_id}`

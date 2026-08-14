@@ -6,7 +6,7 @@ import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https
 // v1 SDK, used only by adminGetDashboardStats — see the comment on that
 // function for why it stays on v1 instead of v2 like everything else here.
 import * as functionsV1 from "firebase-functions/v1";
-import { db, auth, stripe, Timestamp, FieldValue, isAllowedKycDocUrl } from "./config";
+import { db, auth, stripe, Timestamp, FieldValue, isAllowedKycDocUrl, getSystemConfig, backfillServiceAreas, sendPushNotification, messaging } from "./config";
 import { reservedSlotsQuery } from "./schedule";
 
 /**
@@ -302,6 +302,12 @@ export const adminApproveKYC = onCall(async (request) => {
     read: false,
     created_at: Timestamp.now(),
   });
+  await sendPushNotification(
+    user_id,
+    approved ? "本人確認が承認されました" : "本人確認が却下されました",
+    approved ? "全ての機能をご利用いただけます。" : `却下理由: ${resolvedReason}`,
+    { type: "admin" }
+  );
 
   await createAuditLog(
     request.auth!.uid,
@@ -358,6 +364,12 @@ export const adminToggleFreeze = onCall(async (request) => {
     read: false,
     created_at: Timestamp.now(),
   });
+  await sendPushNotification(
+    user_id,
+    freeze ? "アカウントが凍結されました" : "アカウントの凍結が解除されました",
+    freeze ? `理由: ${resolvedReason}` : "全ての機能が再び利用可能です。",
+    { type: "admin" }
+  );
 
   await createAuditLog(
     request.auth!.uid,
@@ -423,23 +435,49 @@ export const adminForceDeleteUser = onCall(async (request) => {
 export const adminUpdateUserProfile = onCall(async (request) => {
   await verifyAdmin(request);
 
-  const { user_id, self_introduction, reason } = request.data;
+  const { user_id, self_introduction, clear_photo, reason } = request.data;
 
   if (!user_id) {
     throw new HttpsError("invalid-argument", "ユーザーIDが必要です。");
   }
 
-  await db.collection("users").doc(user_id).update({
-    self_introduction: self_introduction ?? "",
-    updated_at: Timestamp.now(),
-  });
+  // FIX (§3.8.13, admin content moderation — PROJECT_KNOWLEDGE.md §71/§72):
+  // this only ever handled `self_introduction`, missing the "profile-image"
+  // half of §3.8.13's own "profile-image/self-intro content moderation
+  // with edit power" wording. Added `clear_photo` (reset, not replace —
+  // an admin removing an inappropriate photo, not uploading a new one; no
+  // asset-upload capability exists in this toolset for the admin side
+  // either, same standing limitation as everywhere else this session) as
+  // an explicit boolean rather than overloading `self_introduction`'s own
+  // "always write, empty-string default" behavior onto a second field.
+  //
+  // FIX: `self_introduction` only updates when a real, non-empty value is
+  // sent — "blank means leave unchanged," the SAME convention
+  // `adminUpsertCocotenShop`/`adminUpdateSystemConfig` already established
+  // for exactly the same underlying reason: this DSL's TextField has no
+  // supported way to pre-fill with the record's CURRENT value at authoring
+  // time (`bindText`/`bindValue` both explicitly reject TextField,
+  // confirmed elsewhere this session), so the admin UI's field starts
+  // blank on every open — treating blank as "no change" avoids an
+  // accidental full wipe of a real self-introduction just because the
+  // admin only meant to clear the photo, or opened the form without typing
+  // anything.
+  const updateData: Record<string, any> = { updated_at: Timestamp.now() };
+  if (self_introduction) {
+    updateData.self_introduction = self_introduction;
+  }
+  if (clear_photo === true) {
+    updateData.profile_image_url = "";
+  }
+
+  await db.collection("users").doc(user_id).update(updateData);
 
   await createAuditLog(
     request.auth!.uid,
     "update_profile",
     "user",
     user_id,
-    { self_introduction },
+    { self_introduction, clear_photo },
     reason || "管理者によるプロフィール編集"
   );
 
@@ -715,10 +753,20 @@ export const adminManualRefund = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "amountは正の数値で指定してください。");
   }
 
-  const refund = await stripe.refunds.create({
-    payment_intent: resData.payment_intent_id,
-    ...(amount ? { amount } : {}),
-  });
+  // FIX (comprehensive project-wide review round 2): no idempotencyKey was
+  // passed here — an admin double-clicking "refund" (or a callable-function
+  // client retry after a timed-out-but-actually-succeeded request) could
+  // trigger two real refunds. Keyed on the reservation + amount so an
+  // accidental duplicate request within Stripe's ~24h idempotency window is
+  // deduped; a genuinely separate refund for the same reservation/amount
+  // issued later still goes through once the key expires.
+  const refund = await stripe.refunds.create(
+    {
+      payment_intent: resData.payment_intent_id,
+      ...(amount ? { amount } : {}),
+    },
+    { idempotencyKey: `refund_${res_id}_${amount || "full"}` }
+  );
 
   const ledgerRef = db.collection("ledger").doc();
   await ledgerRef.set({
@@ -879,12 +927,29 @@ export const adminUpdateReservationLocation = onCall(async (request) => {
     throw new HttpsError("not-found", "予約が見つかりません。");
   }
 
-  const updates: Record<string, unknown> = { updated_at: Timestamp.now() };
+  // FIX (comprehensive project-wide review round 2): this used to always
+  // stamp `updated_at: Timestamp.now()`, with no status guard at all — a
+  // routine "fix a typo in the address" edit on an already-`completed`
+  // reservation silently shifted `affiliate.ts`'s `countUniqueWorkDays` and
+  // `getAffiliateDashboard`, both of which range-query `status ==
+  // "completed"` reservations by `updated_at` as a completion-date proxy.
+  // The reservation would vanish from the JST month/day it actually
+  // completed in (risking an affiliator missing `minDays` for a payout
+  // already earned) and reappear as "completed today" in whatever month the
+  // edit happens. This field isn't completion-relevant, so it's simply not
+  // touched by this function at all anymore.
+  const updates: Record<string, unknown> = {};
   if (meeting_point_address !== undefined) {
     updates.meeting_point_address = meeting_point_address;
   }
   if (location_address !== undefined) {
     updates.location_address = location_address;
+  }
+  if (Object.keys(updates).length === 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      "meeting_point_addressかlocation_addressのいずれかを指定してください。"
+    );
   }
 
   await db.collection("reservations").doc(res_id).update(updates);
@@ -1358,23 +1423,49 @@ export const adminUpsertBanner = functionsV1
   if (active !== undefined && typeof active !== "boolean") {
     throw new HttpsError("invalid-argument", "activeはtrue/falseで指定してください。");
   }
-  // Required on every call, not just create — bannerData below (used for
-  // both the create and update path) always includes title/image_url, and
-  // Firestore's `.update()` rejects an `undefined` value outright.
-  if (!title || !image_url) {
+
+  // FIX (Task #23, admin banner-management UI): this function used to
+  // build `bannerData` from ONLY the fields passed in this call, defaulting
+  // every omitted field (`link_url`, `page`, `display_order`, `advertiser`,
+  // `display_days`, `start_date`) to a hardcoded fallback and writing that
+  // over the EXISTING document via `.update()` — meaning a caller that only
+  // wants to flip `active` (a per-row toggle, the obvious admin-UI shape)
+  // would silently wipe every other field back to its default on every
+  // toggle, including resetting `start_date` to "now" — a real correctness
+  // bug for any banner using a display-day-limited window. Fixed to
+  // partial-update semantics on the update path: read the existing doc
+  // first, and any field not explicitly provided in this call falls back to
+  // the EXISTING value, not a hardcoded default. `title`/`image_url` remain
+  // required on CREATE (no existing doc to fall back to) but are now
+  // optional on UPDATE. Callers that already pass every field (the original
+  // full-form admin UI, if one exists elsewhere) see zero behavior change.
+  let existingData: FirebaseFirestore.DocumentData = {};
+  if (banner_id) {
+    const existingSnap = await db.collection("banners").doc(banner_id).get();
+    if (!existingSnap.exists) {
+      throw new HttpsError("not-found", "バナーが見つかりません。");
+    }
+    existingData = existingSnap.data() || {};
+  }
+
+  const resolvedTitle = title ?? existingData.title;
+  const resolvedImageUrl = image_url ?? existingData.image_url;
+  if (!resolvedTitle || !resolvedImageUrl) {
     throw new HttpsError("invalid-argument", "titleとimage_urlが必要です。");
   }
 
   const bannerData = {
-    title,
-    image_url,
-    link_url: link_url || "",
-    page: page || "home",
-    display_order: display_order || 0,
-    active: active !== undefined ? active : true,
-    advertiser: advertiser || "",
-    display_days: display_days || 0,
-    start_date: start_date ? new Date(start_date) : Timestamp.now(),
+    title: resolvedTitle,
+    image_url: resolvedImageUrl,
+    link_url: link_url ?? existingData.link_url ?? "",
+    page: page ?? existingData.page ?? "home",
+    display_order: display_order ?? existingData.display_order ?? 0,
+    active: active !== undefined ? active : (existingData.active ?? true),
+    advertiser: advertiser ?? existingData.advertiser ?? "",
+    display_days: display_days ?? existingData.display_days ?? 0,
+    start_date: start_date
+      ? new Date(start_date)
+      : existingData.start_date ?? Timestamp.now(),
     updated_at: Timestamp.now(),
   };
 
@@ -1402,7 +1493,7 @@ export const adminUpsertBanner = functionsV1
     banner_id ? "update_banner" : "create_banner",
     "banner",
     resolvedBannerId,
-    { title, page: page || "home", active: active !== undefined ? active : true, reason },
+    { title: resolvedTitle, page: bannerData.page, active: bannerData.active, reason },
     reason || ""
   );
 
@@ -1487,6 +1578,16 @@ export const adminGetSystemConfig = onCall(async (request) => {
         (v): v is string => typeof v === "string"
       )
     : [];
+  // Backfilled in place (see config.ts's `backfillServiceAreas` for the
+  // full reasoning) so BOTH `areaActive()` below AND the `...data` spread
+  // in this function's own return statement see `lat`/`lng`/
+  // `municipalities` even for a document saved before those fields
+  // existed — this is the admin-facing read path
+  // (`fetchAdminServiceAreaMunicipalities`/`callAdminUpdateServiceAreas`
+  // both consume this response), a separate code path from
+  // `getSystemConfig()` (guest-facing `getServiceAreaCoordinates`), which
+  // has its own identical backfill.
+  data.service_areas = backfillServiceAreas(data.service_areas);
   const serviceAreas: Record<string, unknown>[] = Array.isArray(
     data.service_areas
   )
@@ -1607,6 +1708,62 @@ export const adminUpdateSystemConfig = onCall(async (request) => {
     }
   }
 
+  // FIX (comprehensive project-wide review round 2, SUSPECTED-turned-
+  // confirmed-real-risk): every other numeric field here used to be
+  // written verbatim with zero bounds checking. This is an admin-trust-
+  // boundary issue (requires a careless/compromised admin, not a public
+  // attacker), but the failure modes are severe and easy to trigger by
+  // accident — e.g. `max_total_hours: 0` would make every reservation's
+  // `duration_minutes > config.max_total_hours * 60` check reject every
+  // booking outright (reservations.ts), a negative `tax_rate` would
+  // produce a negative `tax_amount`, and `default_cast_rate` outside
+  // [0, 1] would push `platform_profit` deeply negative in every payment
+  // (stripe-payments.ts). Bounds chosen from each field's own real usage:
+  // rates are fractions of 1, fees/thresholds are non-negative amounts,
+  // `max_total_hours`/`extension_limit_count` must be positive integers a
+  // real reservation could plausibly hit.
+  const rateFields: Array<[string, number, number]> = [
+    ["default_cast_rate", 0, 1],
+    ["tax_rate", 0, 1],
+    ["default_affiliate_rate", 0, 1],
+  ];
+  for (const [key, min, max] of rateFields) {
+    if (settings && settings[key] !== undefined) {
+      const v = settings[key];
+      if (typeof v !== "number" || Number.isNaN(v) || v < min || v > max) {
+        throw new HttpsError("invalid-argument", `${key}は${min}〜${max}の数値で指定してください。`);
+      }
+    }
+  }
+  const nonNegativeFields = [
+    "security_staff_fee",
+    "transport_staff_fee",
+    "transport_fee_amount",
+    "transport_fee_threshold_sec",
+    "chat_close_sec",
+  ];
+  for (const key of nonNegativeFields) {
+    if (settings && settings[key] !== undefined) {
+      const v = settings[key];
+      if (typeof v !== "number" || Number.isNaN(v) || v < 0) {
+        throw new HttpsError("invalid-argument", `${key}は0以上の数値で指定してください。`);
+      }
+    }
+  }
+  const positiveIntFields: Array<[string, number]> = [
+    ["max_total_hours", 24],
+    ["extension_limit_count", 20],
+    ["affiliate_min_days", 31],
+  ];
+  for (const [key, max] of positiveIntFields) {
+    if (settings && settings[key] !== undefined) {
+      const v = settings[key];
+      if (!Number.isInteger(v) || v < 1 || v > max) {
+        throw new HttpsError("invalid-argument", `${key}は1〜${max}の整数で指定してください。`);
+      }
+    }
+  }
+
   await db.collection("system_config").doc("settings").set(settings, { merge: true });
 
   await createAuditLog(
@@ -1619,6 +1776,119 @@ export const adminUpdateSystemConfig = onCall(async (request) => {
   );
 
   return { success: true };
+});
+
+// Municipality-level service areas (unimplemented-features pass,
+// IMPLEMENTATION_PLAN.md §3.8 item 5's remaining "add/edit municipalities
+// and their representative GPS coordinates" half — the prefecture-level
+// activate/deactivate half already goes through `adminUpdateSystemConfig`
+// above via `ServiceAreaPage`'s own `callAdminUpdateServiceAreas`).
+//
+// Deliberately DEDICATED, validated functions rather than routing this
+// through `adminUpdateSystemConfig`'s own generic `{settings: {...}}`
+// path (which technically COULD write `service_areas` directly, since
+// that function does zero shape validation on it) — same reasoning
+// already applied to `adminUpdateCocotenGenres` earlier this session:
+// this data feeds directly into the Home-ranking GPS-fallback distance
+// calculation every guest sees (`getServiceAreaCoordinates`,
+// `fetchDiscoveryCasts` in dsl/edit.dart), so a typo'd/garbage
+// coordinate here has real guest-facing impact, worth real validation
+// rather than accepting whatever shape the generic updater is handed.
+function findServiceAreaByPrefecture(
+  areas: Array<Record<string, unknown>>,
+  prefecture: string
+): Record<string, unknown> | undefined {
+  return areas.find((a) => a.prefecture === prefecture);
+}
+
+export const adminAddServiceAreaMunicipality = onCall(async (request) => {
+  await verifyAdmin(request);
+
+  const { prefecture, name, lat, lng, reason } = request.data;
+  if (typeof prefecture !== "string" || !prefecture) {
+    throw new HttpsError("invalid-argument", "prefectureが必要です。");
+  }
+  const trimmedName = typeof name === "string" ? name.trim() : "";
+  if (!trimmedName) {
+    throw new HttpsError("invalid-argument", "市区町村名が必要です。");
+  }
+  if (typeof lat !== "number" || Number.isNaN(lat) || lat < 20 || lat > 46) {
+    throw new HttpsError("invalid-argument", "緯度は20〜46の数値で指定してください（日本国内の範囲）。");
+  }
+  if (typeof lng !== "number" || Number.isNaN(lng) || lng < 122 || lng > 154) {
+    throw new HttpsError("invalid-argument", "経度は122〜154の数値で指定してください（日本国内の範囲）。");
+  }
+
+  const config = await getSystemConfig();
+  const areas = (config.service_areas || []) as Array<Record<string, unknown>>;
+  const target = findServiceAreaByPrefecture(areas, prefecture);
+  if (!target) {
+    throw new HttpsError(
+      "invalid-argument",
+      `prefecture "${prefecture}" はサービス提供エリアに存在しません。`
+    );
+  }
+
+  const existing = Array.isArray(target.municipalities)
+    ? (target.municipalities as Array<Record<string, unknown>>)
+    : [];
+  if (existing.some((m) => m.name === trimmedName)) {
+    throw new HttpsError("already-exists", `"${trimmedName}" は既に登録されています。`);
+  }
+  target.municipalities = [...existing, { name: trimmedName, lat, lng }];
+
+  await db.collection("system_config").doc("settings").set({ service_areas: areas }, { merge: true });
+
+  await createAuditLog(
+    request.auth!.uid,
+    "add_service_area_municipality",
+    "system_config",
+    "settings",
+    { prefecture, name: trimmedName, lat, lng },
+    reason || ""
+  );
+
+  return { success: true, municipalities: target.municipalities };
+});
+
+export const adminRemoveServiceAreaMunicipality = onCall(async (request) => {
+  await verifyAdmin(request);
+
+  const { prefecture, municipality_name, reason } = request.data;
+  if (typeof prefecture !== "string" || !prefecture) {
+    throw new HttpsError("invalid-argument", "prefectureが必要です。");
+  }
+  if (typeof municipality_name !== "string" || !municipality_name) {
+    throw new HttpsError("invalid-argument", "municipality_nameが必要です。");
+  }
+
+  const config = await getSystemConfig();
+  const areas = (config.service_areas || []) as Array<Record<string, unknown>>;
+  const target = findServiceAreaByPrefecture(areas, prefecture);
+  if (!target) {
+    throw new HttpsError(
+      "invalid-argument",
+      `prefecture "${prefecture}" はサービス提供エリアに存在しません。`
+    );
+  }
+
+  const existing = Array.isArray(target.municipalities)
+    ? (target.municipalities as Array<Record<string, unknown>>)
+    : [];
+  target.municipalities = existing.filter((m) => m.name !== municipality_name);
+
+  await db.collection("system_config").doc("settings").set({ service_areas: areas }, { merge: true });
+
+  await createAuditLog(
+    request.auth!.uid,
+    "remove_service_area_municipality",
+    "system_config",
+    "settings",
+    { prefecture, municipality_name },
+    reason || ""
+  );
+
+  return { success: true, municipalities: target.municipalities };
 });
 
 // ============================================
@@ -1755,6 +2025,71 @@ export const adminGetReportChatLog = onCall(async (request) => {
     return {
       id: d.id,
       room_id: roomId,
+      sender_id: data.sender_id || "",
+      sender_nickname: senderNicknames[data.sender_id] || data.sender_id || "",
+      text: data.text || "",
+      created_at: data.created_at || null,
+    };
+  });
+
+  return { success: true, messages, message_count: messages.length };
+});
+
+// FIX (feature build, unimplemented-features pass — IMPLEMENTATION_PLAN.md
+// §3.8.12): admin moderation had a report/chat-log path for RESERVATION-
+// scoped chat (`adminGetReportChatLog` above) but nothing scoped to the
+// separate cast-to-cast recruitment-board chat (`work_posts` type
+// "partner_recruit", created by `selectWorkApplicant` — see that
+// function's own comment, work-posts.ts). Mirrors `adminGetReportChatLog`'s
+// shape (message list + resolved sender nicknames) but looks up the chat
+// room via the work_post's own `chat_room_id` (also newly persisted by
+// this same pass — it used to only be returned to the caller, never
+// saved) instead of a report's `res_id`.
+export const adminGetRecruitmentChatLog = onCall(async (request) => {
+  await verifyAdmin(request);
+
+  const { post_id } = request.data;
+  if (!post_id) {
+    throw new HttpsError("invalid-argument", "post_idが必要です。");
+  }
+
+  const postDoc = await db.collection("work_posts").doc(post_id).get();
+  if (!postDoc.exists) {
+    return { success: false, error: "投稿が見つかりません。" };
+  }
+  const postData = postDoc.data()!;
+  const chatRoomId = postData.chat_room_id;
+  if (!chatRoomId) {
+    return {
+      success: true,
+      messages: [],
+      message_count: 0,
+      no_chat_reason: "この投稿にはまだチャットルームがありません（応募者が選定されていない可能性があります）。",
+    };
+  }
+
+  const messagesSnap = await db
+    .collection("chat_rooms")
+    .doc(chatRoomId)
+    .collection("messages")
+    .orderBy("created_at", "asc")
+    .get();
+
+  const senderIds = Array.from(
+    new Set(messagesSnap.docs.map((d) => d.data().sender_id).filter((v): v is string => !!v))
+  );
+  const senderNicknames: Record<string, string> = {};
+  await Promise.all(
+    senderIds.map(async (uid) => {
+      const userDoc = await db.collection("users").doc(uid).get();
+      senderNicknames[uid] = userDoc.exists ? userDoc.data()?.nickname || uid : uid;
+    })
+  );
+
+  const messages = messagesSnap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
       sender_id: data.sender_id || "",
       sender_nickname: senderNicknames[data.sender_id] || data.sender_id || "",
       text: data.text || "",
@@ -1905,6 +2240,12 @@ export const adminApprovePayout = functionsV1
         read: false,
         created_at: Timestamp.now(),
       });
+      await sendPushNotification(
+        userId,
+        "出金が承認されました",
+        `¥${available.amount.toLocaleString()} の出金処理を開始しました。`,
+        { payout_id: payout.id, type: "stripe" }
+      );
 
       await createAuditLog(
         context.auth!.uid,
@@ -1987,6 +2328,267 @@ export const adminGetPayoutRequests = functionsV1
 
     return { success: true, requests };
   });
+
+// Account-deletion block-status monitor (§3.9.15 / IMPLEMENTATION_PLAN.md
+// item 15's "no precedent" half). Read-only mirror of requestWithdrawal's
+// (auth.ts) own three block checks — debt / active reservation (guest or
+// cast side) / pending ledger entry — so an admin can see WHY a specific
+// user is currently blocked from self-service deletion before deciding
+// whether to use adminForceDeleteUser's existing bypass. Deliberately
+// duplicates the three queries rather than extracting a shared helper:
+// requestWithdrawal's version throws on the FIRST failing check (early
+// exit, correct for its own gating purpose), whereas this needs all three
+// results simultaneously to render a full status breakdown.
+export const adminGetAccountDeletionStatus = onCall(async (request) => {
+  await verifyAdmin(request);
+
+  const { user_id } = request.data;
+  if (!user_id) {
+    throw new HttpsError("invalid-argument", "user_idが必要です。");
+  }
+
+  const userDoc = await db.collection("users").doc(user_id).get();
+  const userData = userDoc.data();
+  if (!userData) {
+    throw new HttpsError("not-found", "ユーザーが見つかりません。");
+  }
+
+  const logicalDebt = userData.logical_debt || 0;
+  const blockedByDebt = logicalDebt > 0;
+
+  const [activeGuestRes, activeCastRes, pendingLedger] = await Promise.all([
+    db
+      .collection("reservations")
+      .where("guest_id", "==", user_id)
+      .where("status", "not-in", ["completed", "cancelled", "expired"])
+      .limit(1)
+      .get(),
+    db
+      .collection("reservations")
+      .where("cast_ids", "array-contains", user_id)
+      .where("status", "not-in", ["completed", "cancelled", "expired"])
+      .limit(1)
+      .get(),
+    db
+      .collection("ledger")
+      .where("user_id", "==", user_id)
+      .where("status", "==", "pending")
+      .limit(1)
+      .get(),
+  ]);
+
+  const blockedByReservation = !activeGuestRes.empty || !activeCastRes.empty;
+  const blockedByLedger = !pendingLedger.empty;
+
+  return {
+    success: true,
+    blocked: blockedByDebt || blockedByReservation || blockedByLedger,
+    blocked_by_debt: blockedByDebt,
+    logical_debt: logicalDebt,
+    blocked_by_reservation: blockedByReservation,
+    blocked_by_ledger: blockedByLedger,
+    is_active: userData.is_active !== false,
+  };
+});
+
+// Admin notification/moderation center — push-send half (§3.8.16).
+// `firestore.rules` locks `/users/{document}` reads to
+// `request.auth.uid == document` (PROJECT_KNOWLEDGE.md §70's critical
+// privilege-escalation fix), so a client-side bulk broadcast to "all
+// users" is not possible from the admin's own client — this MUST be
+// Admin-SDK/server-side, same reasoning already established for every
+// other cross-user bulk operation in this file.
+//
+// Architecture decision (no prior precedent for "push" in this app —
+// confirmed by reading the whole DSL: no `app.pushNotifications()`/FCM
+// token capture exists anywhere): this app's actual, already-live
+// "notification" system IS the `users/{uid}/notifications` subcollection
+// (5-category `matching`/`work`/`cocoten`/`stripe`/`admin`, read by
+// NotificationsPage's own "お知らせ" list, written by numerous existing
+// Cloud Functions for individual events). Building brand-new native-push
+// (FCM token registration, `app.pushNotifications()` enablement, an
+// entirely separate delivery pipeline) to satisfy one admin composer
+// feature would be new infrastructure far beyond this task's scope and
+// without a clear product requirement for a SECOND parallel notification
+// channel. "Push-send" is implemented here as an admin-composed broadcast
+// into that SAME, already-established 5-category system — consistent
+// with every existing consumer of `users/{uid}/notifications`, requiring
+// no new client infrastructure.
+export const adminSendNotification = onCall(async (request) => {
+  await verifyAdmin(request);
+
+  const { category, title, body, target } = request.data;
+  const allowedCategories = ["matching", "work", "cocoten", "stripe", "admin"];
+  if (!allowedCategories.includes(category)) {
+    throw new HttpsError(
+      "invalid-argument",
+      `categoryはmatching/work/cocoten/stripe/adminのいずれかである必要があります。`
+    );
+  }
+  if (!title || !body) {
+    throw new HttpsError("invalid-argument", "titleとbodyが必要です。");
+  }
+  const allowedTargets = ["all", "guest", "cast"];
+  const resolvedTarget = allowedTargets.includes(target) ? target : "all";
+
+  // FIX (found during a fresh-eyes re-review of this whole admin panel):
+  // this used to push `is_active != false` into the Firestore QUERY itself.
+  // Firestore's documented behavior for `!=`/`not-in` is to exclude any
+  // document where the field doesn't exist at all, not just documents
+  // where it's explicitly `true` — so any legacy/manually-seeded user doc
+  // missing `is_active` (not created through the normal signup path, which
+  // always sets it) was silently dropped from every "send to all users"
+  // broadcast, contradicting "all". Every other consumer of this exact
+  // field in this codebase (`getFavorites`/`getDiscoveryCasts`, auth.ts)
+  // already filters `is_active !== false` IN-MEMORY specifically so a
+  // missing field counts as active — this now matches that established
+  // convention instead of re-introducing the bug via the query layer. No
+  // `.limit()` here deliberately: this is a genuine bulk broadcast, not a
+  // paginated list view, so silently capping it would defeat the point.
+  let usersQuery: FirebaseFirestore.Query = db.collection("users");
+  if (resolvedTarget !== "all") {
+    usersQuery = usersQuery.where("account_type", "==", resolvedTarget);
+  }
+  const usersSnap = await usersQuery.get();
+
+  const now = Timestamp.now();
+  const docs = usersSnap.docs.filter((d) => d.data().is_active !== false);
+  const CHUNK_SIZE = 400; // Firestore batch cap is 500 - leave headroom.
+  for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+    const batch = db.batch();
+    for (const userDoc of docs.slice(i, i + CHUNK_SIZE)) {
+      const notifRef = userDoc.ref.collection("notifications").doc();
+      batch.set(notifRef, {
+        type: category,
+        title,
+        body,
+        read: false,
+        created_at: now,
+      });
+    }
+    await batch.commit();
+  }
+
+  // Real device push, alongside the in-app broadcast above. A genuine bulk
+  // send (potentially every user) - uses `sendEachForMulticast` directly
+  // over tokens already in hand from `docs` (already fetched above),
+  // rather than calling `sendPushNotification` per user (which would
+  // redundantly re-read each user's doc one at a time). Chunked to FCM's
+  // own 500-token-per-call cap. Best-effort per chunk - one chunk failing
+  // must not abort the notification send this function has already
+  // committed to Firestore.
+  const tokens = docs
+    .map((d) => d.data().fcm_token)
+    .filter((t): t is string => typeof t === "string" && t.length > 0);
+  const PUSH_CHUNK_SIZE = 500; // FCM sendEachForMulticast cap.
+  for (let i = 0; i < tokens.length; i += PUSH_CHUNK_SIZE) {
+    const chunk = tokens.slice(i, i + PUSH_CHUNK_SIZE);
+    try {
+      await messaging.sendEachForMulticast({
+        tokens: chunk,
+        notification: { title, body },
+        data: { type: category },
+      });
+    } catch (e) {
+      console.error("Bulk push send failed for a chunk:", e);
+    }
+  }
+
+  await createAuditLog(
+    request.auth!.uid,
+    "send_notification",
+    "system",
+    category,
+    { target: resolvedTarget, title, sent_count: docs.length },
+    `お知らせ配信（${category}／${resolvedTarget}）`
+  );
+
+  return { success: true, sent_count: docs.length };
+});
+
+// Home-ranking monitoring (IMPLEMENTATION_PLAN.md §3.8 item 6 — "verify the
+// online/distance/login-recency sort and the GPS-fallback path are
+// actually behaving as specified, an observability requirement, not just
+// a feature"). Deliberately NOT a thin wrapper around `getDiscoveryCasts`
+// (auth.ts) — that function's own response only ever returns
+// `id|||nickname|||photoUrl|||isOnline`, discarding the raw `dist`/
+// `lastLoginMs` values it computes internally, so a caller can see the
+// FINAL sorted order but never verify WHY a given cast landed where it
+// did. This mirrors the exact same filter + distance formula + sort
+// comparator (kept in lockstep with auth.ts by inspection — if that
+// function's logic ever changes, this one needs the same update) but
+// returns every raw computed value so an admin can actually confirm the
+// three-tier sort (online → distance → recency) is behaving correctly,
+// not just trust that some order came out.
+export const adminGetHomeRankingDiagnostics = onCall(async (request) => {
+  await verifyAdmin(request);
+
+  const { lat, lng } = request.data || {};
+  if (typeof lat !== "number" || typeof lng !== "number") {
+    throw new HttpsError("invalid-argument", "lat/lngが必要です。");
+  }
+
+  const snapshot = await db
+    .collection("users")
+    .where("account_type", "==", "cast")
+    .where("approval_status", "==", "approved")
+    .limit(100)
+    .get();
+
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const distanceKm = (loc: FirebaseFirestore.GeoPoint | undefined): number => {
+    if (!loc) return Infinity;
+    const r = 6371.0;
+    const dLat = toRad(loc.latitude - lat);
+    const dLng = toRad(loc.longitude - lng);
+    const lat1 = toRad(lat);
+    const lat2 = toRad(loc.latitude);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return r * c;
+  };
+
+  const rows = snapshot.docs
+    .filter(
+      (d) =>
+        d.data().is_frozen !== true &&
+        d.data().is_active !== false &&
+        d.data().is_stripe_restricted !== true
+    )
+    .map((d) => {
+      const data = d.data();
+      const isOnline = data.is_online === true;
+      const dist = distanceKm(data.location);
+      const lastLogin = data.last_login_at;
+      const lastLoginMs =
+        lastLogin && typeof lastLogin.toMillis === "function" ? lastLogin.toMillis() : 0;
+      const hasLocation = !!data.location;
+      return {
+        id: d.id,
+        nickname: (data.nickname?.toString() || "").replace(/\|\|\|/g, ""),
+        isOnline,
+        dist,
+        hasLocation,
+        lastLoginMs,
+      };
+    });
+
+  rows.sort((a, b) => {
+    if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+    if (a.dist !== b.dist) return a.dist - b.dist;
+    return b.lastLoginMs - a.lastLoginMs;
+  });
+
+  const items = rows.map((r, idx) => {
+    const lastLoginLabel = r.lastLoginMs > 0 ? new Date(r.lastLoginMs).toISOString() : "";
+    const distLabel = r.hasLocation ? r.dist.toFixed(2) : "fallback";
+    return `${idx + 1}|||${r.nickname}|||${r.isOnline}|||${distLabel}|||${lastLoginLabel}`;
+  });
+
+  return { success: true, items, count: items.length };
+});
 
 // ============================================
 // Dashboard Stats
@@ -2234,6 +2836,165 @@ export const adminGetDashboardStats = functionsV1
   };
 });
 
+// IMPLEMENTATION_PLAN.md §3.8 item 19, "activity-count aggregation
+// reporting" — the one remaining unresolved sub-item of that spec line
+// after rank/tier ([WON'T BUILD], superseded by §4.3) and CSV export
+// ([PARTIAL], LedgerOversightPage) were already closed out. Distinct from
+// adminGetDashboardStats above: that function only ever answers "what does
+// today/this month look like" (fixed `todayStart` + a hardcoded rolling
+// 5-month revenue chart) - there is no way to ask "how did daily signups
+// trend over the last 30 days" from it. This function buckets by an
+// admin-chosen granularity (daily or monthly) over an admin-chosen number
+// of periods and returns one row per bucket.
+//
+// Query-shape choices are deliberately copied from already-proven,
+// already-indexed patterns elsewhere in this file rather than invented
+// fresh (every combo below is confirmed present in firestore.indexes.json
+// or is a single-field range needing no composite index at all):
+// - `account_type` (equality) + `created_at` (range): same combo
+//   `adminGetUsers` already issues when both filters are supplied
+//   (firestore.indexes.json's `users` composite: account_type, created_at).
+// - `status` (equality) + `updated_at` (range): same combo used as the
+//   completion-date proxy in affiliate.ts's countUniqueWorkDays /
+//   getAffiliateDashboard (firestore.indexes.json's `reservations`
+//   composite: status, updated_at) - reused here for the identical reason
+//   (there is no separate "completed_at" field on a reservation).
+// - `created_at` alone and `last_capture_at` alone: single-field ranges,
+//   Firestore indexes these automatically, no composite needed (same as
+//   adminGetDashboardStats's own todayReservations/monthlyCapturedSnaps
+//   queries above).
+//
+// Bucket count is capped (31 daily / 24 monthly) to bound the fan-out: each
+// bucket issues 6 concurrent queries, so an uncapped request could balloon
+// into hundreds of simultaneous reads. The cap is disclosed back to the
+// caller via `bucketCount` in the response rather than silently truncated.
+export const adminGetActivityReport = onCall(async (request) => {
+  await verifyAdmin(request);
+
+  const { granularity, periods } = request.data as {
+    granularity?: string;
+    periods?: number;
+  };
+  const isMonthly = granularity === "monthly";
+  const maxPeriods = isMonthly ? 24 : 31;
+  const defaultPeriods = isMonthly ? 12 : 30;
+  const requestedPeriods =
+    Number.isInteger(periods) && (periods as number) > 0
+      ? (periods as number)
+      : defaultPeriods;
+  const bucketCount = Math.min(requestedPeriods, maxPeriods);
+
+  // Same JST-correctness reasoning as adminGetDashboardStats above - this
+  // business operates in Japan Standard Time, and Cloud Functions default
+  // to UTC regardless of deployed region.
+  const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+  const nowJst = new Date(Date.now() + JST_OFFSET_MS);
+  const jstYear = nowJst.getUTCFullYear();
+  const jstMonth = nowJst.getUTCMonth();
+  const jstDate = nowJst.getUTCDate();
+
+  const buckets = Array.from({ length: bucketCount }, (_, idx) => {
+    const offset = bucketCount - 1 - idx;
+    if (isMonthly) {
+      const monthIndex = jstMonth - offset;
+      const start = new Date(Date.UTC(jstYear, monthIndex, 1) - JST_OFFSET_MS);
+      const end = new Date(Date.UTC(jstYear, monthIndex + 1, 1) - JST_OFFSET_MS);
+      const labelDate = new Date(Date.UTC(jstYear, monthIndex, 1));
+      return {
+        label: `${labelDate.getUTCFullYear()}/${labelDate.getUTCMonth() + 1}`,
+        start,
+        end,
+      };
+    }
+    const dayIndex = jstDate - offset;
+    const start = new Date(Date.UTC(jstYear, jstMonth, dayIndex) - JST_OFFSET_MS);
+    const end = new Date(Date.UTC(jstYear, jstMonth, dayIndex + 1) - JST_OFFSET_MS);
+    const labelDate = new Date(Date.UTC(jstYear, jstMonth, dayIndex));
+    return {
+      label: `${labelDate.getUTCMonth() + 1}/${labelDate.getUTCDate()}`,
+      start,
+      end,
+    };
+  });
+
+  const rows = await Promise.all(
+    buckets.map(async (b) => {
+      const startTs = Timestamp.fromDate(b.start);
+      const endTs = Timestamp.fromDate(b.end);
+      const [
+        newGuests,
+        newCasts,
+        reservationsCreated,
+        reservationsCompleted,
+        reservationsCancelled,
+        capturedSnap,
+      ] = await Promise.all([
+        db
+          .collection("users")
+          .where("account_type", "==", "guest")
+          .where("created_at", ">=", startTs)
+          .where("created_at", "<", endTs)
+          .count()
+          .get(),
+        db
+          .collection("users")
+          .where("account_type", "==", "cast")
+          .where("created_at", ">=", startTs)
+          .where("created_at", "<", endTs)
+          .count()
+          .get(),
+        db
+          .collection("reservations")
+          .where("created_at", ">=", startTs)
+          .where("created_at", "<", endTs)
+          .count()
+          .get(),
+        db
+          .collection("reservations")
+          .where("status", "==", "completed")
+          .where("updated_at", ">=", startTs)
+          .where("updated_at", "<", endTs)
+          .count()
+          .get(),
+        db
+          .collection("reservations")
+          .where("status", "==", "cancelled")
+          .where("updated_at", ">=", startTs)
+          .where("updated_at", "<", endTs)
+          .count()
+          .get(),
+        db
+          .collection("reservations")
+          .where("last_capture_at", ">=", startTs)
+          .where("last_capture_at", "<", endTs)
+          .get(),
+      ]);
+
+      const revenue = capturedSnap.docs.reduce(
+        (sum, doc) => sum + (doc.data().total_amount || 0),
+        0
+      );
+
+      return {
+        label: b.label,
+        newGuests: newGuests.data().count,
+        newCasts: newCasts.data().count,
+        reservationsCreated: reservationsCreated.data().count,
+        reservationsCompleted: reservationsCompleted.data().count,
+        reservationsCancelled: reservationsCancelled.data().count,
+        revenue,
+      };
+    })
+  );
+
+  return {
+    success: true,
+    granularity: isMonthly ? "monthly" : "daily",
+    bucketCount,
+    rows,
+  };
+});
+
 // 監査ログ管理 (Tier 3). `audit_logs` is already written to by createAuditLog
 // (KYC approve/reject, freeze/unfreeze, force-delete, force-cancel, banner
 // delete, system-config update, report resolve, payout approve/hold/reject,
@@ -2365,8 +3126,29 @@ export const adminGetCocotenShops = onCall(async (request) => {
 // deployed, no Gen1/Gen2 constraint). Address is split into the 4 fields
 // the CocomiseListPage mockup actually shows (都道府県/市/町村番地/建物名)
 // rather than schema.md's single `address` string - closer to what the UI
-// needs; `photos` (schema.md) deliberately not handled here, see
-// PROJECT_KNOWLEDGE.md for why.
+// needs.
+// `photo_url` (unimplemented-features pass, IMPLEMENTATION_PLAN.md §3.8
+// item 7): schema.md documents `photos` as `array<string>`, but the real
+// FlutterFlow-side schema (schemas.dart) only ever declared it as a single
+// `ImagePath` field - there is no array-of-URLs field anywhere in the
+// live schema. Rather than fight that drift, this accepts ONE photo URL
+// (uploaded client-side via Firebase Storage - see `pickAndUploadShopPhoto`
+// in dsl/edit.dart) and writes it to the existing single-value `photos`
+// field, matching what the live schema actually supports. A genuine
+// multi-photo gallery would need a new schema field + a new admin UI, out
+// of proportion for closing this specific gap.
+// `genre` is now validated against `system_config/settings.cocoten_genres`
+// (config.ts's `SYSTEM_DEFAULTS.cocoten_genres`) - the "genre/tag master"
+// half of item 7. A structured taxonomy is enforced here (server-side,
+// reject unknown values) rather than via a picker WIDGET, deliberately -
+// this project's own project_rules.md documents 3 separate confirmed
+// FlutterFlow `DropDown` binding bugs (silent no-op `bindValue`, empty-
+// string `dropdownOptions`, `Switch`-class initState capture issues on
+// related widgets), and task #30's own prefecture picker already had to
+// abandon `DropDown` for a bottom-sheet component for the same reason.
+// Enforcing the taxonomy server-side (reject any `genre` not in the
+// master list) gives the same "structured, not free text" guarantee
+// without touching that same risky widget surface again.
 // `name`/`genre`/`prefecture`/`city`/`town_block`/`building` are treated
 // as "leave unchanged if blank" ONLY when updating an existing shop
 // (shop_id set) - the DSL's edit dialog can't prefill a TextField with
@@ -2389,6 +3171,9 @@ export const adminUpsertCocotenShop = onCall(async (request) => {
     city,
     town_block,
     building,
+    menu,
+    guest_benefits,
+    photo_url,
     active,
     reason,
   } = request.data;
@@ -2403,6 +3188,19 @@ export const adminUpsertCocotenShop = onCall(async (request) => {
   if (!resolvedName) {
     throw new HttpsError("invalid-argument", "店舗名が必要です。");
   }
+
+  if (genre) {
+    const config = await getSystemConfig();
+    const validGenres = Array.isArray(config.cocoten_genres)
+      ? config.cocoten_genres
+      : [];
+    if (!validGenres.includes(genre)) {
+      throw new HttpsError(
+        "invalid-argument",
+        `ジャンルは次のいずれかを指定してください: ${validGenres.join("、")}`
+      );
+    }
+  }
   // FIX (PROJECT_KNOWLEDGE.md §70, MEDIUM-HIGH — comprehensive project-wide
   // review): same unvalidated-boolean bug class as adminApproveKYC/
   // adminUpsertBanner above. generated_code's CocotenShopsRecord does a
@@ -2412,13 +3210,54 @@ export const adminUpsertCocotenShop = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "activeはtrue/falseで指定してください。");
   }
 
+  const resolvedPrefecture = prefecture || (shopId ? existingData.prefecture : "") || "";
+  const resolvedCity = city || (shopId ? existingData.city : "") || "";
+  const resolvedTownBlock = town_block || (shopId ? existingData.town_block : "") || "";
+  const resolvedBuilding = building || (shopId ? existingData.building : "") || "";
+
   const shopData = {
     name: resolvedName,
     genre: genre || (shopId ? existingData.genre : "") || "",
-    prefecture: prefecture || (shopId ? existingData.prefecture : "") || "",
-    city: city || (shopId ? existingData.city : "") || "",
-    town_block: town_block || (shopId ? existingData.town_block : "") || "",
-    building: building || (shopId ? existingData.building : "") || "",
+    // FIX (§3.4.1, CocoTenDetailPage — real schema drift, found while
+    // building the detail page and confirmed against
+    // lib/flutterflow_project/schemas.dart directly, not schema.md): this
+    // function has only ever written `prefecture`/`city`/`town_block`/
+    // `building` — none of which the FlutterFlow-side schema declares at
+    // all (it only ever declared a single `address` string field, matching
+    // the original client spec's own collection definition). Every real
+    // `cocoten_shops` document's `address` field has therefore been empty
+    // since this function was first built. Safe to fix now — confirmed via
+    // a direct grep of this session's own DSL work that
+    // `adminUpsertCocotenShop`/`adminGetCocotenShops` have zero admin-UI
+    // call sites yet (Phase 12/Admin CocoTen CRUD, not built), so there is
+    // no live consumer whose expectations this could break. Keeps
+    // accepting the 4 separate admin-form inputs (closer to what an eventual
+    // admin edit UI actually wants to collect) but now ALSO computes and
+    // writes the schema-correct combined `address` string, which is what
+    // CocoTenDetailPage (and any other future DSL reader) can actually bind
+    // to. The 4 separate fields are still written too (harmless extra keys,
+    // not schema-tracked) so a later edit's own "leave unchanged if blank"
+    // merge logic (this function's own established convention, see below)
+    // keeps working per-component.
+    prefecture: resolvedPrefecture,
+    city: resolvedCity,
+    town_block: resolvedTownBlock,
+    building: resolvedBuilding,
+    address: [resolvedPrefecture, resolvedCity, resolvedTownBlock, resolvedBuilding]
+      .filter((s) => s.trim().length > 0)
+      .join(" "),
+    // FIX (§3.4.1, CocoTenDetailPage): menu/guest_benefits were never
+    // written by this function at all (confirmed schema drift, disclosed
+    // in an earlier pass) despite both existing in the real schema and
+    // being exactly what the venue detail page needs to show.
+    menu: menu || (shopId ? existingData.menu : "") || "",
+    guest_benefits: guest_benefits || (shopId ? existingData.guest_benefits : "") || "",
+    // `photos` (ImagePath, single value — see the function-level comment
+    // above for why this isn't a real array). `location` (LatLng) remains
+    // deliberately unhandled — no map/geocoding widget exists anywhere in
+    // this app, a real, disclosed, standing limitation, not new to this
+    // change.
+    photos: photo_url || (shopId ? existingData.photos : "") || "",
     active: active !== undefined ? active : true,
     updated_at: Timestamp.now(),
   };
@@ -2465,6 +3304,60 @@ export const adminDeleteCocotenShop = onCall(async (request) => {
   );
 
   return { success: true };
+});
+
+// ジャンル/タグマスタ (IMPLEMENTATION_PLAN.md §3.8 item 7's "genre/tag
+// master" half). Own dedicated small surface rather than folded into the
+// generic `adminGetSystemConfig`/`adminUpdateSystemConfig` constant editor
+// — same reasoning as `getServiceAreas`/`ServiceAreaPage` staying separate
+// from that page's own 12-scalar-constant scope: an array-of-strings
+// add/remove list doesn't fit that page's "one save action per settings
+// tab" scalar-field shape. Admin-only for now (no guest-facing wiring in
+// this pass — CocomisePage's own filter chips stay hardcoded, a
+// deliberate, disclosed scope reduction; that page's relevant block is
+// itself flagged elsewhere as too fragile to touch outside a dedicated
+// pass). Reads/writes the same `system_config/settings.cocoten_genres`
+// field `adminUpsertCocotenShop` validates new shop genres against.
+export const adminGetCocotenGenres = onCall(async (request) => {
+  await verifyAdmin(request);
+  const config = await getSystemConfig();
+  return { success: true, genres: config.cocoten_genres };
+});
+
+export const adminUpdateCocotenGenres = onCall(async (request) => {
+  await verifyAdmin(request);
+
+  const { genres, reason } = request.data;
+  if (!Array.isArray(genres)) {
+    throw new HttpsError("invalid-argument", "genresは配列で指定してください。");
+  }
+  const cleaned = Array.from(
+    new Set(
+      genres
+        .filter((g): g is string => typeof g === "string")
+        .map((g) => g.trim())
+        .filter((g) => g.length > 0)
+    )
+  );
+  if (cleaned.length === 0) {
+    throw new HttpsError("invalid-argument", "ジャンルを1件以上指定してください。");
+  }
+
+  await db
+    .collection("system_config")
+    .doc("settings")
+    .set({ cocoten_genres: cleaned }, { merge: true });
+
+  await createAuditLog(
+    request.auth!.uid,
+    "update_cocoten_genres",
+    "system_config",
+    "settings",
+    { genres: cleaned },
+    reason || ""
+  );
+
+  return { success: true, genres: cleaned };
 });
 
 // ============================================
@@ -2700,6 +3593,69 @@ export const adminHireWorkPostApplicant = onCall(async (request) => {
     "work_post",
     post_id,
     { applicant_id, reason },
+    reason || ""
+  );
+
+  return { success: true };
+});
+
+// ============================================
+// Chat oversight (Tier 3, §3.8.10) — no precedent in the sister
+// admin-dashboard project ("no dedicated page monitors room-open status or
+// the chat_close_sec auto-hide timer at all") and no admin-side backend
+// existed for `chat_rooms` at all before this. Read-only monitoring +ONE
+// manual override (force-close a stuck-open room) — this project's own
+// established minimal-admin-slice scope, matching KycReviewPage/
+// AdminReportReviewPage's own precedent of "list + one or two direct
+// actions," not a full CRUD surface.
+// ============================================
+
+/**
+ * Recent chat rooms, newest first. `active`/`closed_at` are exactly the two
+ * fields §3.5.8's two-part close mechanic writes (the instant post-lock via
+ * reservations.ts's own status-driven check, and the chat_close_sec
+ * scheduled sweep) — this view exists so an admin can actually SEE that
+ * mechanic working, per §3.8.6's "observability, not just a feature"
+ * framing applied to the analogous home-ranking requirement.
+ */
+export const adminGetChatRooms = onCall(async (request) => {
+  await verifyAdmin(request);
+
+  const snapshot = await db
+    .collection("chat_rooms")
+    .orderBy("created_at", "desc")
+    .limit(50)
+    .get();
+
+  const rooms = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return { success: true, rooms, count: rooms.length };
+});
+
+/**
+ * Manual override: force-close a room that should have closed (via either
+ * half of §3.5.8's mechanic) but didn't — same "admin can unstick a state
+ * the automated mechanic failed to reach" shape as adminForceCancel for
+ * reservations.
+ */
+export const adminCloseChat = onCall(async (request) => {
+  await verifyAdmin(request);
+
+  const { room_id, reason } = request.data;
+  if (!room_id) {
+    throw new HttpsError("invalid-argument", "room_idが必要です。");
+  }
+
+  await db.collection("chat_rooms").doc(room_id).update({
+    active: false,
+    closed_at: Timestamp.now(),
+  });
+
+  await createAuditLog(
+    request.auth!.uid,
+    "admin_close_chat",
+    "chat_room",
+    room_id,
+    { reason },
     reason || ""
   );
 

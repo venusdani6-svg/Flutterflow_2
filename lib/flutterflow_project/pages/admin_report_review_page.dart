@@ -49,6 +49,12 @@ final class AdminReportReviewPageState {
         key: "b6gae7od",
         typeName: "String",
       );
+  ffai.ProjectStateFieldHandle get selectedReportedUserId =>
+      const ffai.ProjectStateFieldHandle(
+        name: "selectedReportedUserId",
+        key: "ulc9vil3",
+        typeName: "String",
+      );
 }
 
 abstract final class AdminReportReviewPageWidgets {
@@ -96,43 +102,43 @@ abstract final class AdminReportReviewPageWidgets {
                 text: "管理者権限がありません。",
               ),
               ffai.ProjectWidgetHandle(
-                key: "ListView_ebh3oxlv",
+                key: "ListView_zf9l5p8w",
                 type: "ListView",
                 path: "AdminReportReviewPage.body[0].children[1]",
                 name: "PendingReportsListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Card_0vahye99",
+                    key: "Card_eeqmvpfr",
                     type: "Card",
                     path: "AdminReportReviewPage.body[0].children[1].children[0]",
                     name: "ReportCard",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Container_ou7mxv4p",
+                        key: "Container_ckmkjjam",
                         type: "Container",
                         path: "AdminReportReviewPage.body[0].children[1].children[0].children[0]",
                         name: "Container",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Column_bm9va1nj",
+                            key: "Column_rh9hry9z",
                             type: "Column",
                             path: "AdminReportReviewPage.body[0].children[1].children[0].children[0].children[0]",
                             name: "Column",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "Text_hojlnqqd",
+                                key: "Text_i6hbahod",
                                 type: "Text",
                                 path: "AdminReportReviewPage.body[0].children[1].children[0].children[0].children[0].children[0]",
                                 name: "Text",
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Text_vc70hk7b",
+                                key: "Text_y1ycw1v7",
                                 type: "Text",
                                 path: "AdminReportReviewPage.body[0].children[1].children[0].children[0].children[0].children[1]",
                                 name: "Text",
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Button_yh0hp0gw",
+                                key: "Button_xptccnbb",
                                 type: "Button",
                                 path: "AdminReportReviewPage.body[0].children[1].children[0].children[0].children[0].children[2]",
                                 name: "Button",
@@ -206,6 +212,16 @@ abstract final class AdminReportReviewPageWidgets {
                 path: "AdminReportReviewPage.body[0].children[6]",
                 name: "Button",
                 text: "解決する",
+                triggers: const <String>[
+                  "ON_TAP",
+                ],
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Button_farka8z2",
+                type: "Button",
+                path: "AdminReportReviewPage.body[0].children[7]",
+                name: "AdminReportFreezeButton",
+                text: "対象ユーザーを凍結する",
                 triggers: const <String>[
                   "ON_TAP",
                 ],

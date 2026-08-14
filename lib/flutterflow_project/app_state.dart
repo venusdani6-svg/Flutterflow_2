@@ -41,6 +41,24 @@ abstract final class AppState {
     typeName: "Integer",
     persisted: false,
   );
+  static const pickedActivityPrefectureValue = ffai.ProjectAppStateFieldHandle(
+    name: "pickedActivityPrefectureValue",
+    key: "tjpognu2",
+    typeName: "String",
+    persisted: false,
+  );
+  static const pickedPrefectureValue = ffai.ProjectAppStateFieldHandle(
+    name: "pickedPrefectureValue",
+    key: "2dubhn7i",
+    typeName: "String",
+    persisted: false,
+  );
+  static const prefecturePickList = ffai.ProjectAppStateFieldHandle(
+    name: "prefecturePickList",
+    key: "31ttgh2e",
+    typeName: "List<String>",
+    persisted: false,
+  );
   static const searchCastKeyword = ffai.ProjectAppStateFieldHandle(
     name: "searchCastKeyword",
     key: "nfqsacwz",
@@ -66,6 +84,9 @@ abstract final class AppState {
     currentNotificationFilter,
     isagreed,
     navIndex,
+    pickedActivityPrefectureValue,
+    pickedPrefectureValue,
+    prefecturePickList,
     searchCastKeyword,
     searchShopKeyword,
     verificationPhoneNumber,

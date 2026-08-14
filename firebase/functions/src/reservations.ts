@@ -4,7 +4,7 @@
  */
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { db, stripe, Timestamp, getSystemConfig } from "./config";
+import { db, stripe, Timestamp, getSystemConfig, sendPushNotification } from "./config";
 import { transferPendingCastRewards, captureAuthorizedExtensions } from "./stripe-payments";
 import { findUnavailableCastId, reservedSlotsQuery } from "./schedule";
 
@@ -263,12 +263,25 @@ export const createReservation = onCall(async (request) => {
   const resRef = db.collection("reservations").doc();
   const resId = resRef.id;
 
+  // FIX (§3.5.9/§3.6.7 — per-cast independent accept/decline, PROJECT_KNOWLEDGE.md
+  // §71/§72): every cast_id starts "pending". Used by respondToReservation
+  // below to require ALL invited casts to accept before a multi-cast
+  // reservation (bulk-invite from Favorites, or a direct multi-cast invite)
+  // finalizes as confirmed — degenerates to today's exact single-cast
+  // behavior when cast_ids.length === 1 (one accept already satisfies
+  // "every cast_id has accepted").
+  const castResponses: Record<string, "pending" | "accepted" | "declined"> = {};
+  for (const id of castIds) {
+    castResponses[id] = "pending";
+  }
+
   await resRef.set({
     res_id: resId,
     guest_id: uid,
     cast_ids: castIds,
     staff_ids: staffIds,
     status: "request_pending",
+    cast_responses: castResponses,
     date: Timestamp.fromDate(new Date(date)),
     time_slot,
     duration_minutes,
@@ -308,6 +321,19 @@ export const createReservation = onCall(async (request) => {
     });
   }
   await batch.commit();
+  // Real device push, alongside the in-app notification batch above (see
+  // sendPushNotification's own doc comment, config.ts) — best-effort,
+  // never blocks the reservation-creation response.
+  await Promise.all(
+    castIds.map((castId) =>
+      sendPushNotification(
+        castId,
+        "新しいリクエストが届きました",
+        `${userData.nickname} さんからリクエストが届きました。`,
+        { res_id: resId, type: "matching" }
+      )
+    )
+  );
 
   return {
     success: true,
@@ -354,7 +380,31 @@ export const respondToReservation = onCall(async (request) => {
   // caller can ever win the status transition; the loser sees the
   // already-updated status and fails the guard, exactly as if it had
   // arrived after the first call actually finished.
-  const resData = await db.runTransaction(async (tx) => {
+  //
+  // FIX (§3.5.9/§3.6.7 — per-cast independent accept/decline,
+  // PROJECT_KNOWLEDGE.md §71/§72): this used to let WHICHEVER cast_id
+  // responded FIRST decide the fate of the entire reservation, immediately
+  // — a real bug for any multi-cast reservation (bulk-invite from
+  // Favorites, or a direct multi-cast invite): one cast tapping "accept"
+  // instantly confirmed the booking (creating the chat room / work-post
+  // side effects) before the OTHER invited casts had any chance to
+  // respond, and one cast tapping "decline" cancelled it out from under
+  // everyone else. Now tracks each cast's own response in
+  // `cast_responses` (initialized to all-"pending" at creation,
+  // createReservation above) and only finalizes once the group's fate is
+  // actually decided: ANY decline still cancels immediately (matches
+  // today's behavior exactly — a "group" session can't proceed without
+  // every invited cast), but an accept only finalizes to "confirmed" once
+  // EVERY invited cast has accepted. For the overwhelming common case
+  // (`cast_ids.length === 1`), this is a no-op change: one cast's own
+  // accept already satisfies "every cast_id has accepted," so a
+  // single-cast reservation confirms exactly as immediately as before.
+  // "Can change the decision later" (§3.6.7's own wording) falls out for
+  // free: the status guard below only blocks calls once the GROUP has
+  // finalized (confirmed/cancelled) — while still "authorized"/
+  // "cast_pending", any cast can call this again to overwrite their own
+  // prior entry in `cast_responses`.
+  const { data: resData, outcome } = await db.runTransaction(async (tx) => {
     const resRef = db.collection("reservations").doc(res_id);
     const resSnap = await tx.get(resRef);
     if (!resSnap.exists) {
@@ -374,31 +424,81 @@ export const respondToReservation = onCall(async (request) => {
       );
     }
 
+    const castIds: string[] = data.cast_ids || [];
+    // Defensive fallback to `{}` for any reservation created before this
+    // field existed — degenerates correctly (this cast's own entry is all
+    // that ends up populated, and for the single-cast case that alone
+    // already satisfies "every cast_id has accepted" below).
+    const castResponses: Record<string, string> = {
+      ...(data.cast_responses || {}),
+      [uid]: accept ? "accepted" : "declined",
+    };
+    const anyDeclined = Object.values(castResponses).includes("declined");
+    const allAccepted =
+      castIds.length > 0 && castIds.every((id) => castResponses[id] === "accepted");
+
+    const groupOutcome: "confirmed" | "cancelled" | "waiting" = anyDeclined
+      ? "cancelled"
+      : allAccepted
+        ? "confirmed"
+        : "waiting";
+
     // Slot-lock release (PROJECT_KNOWLEDGE.md §68), folded into this SAME
     // transaction rather than called after it commits — an orphaned
     // "reserved" schedule_slots doc has no self-healing path, unlike the
     // Stripe hold this branch also releases below (a stale hold there just
     // self-expires in ~7 days). Read before the write (reads-before-writes
     // is a hard Firestore transaction requirement) but only actually
-    // deleted on decline — an accepted reservation must keep its slots
-    // reserved.
-    const slotsSnap = !accept ? await tx.get(reservedSlotsQuery(res_id)) : null;
+    // deleted when the GROUP resolves to cancelled — an accepted (or
+    // still-waiting-on-others) reservation must keep its slots reserved.
+    const slotsSnap =
+      groupOutcome === "cancelled" ? await tx.get(reservedSlotsQuery(res_id)) : null;
 
     tx.update(resRef, {
-      status: accept ? "confirmed" : "cancelled",
-      ...(accept
+      cast_responses: castResponses,
+      ...(groupOutcome === "waiting"
         ? {}
-        : { cancel_reason: "キャストが辞退しました", cancelled_by: "cast" }),
+        : {
+            status: groupOutcome === "confirmed" ? "confirmed" : "cancelled",
+            ...(groupOutcome === "cancelled"
+              ? { cancel_reason: "キャストが辞退しました", cancelled_by: "cast" }
+              : {}),
+          }),
       updated_at: Timestamp.now(),
     });
     if (slotsSnap) {
       slotsSnap.forEach((doc) => tx.delete(doc.ref));
     }
 
-    return data;
+    return { data, outcome: groupOutcome };
   });
 
-  if (accept) {
+  if (outcome === "waiting") {
+    // Not yet finalized — some invited casts (or this one, having just
+    // accepted) are still pending. No chat room / work-post side effects
+    // yet; those only fire once the group actually resolves to confirmed.
+    await db
+      .collection("users")
+      .doc(resData.guest_id)
+      .collection("notifications")
+      .add({
+        type: "matching",
+        title: "キャストが承諾しました",
+        body: "一部のキャストがリクエストを承諾しました。他のキャストの返答をお待ちください。",
+        data: { res_id },
+        read: false,
+        created_at: Timestamp.now(),
+      });
+    await sendPushNotification(
+      resData.guest_id,
+      "キャストが承諾しました",
+      "一部のキャストがリクエストを承諾しました。他のキャストの返答をお待ちください。",
+      { res_id, type: "matching" }
+    );
+    return { success: true, message: "承諾しました。他のキャストの返答をお待ちください。" };
+  }
+
+  if (outcome === "confirmed") {
     const chatRef = db.collection("chat_rooms").doc();
     await chatRef.set({
       room_id: chatRef.id,
@@ -421,6 +521,12 @@ export const respondToReservation = onCall(async (request) => {
         read: false,
         created_at: Timestamp.now(),
       });
+    await sendPushNotification(
+      resData.guest_id,
+      "リクエストが承諾されました！",
+      "キャストがリクエストを承諾しました。チャットが利用可能になりました。",
+      { res_id, chat_room_id: chatRef.id, type: "matching" }
+    );
 
     if (resData.group_invite && resData.group_size > 0) {
       await db.collection("work_posts").add({
@@ -480,8 +586,10 @@ export const respondToReservation = onCall(async (request) => {
 
     return { success: true, message: "リクエストを承諾しました。", chat_room_id: chatRef.id };
   } else {
-    // Status transition (status: "cancelled", cancel_reason, cancelled_by)
-    // already written atomically inside the transaction above.
+    // outcome === "cancelled" — the only remaining possibility here, since
+    // "waiting" already returned above. Status transition (status:
+    // "cancelled", cancel_reason, cancelled_by) already written atomically
+    // inside the transaction above.
     if (resData.payment_intent_id) {
       try {
         await stripe.paymentIntents.cancel(resData.payment_intent_id);
@@ -502,6 +610,12 @@ export const respondToReservation = onCall(async (request) => {
         read: false,
         created_at: Timestamp.now(),
       });
+    await sendPushNotification(
+      resData.guest_id,
+      "リクエストが辞退されました",
+      "キャストがリクエストを辞退しました。他のキャストをお探しください。",
+      { res_id, type: "matching" }
+    );
 
     return { success: true, message: "リクエストを辞退しました。" };
   }
@@ -668,6 +782,12 @@ export const reportCompletion = onCall(async (request) => {
       read: false,
       created_at: Timestamp.now(),
     });
+  await sendPushNotification(
+    resData.guest_id,
+    "交流が完了しました",
+    "キャストが完了報告をしました。評価をお願いします。",
+    { res_id, type: "matching" }
+  );
 
   return { success: true, message: "完了報告を送信しました。" };
 });
@@ -801,6 +921,12 @@ export const submitReview = onCall(async (request) => {
     read: false,
     created_at: Timestamp.now(),
   });
+  await sendPushNotification(
+    cast_id,
+    "評価が届きました",
+    `★${rating} の評価が届きました。`,
+    { res_id, rating: String(rating), type: "matching" }
+  );
 
   // Phase 3 of implementing the 5 unresolved §17.9 conflicts (C4):
   // "capture-vs-transfer moment" - the cast's own reward Transfer (not
@@ -1073,6 +1199,53 @@ export const sendChatMessage = onCall(async (request) => {
     last_message_time: now,
   });
 
+  // FIX (feature build, unimplemented-features pass): sending a message
+  // never notified the OTHER participant(s) at all — no in-app alert, no
+  // way to know a new message arrived short of reopening the chat. Notify
+  // every OTHER participant (a group-invite room can have more than 2),
+  // matching the same `users/{uid}/notifications` broadcast shape every
+  // other notification in this backend already uses. Best-effort (doesn't
+  // block or fail the send itself if a notification write hiccups) —
+  // matches `adminApproveKYC`'s own established "best-effort side effect"
+  // precedent for exactly this reasoning.
+  const otherParticipants: string[] = (roomData.participants || []).filter(
+    (id: string) => id !== uid
+  );
+  const senderDoc = await db.collection("users").doc(uid).get();
+  const senderNickname = senderDoc.data()?.nickname || "";
+  await Promise.all(
+    otherParticipants.map((participantId) =>
+      db
+        .collection("users")
+        .doc(participantId)
+        .collection("notifications")
+        .add({
+          type: "matching",
+          title: `${senderNickname || "相手"}さんからメッセージ`,
+          body: trimmed,
+          data: { res_id, room_id: roomDoc.id },
+          read: false,
+          created_at: now,
+        })
+        .catch((err) => {
+          console.error(`Failed to notify ${participantId} of new chat message:`, err);
+        })
+    )
+  );
+  // Real device push, alongside the in-app notification fan-out above —
+  // sendPushNotification is already best-effort/non-throwing on its own,
+  // matching the same per-recipient `.catch()` shape as the loop above.
+  await Promise.all(
+    otherParticipants.map((participantId) =>
+      sendPushNotification(
+        participantId,
+        `${senderNickname || "相手"}さんからメッセージ`,
+        trimmed,
+        { res_id, room_id: roomDoc.id, type: "matching" }
+      )
+    )
+  );
+
   return { success: true };
 });
 
@@ -1137,6 +1310,91 @@ export const getChatRoomInfo = onCall(async (request) => {
     active,
     counterpart_nickname: counterpartNickname,
     counterpart_photo: counterpartPhoto,
+  };
+});
+
+// FIX (comprehensive project-wide review round 2, CRITICAL): ReservationDetail
+// (the DSL page) had NO real data-fetching action at all beyond a status/
+// role check (`fetchReservationVisibility`) — every date/time/location/
+// reward/counterpart-name value on the page was a static placeholder string
+// baked into the generated widget tree at authoring time, shown identically
+// for every single reservation regardless of what was actually booked. This
+// callable is the real data source for that page, added rather than reading
+// Firestore directly from the client for two reasons: (1) `total_amount`/
+// `location`/`date` live on `reservations/{res_id}`, which the caller CAN
+// read directly under firestore.rules' guest/cast/staff-or-admin scoping,
+// but (2) the counterpart's `nickname`/`profile_image_url` live on
+// `users/{other_uid}`, which firestore.rules locks to STRICTLY owner-only
+// read (`allow read: if request.auth.uid == document`) — a guest can never
+// read their cast's own user doc directly, and vice versa. Same constraint
+// `getChatRoomInfo` above already solves the same way: Admin SDK read,
+// server-side, one round trip returning both.
+export const getReservationDetailInfo = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const { res_id } = request.data;
+  const uid = request.auth.uid;
+
+  if (typeof res_id !== "string" || !res_id) {
+    throw new HttpsError("invalid-argument", "予約IDが必要です。");
+  }
+
+  const resDoc = await db.collection("reservations").doc(res_id).get();
+  if (!resDoc.exists) {
+    throw new HttpsError("not-found", "予約が見つかりません。");
+  }
+  const resData = resDoc.data()!;
+  const isGuest = resData.guest_id === uid;
+  const isCast = resData.cast_ids?.includes(uid);
+  const isStaff = resData.staff_ids?.includes(uid);
+  if (!isGuest && !isCast && !isStaff) {
+    throw new HttpsError("permission-denied", "権限がありません。");
+  }
+
+  // Only `nickname` is resolved here (not `profile_image_url`) — the
+  // ReservationDetail page's counterpart photo is a deliberate static
+  // fallback avatar (see dsl/edit.dart's CircleImage_wer97dj4 patch), not a
+  // dynamic binding, so a photo URL here would be dead data.
+  const counterpartId = isGuest ? resData.cast_ids?.[0] || "" : resData.guest_id;
+  let counterpartNickname = "";
+  if (counterpartId) {
+    const counterpartDoc = await db.collection("users").doc(counterpartId).get();
+    if (counterpartDoc.exists) {
+      counterpartNickname = counterpartDoc.data()?.nickname || "";
+    }
+  }
+
+  // FIX (feature build, unimplemented-features pass): the cast-facing
+  // approve/decline UI had zero visibility into whether this was a group
+  // invite or how many of the OTHER invited casts had already responded —
+  // `respondToReservation` (above) already correctly tracks this per-cast
+  // in `cast_responses` and only finalizes once every invited cast has
+  // accepted, but nothing surfaced that state to the cast deciding whether
+  // to accept. `accepted_cast_count`/`total_cast_count` let the client show
+  // "X/Y accepted" without duplicating this reservation's own response-
+  // tallying logic client-side.
+  const castIds: string[] = resData.cast_ids || [];
+  const castResponses: Record<string, string> = resData.cast_responses || {};
+  const acceptedCastCount = castIds.filter((id) => castResponses[id] === "accepted").length;
+
+  return {
+    success: true,
+    date_ms: resData.date?.toMillis?.() ?? null,
+    duration_minutes: resData.duration_minutes || 0,
+    location: resData.location || "",
+    total_amount: resData.total_amount || 0,
+    counterpart_nickname: counterpartNickname,
+    // FIX (comprehensive project-wide review round 2, follow-up finding):
+    // the page also has a separate "リクエストメッセージ" card whose message
+    // body was a static filler placeholder, never bound to the reservation's
+    // real `details` field.
+    details: resData.details || "",
+    group_invite: resData.group_invite === true,
+    group_size: resData.group_size || 0,
+    accepted_cast_count: acceptedCastCount,
+    total_cast_count: castIds.length,
   };
 });
 

@@ -25,6 +25,12 @@ final class ReservationListPageState {
         key: "24fnjqud",
         typeName: "List<String>",
       );
+  ffai.ProjectStateFieldHandle get selectedReservationCategory =>
+      const ffai.ProjectStateFieldHandle(
+        name: "selectedReservationCategory",
+        key: "d5wppd5t",
+        typeName: "String",
+      );
 }
 
 abstract final class ReservationListPageWidgets {
@@ -59,31 +65,175 @@ abstract final class ReservationListPageWidgets {
         ],
         "body": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
-            key: "ListView_kardnjc6",
-            type: "ListView",
+            key: "Column_arj2yjsj",
+            type: "Column",
             path: "ReservationListPage.body[0]",
-            name: "ListView",
+            name: "ReservationListColumn",
             children: <ffai.ProjectWidgetHandle>[
               ffai.ProjectWidgetHandle(
-                key: "Card_wf69s6in",
-                type: "Card",
+                key: "Row_abd54yt0",
+                type: "Row",
                 path: "ReservationListPage.body[0].children[0]",
-                name: "ReservationListItemCard",
-                triggers: const <String>[
-                  "ON_TAP",
-                ],
+                name: "ReservationCategoryTabs",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Container_5ehwn68a",
+                    key: "Container_znhdcwz7",
                     type: "Container",
                     path: "ReservationListPage.body[0].children[0].children[0]",
                     name: "Container",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Text_96x1z4ui",
+                        key: "Text_atof7qqh",
                         type: "Text",
                         path: "ReservationListPage.body[0].children[0].children[0].children[0]",
                         name: "Text",
+                        text: "すべて",
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Container_fd4aw5ma",
+                    type: "Container",
+                    path: "ReservationListPage.body[0].children[0].children[1]",
+                    name: "Container",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_po0x84d5",
+                        type: "Text",
+                        path: "ReservationListPage.body[0].children[0].children[1].children[0]",
+                        name: "Text",
+                        text: "承認待ち",
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Container_dahj966j",
+                    type: "Container",
+                    path: "ReservationListPage.body[0].children[0].children[2]",
+                    name: "Container",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_66xb13l1",
+                        type: "Text",
+                        path: "ReservationListPage.body[0].children[0].children[2].children[0]",
+                        name: "Text",
+                        text: "否認",
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Container_yhsfo5j1",
+                    type: "Container",
+                    path: "ReservationListPage.body[0].children[0].children[3]",
+                    name: "Container",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_6retp38w",
+                        type: "Text",
+                        path: "ReservationListPage.body[0].children[0].children[3].children[0]",
+                        name: "Text",
+                        text: "期限切れ",
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Container_9ilrua0r",
+                    type: "Container",
+                    path: "ReservationListPage.body[0].children[0].children[4]",
+                    name: "Container",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_r603rhdf",
+                        type: "Text",
+                        path: "ReservationListPage.body[0].children[0].children[4].children[0]",
+                        name: "Text",
+                        text: "進行中",
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Container_ijyz5bh6",
+                    type: "Container",
+                    path: "ReservationListPage.body[0].children[0].children[5]",
+                    name: "ReservationCompletedTab",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_1bmuh302",
+                        type: "Text",
+                        path: "ReservationListPage.body[0].children[0].children[5].children[0]",
+                        name: "Text",
+                        text: "完了",
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Divider_rcdfd7fj",
+                type: "Divider",
+                path: "ReservationListPage.body[0].children[1]",
+                name: "Divider",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "ListView_7y70ky9l",
+                type: "ListView",
+                path: "ReservationListPage.body[0].children[2]",
+                name: "ReservationListItemsListView",
+                children: <ffai.ProjectWidgetHandle>[
+                  ffai.ProjectWidgetHandle(
+                    key: "Card_cux7j0o4",
+                    type: "Card",
+                    path: "ReservationListPage.body[0].children[2].children[0]",
+                    name: "ReservationListItemCard",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Container_lcgzx2fw",
+                        type: "Container",
+                        path: "ReservationListPage.body[0].children[2].children[0].children[0]",
+                        name: "Container",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Column_tafkganc",
+                            type: "Column",
+                            path: "ReservationListPage.body[0].children[2].children[0].children[0].children[0]",
+                            name: "Column",
+                            children: <ffai.ProjectWidgetHandle>[
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_nz5iorg4",
+                                type: "Text",
+                                path: "ReservationListPage.body[0].children[2].children[0].children[0].children[0].children[0]",
+                                name: "Text",
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_8qmouljc",
+                                type: "Text",
+                                path: "ReservationListPage.body[0].children[2].children[0].children[0].children[0].children[1]",
+                                name: "Text",
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ],
                   ),

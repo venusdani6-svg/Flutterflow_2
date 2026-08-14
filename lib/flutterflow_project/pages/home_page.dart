@@ -115,6 +115,16 @@ abstract final class HomePageWidgets {
                             "ON_TAP",
                           ],
                         ),
+                        ffai.ProjectWidgetHandle(
+                          key: "Button_zgg830vu",
+                          type: "Button",
+                          path: "HomePage.appBar[0].title[0].children[1].children[3]",
+                          name: "FavoritesNavButton",
+                          text: "お気に入り",
+                          triggers: const <String>[
+                            "ON_TAP",
+                          ],
+                        ),
                       ],
                     ),
                   ],

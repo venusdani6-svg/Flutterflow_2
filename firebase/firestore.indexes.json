@@ -499,6 +499,20 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "is_active",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "account_type",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "is_frozen",
           "order": "ASCENDING"
         },
@@ -749,6 +763,20 @@
         {
           "fieldPath": "res_id",
           "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "debt_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
         }
       ]
     }

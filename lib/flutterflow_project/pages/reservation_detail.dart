@@ -31,6 +31,12 @@ final class ReservationDetailParams {
 
 final class ReservationDetailState {
   const ReservationDetailState();
+  ffai.ProjectStateFieldHandle get resDetailData =>
+      const ffai.ProjectStateFieldHandle(
+        name: "resDetailData",
+        key: "0zcdu3nb",
+        typeName: "String",
+      );
   ffai.ProjectStateFieldHandle get resVisibilityData =>
       const ffai.ProjectStateFieldHandle(
         name: "resVisibilityData",
@@ -94,6 +100,9 @@ abstract final class ReservationDetailWidgets {
                               key: "Icon_ojmnzskm",
                               type: "Icon",
                               path: "ReservationDetail.appBar[0].title[0].children[0].children[0].children[0]",
+                              triggers: const <String>[
+                                "ON_TAP",
+                              ],
                             ),
                           ],
                         ),
@@ -203,10 +212,10 @@ abstract final class ReservationDetailWidgets {
                                         text: "日　付",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_lwjamgvd",
+                                        key: "Text_tsxj62r9",
                                         type: "Text",
                                         path: "ReservationDetail.body[0].children[0].children[1].children[0].children[0].children[2].children[1].children[1]",
-                                        text: "2026年 4月 15日（水）",
+                                        name: "ReservationDetailDateValue",
                                       ),
                                     ],
                                   ),
@@ -241,10 +250,10 @@ abstract final class ReservationDetailWidgets {
                                         text: "時　間",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_e4oa7o7g",
+                                        key: "Text_t6s5sqlz",
                                         type: "Text",
                                         path: "ReservationDetail.body[0].children[0].children[1].children[0].children[0].children[3].children[1].children[1]",
-                                        text: "20:30~21:30",
+                                        name: "ReservationDetailTimeValue",
                                       ),
                                     ],
                                   ),
@@ -279,10 +288,10 @@ abstract final class ReservationDetailWidgets {
                                         text: "場　所",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_bxraoj4e",
+                                        key: "Text_jvhqgo9b",
                                         type: "Text",
                                         path: "ReservationDetail.body[0].children[0].children[1].children[0].children[0].children[4].children[1].children[1]",
-                                        text: "2026年 4月 15日（水）",
+                                        name: "ReservationDetailLocationValue",
                                       ),
                                     ],
                                   ),
@@ -317,10 +326,10 @@ abstract final class ReservationDetailWidgets {
                                         text: "報　酬",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_i1ojfwsp",
+                                        key: "Text_opgk15i0",
                                         type: "Text",
                                         path: "ReservationDetail.body[0].children[0].children[1].children[0].children[0].children[5].children[1].children[1]",
-                                        text: "2,750 円",
+                                        name: "ReservationDetailAmountValue",
                                       ),
                                     ],
                                   ),
@@ -393,16 +402,16 @@ abstract final class ReservationDetailWidgets {
                                     path: "ReservationDetail.body[0].children[0].children[2].children[0].children[0].children[2].children[1]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_f8n0q6ba",
+                                        key: "Text_8dgh8bc5",
                                         type: "Text",
                                         path: "ReservationDetail.body[0].children[0].children[2].children[0].children[0].children[2].children[1].children[0]",
-                                        text: "アルク さん",
+                                        name: "ReservationDetailPartnerName",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_hwsv4ksy",
+                                        key: "Text_2qyj3iep",
                                         type: "Text",
                                         path: "ReservationDetail.body[0].children[0].children[2].children[0].children[0].children[2].children[1].children[1]",
-                                        text: "ゲストユーザー",
+                                        name: "ReservationDetailPartnerRole",
                                       ),
                                     ],
                                   ),
@@ -609,16 +618,16 @@ abstract final class ReservationDetailWidgets {
                                     path: "ReservationDetail.body[0].children[0].children[3].children[0].children[0].children[2].children[1]",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_13bm1jnh",
+                                        key: "Text_3gr8dapn",
                                         type: "Text",
                                         path: "ReservationDetail.body[0].children[0].children[3].children[0].children[0].children[2].children[1].children[0]",
-                                        text: "アルク さん",
+                                        name: "ReservationDetailMessagePartnerName",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_i1chyesr",
+                                        key: "Text_wu31ez6k",
                                         type: "Text",
                                         path: "ReservationDetail.body[0].children[0].children[3].children[0].children[0].children[2].children[1].children[1]",
-                                        text: "ゲストユーザー",
+                                        name: "ReservationDetailMessagePartnerRole",
                                       ),
                                     ],
                                   ),
@@ -636,10 +645,10 @@ abstract final class ReservationDetailWidgets {
                                     text: "お誘い目的",
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_7f26jiz4",
+                                    key: "Text_hmar5zsw",
                                     type: "Text",
                                     path: "ReservationDetail.body[0].children[0].children[3].children[0].children[0].children[3].children[1]",
-                                    text: "お食事",
+                                    name: "ReservationDetailPurposeValue",
                                   ),
                                 ],
                               ),
@@ -649,10 +658,10 @@ abstract final class ReservationDetailWidgets {
                                 path: "ReservationDetail.body[0].children[0].children[3].children[0].children[0].children[4]",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_8q00w3cm",
+                                    key: "Text_3r26hgyo",
                                     type: "Text",
                                     path: "ReservationDetail.body[0].children[0].children[3].children[0].children[0].children[4].children[0]",
-                                    text: "あああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああ",
+                                    name: "ReservationDetailMessageBody",
                                   ),
                                 ],
                               ),
@@ -663,15 +672,21 @@ abstract final class ReservationDetailWidgets {
                     ],
                   ),
                   ffai.ProjectWidgetHandle(
+                    key: "Text_0ek87a47",
+                    type: "Text",
+                    path: "ReservationDetail.body[0].children[0].children[4]",
+                    name: "ReservationDetailGroupInviteStatus",
+                  ),
+                  ffai.ProjectWidgetHandle(
                     key: "Row_llse1xzq",
                     type: "Row",
-                    path: "ReservationDetail.body[0].children[0].children[4]",
+                    path: "ReservationDetail.body[0].children[0].children[5]",
                     name: "ApproveDeclineRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Button_ejb4ehm1",
                         type: "Button",
-                        path: "ReservationDetail.body[0].children[0].children[4].children[0]",
+                        path: "ReservationDetail.body[0].children[0].children[5].children[0]",
                         name: "ApproveButton",
                         text: "お誘いを承認する",
                         triggers: const <String>[
@@ -681,7 +696,7 @@ abstract final class ReservationDetailWidgets {
                       ffai.ProjectWidgetHandle(
                         key: "Button_vokkqeru",
                         type: "Button",
-                        path: "ReservationDetail.body[0].children[0].children[4].children[1]",
+                        path: "ReservationDetail.body[0].children[0].children[5].children[1]",
                         name: "DeclineButton",
                         text: "お誘いを断る",
                         triggers: const <String>[
@@ -693,13 +708,13 @@ abstract final class ReservationDetailWidgets {
                   ffai.ProjectWidgetHandle(
                     key: "Row_qv779nx8",
                     type: "Row",
-                    path: "ReservationDetail.body[0].children[0].children[5]",
+                    path: "ReservationDetail.body[0].children[0].children[6]",
                     name: "ConfirmMeetupRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Button_bubagexh",
                         type: "Button",
-                        path: "ReservationDetail.body[0].children[0].children[5].children[0]",
+                        path: "ReservationDetail.body[0].children[0].children[6].children[0]",
                         name: "ConfirmMeetupButton",
                         text: "合流報告",
                         triggers: const <String>[
@@ -711,13 +726,13 @@ abstract final class ReservationDetailWidgets {
                   ffai.ProjectWidgetHandle(
                     key: "Row_0107cg2c",
                     type: "Row",
-                    path: "ReservationDetail.body[0].children[0].children[6]",
+                    path: "ReservationDetail.body[0].children[0].children[7]",
                     name: "ExtendReservationRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Button_9hul3zvy",
                         type: "Button",
-                        path: "ReservationDetail.body[0].children[0].children[6].children[0]",
+                        path: "ReservationDetail.body[0].children[0].children[7].children[0]",
                         name: "ExtendReservationButton",
                         text: "延長する",
                         triggers: const <String>[
@@ -729,13 +744,13 @@ abstract final class ReservationDetailWidgets {
                   ffai.ProjectWidgetHandle(
                     key: "Row_1cdpx9ig",
                     type: "Row",
-                    path: "ReservationDetail.body[0].children[0].children[7]",
+                    path: "ReservationDetail.body[0].children[0].children[8]",
                     name: "ReportCompletionRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Button_6ccmgnme",
                         type: "Button",
-                        path: "ReservationDetail.body[0].children[0].children[7].children[0]",
+                        path: "ReservationDetail.body[0].children[0].children[8].children[0]",
                         name: "ReportCompletionButton",
                         text: "完了報告",
                         triggers: const <String>[
@@ -747,26 +762,26 @@ abstract final class ReservationDetailWidgets {
                   ffai.ProjectWidgetHandle(
                     key: "Row_9ukyha0q",
                     type: "Row",
-                    path: "ReservationDetail.body[0].children[0].children[8]",
+                    path: "ReservationDetail.body[0].children[0].children[9]",
                     name: "ReviewInputRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Column_fky134z5",
                         type: "Column",
-                        path: "ReservationDetail.body[0].children[0].children[8].children[0]",
+                        path: "ReservationDetail.body[0].children[0].children[9].children[0]",
                         name: "Column",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
                             key: "Text_csu8tobp",
                             type: "Text",
-                            path: "ReservationDetail.body[0].children[0].children[8].children[0].children[0]",
+                            path: "ReservationDetail.body[0].children[0].children[9].children[0].children[0]",
                             name: "Text",
                             text: "評価",
                           ),
                           ffai.ProjectWidgetHandle(
                             key: "DropDown_cshhzjao",
                             type: "DropDown",
-                            path: "ReservationDetail.body[0].children[0].children[8].children[0].children[1]",
+                            path: "ReservationDetail.body[0].children[0].children[9].children[0].children[1]",
                             name: "Dropdown",
                             triggers: const <String>[
                               "ON_FORM_WIDGET_SELECTED",
@@ -775,7 +790,7 @@ abstract final class ReservationDetailWidgets {
                           ffai.ProjectWidgetHandle(
                             key: "TextField_kac4jgrl",
                             type: "TextField",
-                            path: "ReservationDetail.body[0].children[0].children[8].children[0].children[2]",
+                            path: "ReservationDetail.body[0].children[0].children[9].children[0].children[2]",
                             name: "ReviewCommentField",
                             text: "コメント（任意）",
                             triggers: const <String>[
@@ -789,13 +804,13 @@ abstract final class ReservationDetailWidgets {
                   ffai.ProjectWidgetHandle(
                     key: "Row_5d46emlt",
                     type: "Row",
-                    path: "ReservationDetail.body[0].children[0].children[9]",
+                    path: "ReservationDetail.body[0].children[0].children[10]",
                     name: "SubmitReviewRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Button_k3pfm5ry",
                         type: "Button",
-                        path: "ReservationDetail.body[0].children[0].children[9].children[0]",
+                        path: "ReservationDetail.body[0].children[0].children[10].children[0]",
                         name: "SubmitReviewButton",
                         text: "評価する",
                         triggers: const <String>[
@@ -807,26 +822,26 @@ abstract final class ReservationDetailWidgets {
                   ffai.ProjectWidgetHandle(
                     key: "Container_6gw6zsxt",
                     type: "Container",
-                    path: "ReservationDetail.body[0].children[0].children[10]",
+                    path: "ReservationDetail.body[0].children[0].children[11]",
                     name: "TipSection",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Column_vkds5o34",
                         type: "Column",
-                        path: "ReservationDetail.body[0].children[0].children[10].children[0]",
+                        path: "ReservationDetail.body[0].children[0].children[11].children[0]",
                         name: "Column",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
                             key: "Text_j3pwyjab",
                             type: "Text",
-                            path: "ReservationDetail.body[0].children[0].children[10].children[0].children[0]",
+                            path: "ReservationDetail.body[0].children[0].children[11].children[0].children[0]",
                             name: "Text",
                             text: "チップを送る",
                           ),
                           ffai.ProjectWidgetHandle(
                             key: "TextField_8ou0upof",
                             type: "TextField",
-                            path: "ReservationDetail.body[0].children[0].children[10].children[0].children[1]",
+                            path: "ReservationDetail.body[0].children[0].children[11].children[0].children[1]",
                             name: "TipAmountField",
                             text: "金額（円）例: 1000",
                             triggers: const <String>[
@@ -836,7 +851,7 @@ abstract final class ReservationDetailWidgets {
                           ffai.ProjectWidgetHandle(
                             key: "Button_qaw6isi5",
                             type: "Button",
-                            path: "ReservationDetail.body[0].children[0].children[10].children[0].children[2]",
+                            path: "ReservationDetail.body[0].children[0].children[11].children[0].children[2]",
                             name: "Button",
                             text: "送る",
                             triggers: const <String>[
@@ -850,13 +865,13 @@ abstract final class ReservationDetailWidgets {
                   ffai.ProjectWidgetHandle(
                     key: "Row_5xrhh8tz",
                     type: "Row",
-                    path: "ReservationDetail.body[0].children[0].children[11]",
+                    path: "ReservationDetail.body[0].children[0].children[12]",
                     name: "CancelReservationRow",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Button_jdm282w6",
                         type: "Button",
-                        path: "ReservationDetail.body[0].children[0].children[11].children[0]",
+                        path: "ReservationDetail.body[0].children[0].children[12].children[0]",
                         name: "CancelReservationButton",
                         text: "キャンセルする",
                         triggers: const <String>[

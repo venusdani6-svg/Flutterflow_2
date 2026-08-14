@@ -220,22 +220,34 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
-    // ── invitions ────────────────────────────────────────────────────────
-    // TODO: tighten create/read once invite flow moves to Cloud Functions
-    //
-    // Left untouched in the 2026-07-31 Tier-4 hardening pass, deliberately:
-    // zero backend (Cloud Function) references anywhere, zero documents
-    // in Firestore, and this TODO is the original team's own explicit
-    // precondition for tightening. There is no way to verify what field
-    // shape the (separate, main-app) invite flow actually writes without
-    // guessing - tightening blind risks breaking a live client flow this
-    // session cannot see or test.
+    // ── favorites (§3.6.6) ──────────────────────────────────────────────
+    // Deny all direct client access — mirrors this ruleset's own general
+    // convention (own comments above: reservation-status transitions,
+    // wallet/ledger, etc. all Cloud-Functions-only). `addFavorite`/
+    // `removeFavorite`/`getFavoriteCasts` (auth.ts) are the only path,
+    // Admin SDK. Not strictly REQUIRED here the way it is for money/status
+    // fields (a favorite is low-stakes), but kept consistent with this
+    // project's established choice for `blocked_users`-adjacent data over
+    // introducing the one exception — same reasoning `schedule_slots`'s own
+    // doc comment gives for why even its permissive rule still isn't relied
+    // on by any real client call.
+    match /users/{userId}/favorites/{castId} {
+      allow read, write: if false;
+    }
 
+    // ── invitions ────────────────────────────────────────────────────────
+    // FIX (comprehensive project-wide review round 2): tightened to
+    // deny-all. The 2026-07-31 Tier-4 pass left this open pending
+    // confirmation that no live client flow depends on it — this review
+    // round independently re-confirmed zero `dsl/edit.dart` references and
+    // zero Cloud Function references anywhere in the backend, the same
+    // result as every prior audit. An unconditionally open create/read on
+    // a collection nothing in this codebase ever writes or reads is pure
+    // attack surface (arbitrary-document spam/storage cost at minimum)
+    // with no offsetting functionality to preserve, so there is no longer
+    // a reason to leave it open.
     match /invitions/{document} {
-      allow create: if true;
-      allow read: if true;
-      allow write: if false;
-      allow delete: if false;
+      allow read, write: if false;
     }
 
     // ── Admin-managed collections ────────────────────────────────────────

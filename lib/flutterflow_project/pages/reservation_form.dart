@@ -149,6 +149,9 @@ abstract final class ReservationFormWidgets {
                           key: "Icon_1ll7h40h",
                           type: "Icon",
                           path: "ReservationForm.appBar[0].title[0].children[0].children[0]",
+                          triggers: const <String>[
+                            "ON_TAP",
+                          ],
                         ),
                         ffai.ProjectWidgetHandle(
                           key: "Image_1iaa6oop",

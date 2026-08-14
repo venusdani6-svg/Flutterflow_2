@@ -16,7 +16,7 @@
  * that missing client-facing half.
  */
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { db, Timestamp, FieldValue } from "./config";
+import { db, Timestamp, FieldValue, sendPushNotification } from "./config";
 
 /**
  * Callable: apply to an open work post
@@ -107,6 +107,12 @@ export const applyToWorkPost = onCall(async (request) => {
     read: false,
     created_at: Timestamp.now(),
   });
+  await sendPushNotification(
+    postData.poster_id,
+    "ワーク投稿に応募がありました",
+    `${userData.nickname} さんが応募しました。`,
+    { post_id, type: "work" }
+  );
 
   return { success: true };
 });
@@ -196,6 +202,12 @@ export const selectWorkApplicant = onCall(async (request) => {
     read: false,
     created_at: Timestamp.now(),
   });
+  await sendPushNotification(
+    applicant_id,
+    "ワーク応募が承認されました",
+    "あなたの応募が選定されました。",
+    { post_id, type: "work" }
+  );
 
   // Dedicated cast-to-cast coordination chat room for group-invite
   // recruitment (§3.7.6) — only for partner_recruit posts; the guest+cast
@@ -218,6 +230,12 @@ export const selectWorkApplicant = onCall(async (request) => {
       closed_at: null,
     });
     chatRoomId = chatRef.id;
+    // FIX (feature build, unimplemented-features pass): `chat_room_id` was
+    // only ever returned to the caller, never persisted — there was no way
+    // to look up "the recruitment chat for post X" later at all, which is
+    // exactly what admin moderation of this chat needs
+    // (`adminGetRecruitmentChatLog` below).
+    await postRef.update({ chat_room_id: chatRoomId });
   }
 
   return { success: true, chat_room_id: chatRoomId };

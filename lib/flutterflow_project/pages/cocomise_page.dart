@@ -585,13 +585,13 @@ abstract final class CocomisePageWidgets {
                             path: "CocomisePage.body[0].children[0].children[0].children[0].children[6]",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "GridView_6b6o7xe4",
+                                key: "GridView_a8mmbiux",
                                 type: "GridView",
                                 path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0]",
                                 name: "CocotenShopGrid",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Container_fe38reic",
+                                    key: "Container_ammt7z2k",
                                     type: "Container",
                                     path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0]",
                                     name: "CocotenShopCard",
@@ -600,25 +600,25 @@ abstract final class CocomisePageWidgets {
                                     ],
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Column_wjjknwbz",
+                                        key: "Column_n9lc75nq",
                                         type: "Column",
                                         path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0]",
                                         name: "Column",
                                         children: <ffai.ProjectWidgetHandle>[
                                           ffai.ProjectWidgetHandle(
-                                            key: "Row_tvg92d2h",
+                                            key: "Row_5pjcm6d2",
                                             type: "Row",
                                             path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[0]",
                                             name: "Row",
                                             children: <ffai.ProjectWidgetHandle>[
                                               ffai.ProjectWidgetHandle(
-                                                key: "Text_oqk2l8tg",
+                                                key: "Text_baghe5tu",
                                                 type: "Text",
                                                 path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[0].children[0]",
                                                 name: "Text",
                                               ),
                                               ffai.ProjectWidgetHandle(
-                                                key: "Container_tbmx4mki",
+                                                key: "Container_oevyf0ra",
                                                 type: "Container",
                                                 path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[0].children[1]",
                                                 name: "CocotenShopActiveDot",
@@ -626,7 +626,7 @@ abstract final class CocomisePageWidgets {
                                             ],
                                           ),
                                           ffai.ProjectWidgetHandle(
-                                            key: "Text_uz69pb9l",
+                                            key: "Text_oxc2mguw",
                                             type: "Text",
                                             path: "CocomisePage.body[0].children[0].children[0].children[0].children[6].children[0].children[0].children[0].children[1]",
                                             name: "Text",

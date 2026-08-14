@@ -59,6 +59,9 @@ abstract final class AffiliateWidgets {
                           key: "Icon_6pfigm2l",
                           type: "Icon",
                           path: "Affiliate.appBar[0].title[0].children[0].children[0]",
+                          triggers: const <String>[
+                            "ON_TAP",
+                          ],
                         ),
                         ffai.ProjectWidgetHandle(
                           key: "Image_81voyxai",

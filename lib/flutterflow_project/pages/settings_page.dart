@@ -19,6 +19,54 @@ final class SettingsPageParams {
 
 final class SettingsPageState {
   const SettingsPageState();
+  ffai.ProjectStateFieldHandle get notifyAdmin =>
+      const ffai.ProjectStateFieldHandle(
+        name: "notifyAdmin",
+        key: "v60edhjz",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get notifyCocoten =>
+      const ffai.ProjectStateFieldHandle(
+        name: "notifyCocoten",
+        key: "ipxwpc25",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get notifyMatching =>
+      const ffai.ProjectStateFieldHandle(
+        name: "notifyMatching",
+        key: "67ktvj4o",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get notifyStripe =>
+      const ffai.ProjectStateFieldHandle(
+        name: "notifyStripe",
+        key: "ho6dg4tu",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get notifyWork =>
+      const ffai.ProjectStateFieldHandle(
+        name: "notifyWork",
+        key: "jqmzblqh",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get settingsPhoneCodeSent =>
+      const ffai.ProjectStateFieldHandle(
+        name: "settingsPhoneCodeSent",
+        key: "2og391bc",
+        typeName: "Boolean",
+      );
+  ffai.ProjectStateFieldHandle get settingsPhoneNumber =>
+      const ffai.ProjectStateFieldHandle(
+        name: "settingsPhoneNumber",
+        key: "plosficn",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get settingsSmsCode =>
+      const ffai.ProjectStateFieldHandle(
+        name: "settingsSmsCode",
+        key: "2h8li16r",
+        typeName: "String",
+      );
 }
 
 abstract final class SettingsPageWidgets {
@@ -28,6 +76,9 @@ abstract final class SettingsPageWidgets {
       type: "Scaffold",
       path: "SettingsPage",
       name: "SettingsPage",
+      triggers: const <String>[
+        "ON_INIT_STATE",
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
@@ -56,23 +107,252 @@ abstract final class SettingsPageWidgets {
             name: "Column",
             children: <ffai.ProjectWidgetHandle>[
               ffai.ProjectWidgetHandle(
+                key: "Container_p8thgc05",
+                type: "Container",
+                path: "SettingsPage.body[0].children[0]",
+                name: "RemovedDuplicateNotificationSettingsSection",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Container_pzhg4paq",
+                type: "Container",
+                path: "SettingsPage.body[0].children[1]",
+                name: "RemovedDuplicatePhoneChangeSection",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Column_8f3e96pk",
+                type: "Column",
+                path: "SettingsPage.body[0].children[2]",
+                name: "NotificationSettingsSection",
+                children: <ffai.ProjectWidgetHandle>[
+                  ffai.ProjectWidgetHandle(
+                    key: "Text_q7cmxqqi",
+                    type: "Text",
+                    path: "SettingsPage.body[0].children[2].children[0]",
+                    name: "Text",
+                    text: "通知設定",
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_2e7r4ie9",
+                    type: "Row",
+                    path: "SettingsPage.body[0].children[2].children[1]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_9g02a49q",
+                        type: "Text",
+                        path: "SettingsPage.body[0].children[2].children[1].children[0]",
+                        name: "Text",
+                        text: "マッチング通知",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Checkbox_onwxibli",
+                        type: "Checkbox",
+                        path: "SettingsPage.body[0].children[2].children[1].children[1]",
+                        name: "Checkbox",
+                        triggers: const <String>[
+                          "ON_TOGGLE_ON",
+                          "ON_TOGGLE_OFF",
+                        ],
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_qubmqmz9",
+                    type: "Row",
+                    path: "SettingsPage.body[0].children[2].children[2]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_nugdc91x",
+                        type: "Text",
+                        path: "SettingsPage.body[0].children[2].children[2].children[0]",
+                        name: "Text",
+                        text: "ワーク通知",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Checkbox_rjbo1w6p",
+                        type: "Checkbox",
+                        path: "SettingsPage.body[0].children[2].children[2].children[1]",
+                        name: "Checkbox",
+                        triggers: const <String>[
+                          "ON_TOGGLE_ON",
+                          "ON_TOGGLE_OFF",
+                        ],
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_st2jxhpn",
+                    type: "Row",
+                    path: "SettingsPage.body[0].children[2].children[3]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_16jrubcu",
+                        type: "Text",
+                        path: "SettingsPage.body[0].children[2].children[3].children[0]",
+                        name: "Text",
+                        text: "ココ店通知",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Checkbox_48l3nfw3",
+                        type: "Checkbox",
+                        path: "SettingsPage.body[0].children[2].children[3].children[1]",
+                        name: "Checkbox",
+                        triggers: const <String>[
+                          "ON_TOGGLE_ON",
+                          "ON_TOGGLE_OFF",
+                        ],
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_ntg2emxv",
+                    type: "Row",
+                    path: "SettingsPage.body[0].children[2].children[4]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_8inq511k",
+                        type: "Text",
+                        path: "SettingsPage.body[0].children[2].children[4].children[0]",
+                        name: "Text",
+                        text: "決済（Stripe）通知",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Checkbox_mc93syz3",
+                        type: "Checkbox",
+                        path: "SettingsPage.body[0].children[2].children[4].children[1]",
+                        name: "Checkbox",
+                        triggers: const <String>[
+                          "ON_TOGGLE_ON",
+                          "ON_TOGGLE_OFF",
+                        ],
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_3o2lfaxk",
+                    type: "Row",
+                    path: "SettingsPage.body[0].children[2].children[5]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Text_2eifciey",
+                        type: "Text",
+                        path: "SettingsPage.body[0].children[2].children[5].children[0]",
+                        name: "Text",
+                        text: "管理者からのお知らせ",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Checkbox_3ceabwhm",
+                        type: "Checkbox",
+                        path: "SettingsPage.body[0].children[2].children[5].children[1]",
+                        name: "Checkbox",
+                        triggers: const <String>[
+                          "ON_TOGGLE_ON",
+                          "ON_TOGGLE_OFF",
+                        ],
+                      ),
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Button_co4sjglj",
+                    type: "Button",
+                    path: "SettingsPage.body[0].children[2].children[6]",
+                    name: "SaveNotificationSettingsButton",
+                    text: "通知設定を保存する",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Divider_sr9u8rpz",
+                    type: "Divider",
+                    path: "SettingsPage.body[0].children[2].children[7]",
+                    name: "Divider",
+                  ),
+                ],
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Column_latledyj",
+                type: "Column",
+                path: "SettingsPage.body[0].children[3]",
+                name: "PhoneChangeSection",
+                children: <ffai.ProjectWidgetHandle>[
+                  ffai.ProjectWidgetHandle(
+                    key: "Text_wtj6th9k",
+                    type: "Text",
+                    path: "SettingsPage.body[0].children[3].children[0]",
+                    name: "Text",
+                    text: "電話番号を変更する",
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "TextField_xmgw2q0n",
+                    type: "TextField",
+                    path: "SettingsPage.body[0].children[3].children[1]",
+                    name: "SettingsPhoneNumberField",
+                    text: "例: +819012345678",
+                    triggers: const <String>[
+                      "ON_TEXTFIELD_CHANGE",
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Button_ps28zqj8",
+                    type: "Button",
+                    path: "SettingsPage.body[0].children[3].children[2]",
+                    name: "SendPhoneChangeCodeButton",
+                    text: "SMSを送信する",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "TextField_ofjhl5e1",
+                    type: "TextField",
+                    path: "SettingsPage.body[0].children[3].children[3]",
+                    name: "SettingsSmsCodeField",
+                    text: "6桁の認証コード",
+                    triggers: const <String>[
+                      "ON_TEXTFIELD_CHANGE",
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Button_1gzks454",
+                    type: "Button",
+                    path: "SettingsPage.body[0].children[3].children[4]",
+                    name: "ConfirmPhoneChangeButton",
+                    text: "確認して変更する",
+                    triggers: const <String>[
+                      "ON_TAP",
+                    ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Divider_k50fi6f5",
+                    type: "Divider",
+                    path: "SettingsPage.body[0].children[3].children[5]",
+                    name: "Divider",
+                  ),
+                ],
+              ),
+              ffai.ProjectWidgetHandle(
                 key: "Text_4ytmp7l4",
                 type: "Text",
-                path: "SettingsPage.body[0].children[0]",
+                path: "SettingsPage.body[0].children[4]",
                 name: "Text",
                 text: "アカウントを削除する",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Text_2pl7t6r3",
                 type: "Text",
-                path: "SettingsPage.body[0].children[1]",
+                path: "SettingsPage.body[0].children[5]",
                 name: "Text",
                 text: "論理負債がある場合、進行中の予約がある場合、または送金処理中の台帳がある場合は退会できません。",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Button_3o5egwdb",
                 type: "Button",
-                path: "SettingsPage.body[0].children[2]",
+                path: "SettingsPage.body[0].children[6]",
                 name: "Button",
                 text: "退会する",
                 triggers: const <String>[

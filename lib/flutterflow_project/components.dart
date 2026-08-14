@@ -3,8 +3,10 @@
 library;
 
 import 'package:flutterflow_ai/flutterflow_ai.dart' as ffai;
+import 'components/activity_prefecture_picker_sheet.dart' show ActivityPrefecturePickerSheetComponentHandle;
 import 'components/affiliate_qr_code_bottom_sheet.dart' show AffiliateQrCodeBottomSheetComponentHandle;
 import 'components/buttom_navi_comp.dart' show ButtomNaviCompComponentHandle;
+import 'components/prefecture_picker_sheet.dart' show PrefecturePickerSheetComponentHandle;
 import 'components/registration_popup_comp.dart' show RegistrationPopupCompComponentHandle;
 import 'components/reset_password_bottom_sheet.dart' show ResetPasswordBottomSheetComponentHandle;
 import 'components/work_filter_select_comp.dart' show WorkFilterSelectCompComponentHandle;
@@ -13,8 +15,10 @@ import 'components/search_cast_dialog_comp.dart' show SearchCastDialogCompCompon
 import 'components/search_shop_dialog_comp.dart' show SearchShopDialogCompComponentHandle;
 
 abstract final class Components {
+  static final activityPrefecturePickerSheet = ActivityPrefecturePickerSheetComponentHandle();
   static final affiliateQrCodeBottomSheet = AffiliateQrCodeBottomSheetComponentHandle();
   static final buttomNaviComp = ButtomNaviCompComponentHandle();
+  static final prefecturePickerSheet = PrefecturePickerSheetComponentHandle();
   static final registrationPopupComp = RegistrationPopupCompComponentHandle();
   static final resetPasswordBottomSheet = ResetPasswordBottomSheetComponentHandle();
   static final workFilterSelectComp = WorkFilterSelectCompComponentHandle();
@@ -22,8 +26,10 @@ abstract final class Components {
   static final searchCastDialogComp = SearchCastDialogCompComponentHandle();
   static final searchShopDialogComp = SearchShopDialogCompComponentHandle();
   static final all = <ffai.ProjectComponentHandle>[
+    activityPrefecturePickerSheet,
     affiliateQrCodeBottomSheet,
     buttomNaviComp,
+    prefecturePickerSheet,
     registrationPopupComp,
     resetPasswordBottomSheet,
     workFilterSelectComp,

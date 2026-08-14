@@ -86,7 +86,18 @@ export const completeOnboarding = onCall(async (request) => {
     activity_city,
     staff_type,
     referral_code,
-    consent_agreed,
+    // FIX (feature build, unimplemented-features pass): §3.1.8 specifies 4
+    // discrete required consents (ToS, business-commission clause,
+    // personal-data handling, privacy policy) — this used to accept one
+    // combined `consent_agreed` boolean covering all of them under a
+    // single onboarding checkbox. Kept `consent_agreed` accepted-but-
+    // unused would be misleading; replaced outright with 4 separate flags,
+    // matching this project's own established discipline of not silently
+    // preserving a client field nothing real still gates.
+    agreed_tos,
+    agreed_business_commission,
+    agreed_personal_data,
+    agreed_privacy_policy,
   } = request.data;
 
   if (!["guest", "cast"].includes(account_type)) {
@@ -141,10 +152,28 @@ export const completeOnboarding = onCall(async (request) => {
   else if (age < 60) ageGroup = "50代後半";
   else ageGroup = "60歳以上";
 
-  if (!consent_agreed) {
-    throw new HttpsError("invalid-argument", "利用規約への同意が必要です。");
+  // FIX (feature build, unimplemented-features pass): §3.1.8's 4 discrete
+  // consents, each independently required — strict `=== true` (not bare
+  // truthiness) matching the same bug class already fixed elsewhere in
+  // this codebase (`respondToReservation`'s `accept` param, `adminUpsertCocotenShop`'s
+  // `active`): a non-boolean truthy value must not silently pass a consent
+  // gate.
+  const consents = {
+    agreed_tos,
+    agreed_business_commission,
+    agreed_personal_data,
+    agreed_privacy_policy,
+  };
+  for (const [key, value] of Object.entries(consents)) {
+    if (value !== true) {
+      throw new HttpsError(
+        "invalid-argument",
+        `すべての同意項目（利用規約・業務委託契約・個人情報の取り扱い・プライバシーポリシー）への同意が必要です（不足: ${key}）。`
+      );
+    }
   }
 
+  const consentTimestamp = Timestamp.now();
   const updateData: Record<string, any> = {
     account_type,
     gender,
@@ -155,7 +184,15 @@ export const completeOnboarding = onCall(async (request) => {
     activity_prefecture: activity_prefecture || "",
     activity_city: activity_city || "",
     staff_type: staff_type || "none",
-    consent_at: Timestamp.now(),
+    // `consent_at` kept for backward compatibility with the one existing
+    // reader (`ConsentRecordPage`'s `fetchAdminUserConsent`, dsl/edit.dart)
+    // — same moment as the 4 discrete timestamps below, since all 4 are
+    // necessarily agreed together in this one onboarding submission.
+    consent_at: consentTimestamp,
+    tos_agreed_at: consentTimestamp,
+    business_commission_agreed_at: consentTimestamp,
+    personal_data_agreed_at: consentTimestamp,
+    privacy_policy_agreed_at: consentTimestamp,
     updated_at: Timestamp.now(),
   };
 
@@ -511,7 +548,33 @@ export const updateProfile = onCall(async (request) => {
     "profile_image_url", "gallery_images",
     "desired_interaction", "offered_interaction", "staff_type",
     "is_online", "location",
+    // Notification preferences (§3.7's Phase 11 MVP checklist item,
+    // PROJECT_KNOWLEDGE.md §71/§72) — one bool per the admin spec's own
+    // 5-category push-notification taxonomy (§3.8.16: matching/work/
+    // CocoTen/Stripe/admin). Reused this existing allowlist rather than a
+    // new callable — same "self-updates own profile-ish field" shape as
+    // everything else already here. No push-SENDING mechanism exists yet
+    // (that's separately-tracked admin/FCM work) — these fields exist now
+    // so that infrastructure can read real user preferences the moment
+    // it's built, instead of retrofitting a preferences model later.
+    "notify_matching", "notify_work", "notify_cocoten", "notify_stripe", "notify_admin",
   ];
+
+  // Boolean-typed fields in `allowedFields` get an explicit type check —
+  // this project's own recurring bug class (adminApproveKYC/adminUpsertBanner/
+  // adminUpsertCocotenShop all independently hit and fixed the same
+  // "unvalidated boolean crashes the record's raw `as bool?` cast on read"
+  // issue, PROJECT_KNOWLEDGE.md §70) — guarded here proactively for the
+  // 5 new notification-preference fields rather than waiting to find it
+  // the same way again.
+  const BOOLEAN_FIELDS = new Set([
+    "is_online", "notify_matching", "notify_work", "notify_cocoten", "notify_stripe", "notify_admin",
+  ]);
+  for (const field of BOOLEAN_FIELDS) {
+    if (request.data[field] !== undefined && typeof request.data[field] !== "boolean") {
+      throw new HttpsError("invalid-argument", `${field}はtrue/falseで指定してください。`);
+    }
+  }
 
   const updateData: Record<string, any> = { updated_at: Timestamp.now() };
 
@@ -662,6 +725,158 @@ export const getBlockedUsersDetails = onCall(async (request) => {
       const nickname = (data.nickname || "").toString().replaceAll("|||", "");
       const photoUrl = (data.profile_image_url || "").toString().replaceAll("|||", "");
       return `${d.id}|||${nickname}|||${photoUrl}`;
+    });
+
+  return { success: true, items };
+});
+
+/**
+ * Callable: Add a cast to the caller's favorites (§3.6.6)
+ * お気に入り追加
+ *
+ * `favorites` is a subcollection (`users/{uid}/favorites/{castId}`, doc ID =
+ * the favorited cast's own uid — schemas.dart's own 2-field shape,
+ * `cast_id`+`created_at`, doesn't fit `blocked_users`' simpler array-field
+ * model above). firestore.rules denies ALL direct client access to this
+ * subcollection — mirrors this codebase's established convention of
+ * fronting even low-stakes owned data with a callable rather than a direct
+ * client write, the same choice already made for `schedule_slots`
+ * (schedule.ts's own doc comment: a cast COULD write their own slots
+ * directly per that collection's rule, but every real client interaction
+ * still goes through a callable regardless).
+ */
+export const addFavorite = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+  const { cast_id } = request.data;
+  if (typeof cast_id !== "string" || !cast_id) {
+    throw new HttpsError("invalid-argument", "キャストIDが必要です。");
+  }
+  if (cast_id === request.auth.uid) {
+    throw new HttpsError("invalid-argument", "自分自身はお気に入りに登録できません。");
+  }
+
+  const castDoc = await db.collection("users").doc(cast_id).get();
+  if (!castDoc.exists || castDoc.data()?.account_type !== "cast") {
+    throw new HttpsError("not-found", "キャストが見つかりません。");
+  }
+
+  await db
+    .collection("users")
+    .doc(request.auth.uid)
+    .collection("favorites")
+    .doc(cast_id)
+    .set({ cast_id, created_at: Timestamp.now() });
+
+  return { success: true };
+});
+
+/**
+ * Callable: Remove a cast from the caller's favorites
+ * お気に入り解除
+ */
+export const removeFavorite = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+  const { cast_id } = request.data;
+  if (typeof cast_id !== "string" || !cast_id) {
+    throw new HttpsError("invalid-argument", "キャストIDが必要です。");
+  }
+
+  await db
+    .collection("users")
+    .doc(request.auth.uid)
+    .collection("favorites")
+    .doc(cast_id)
+    .delete();
+
+  return { success: true };
+});
+
+/**
+ * Callable: is a specific cast currently in the caller's favorites?
+ * 特定キャストがお気に入り登録済みか判定する（CastProfileのハート表示用）。
+ * A single doc read on a known ID (favorites' doc ID = the cast's own uid,
+ * per addFavorite above) — lighter than fetching+filtering the caller's
+ * whole favorites list for a single-cast detail page's own membership check.
+ */
+export const isCastFavorited = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+  const { cast_id } = request.data;
+  if (typeof cast_id !== "string" || !cast_id) {
+    throw new HttpsError("invalid-argument", "キャストIDが必要です。");
+  }
+  const doc = await db
+    .collection("users")
+    .doc(request.auth.uid)
+    .collection("favorites")
+    .doc(cast_id)
+    .get();
+  return { success: true, favorited: doc.exists };
+});
+
+/**
+ * Callable: the caller's own favorited casts, resolved to display data
+ * お気に入りキャスト一覧（ニックネーム・写真解決済み）
+ *
+ * Same reasoning as getBlockedUsersDetails above: `favorites` itself is
+ * unreadable directly by the client (rules, above), and even if it were,
+ * resolving each favorited cast_id's nickname/photo requires reading OTHER
+ * users' docs, which the owner-only `users` rule blocks regardless — hence
+ * a callable, Admin SDK. Returns the SAME `id|||nickname|||photoUrl|||isOnline`
+ * shape as getDiscoveryCasts (not getBlockedUsersDetails' 3-field shape),
+ * deliberately, so the client can reuse getDiscoveryCasts' own parsing
+ * custom functions (discoveryCastId/Nickname/PhotoUrl/IsOnline) unchanged
+ * rather than declaring near-duplicates.
+ *
+ * Filters out casts no longer eligible to book (frozen / deactivated /
+ * not approved / Stripe-restricted — the same eligibility filter
+ * getDiscoveryCasts already applies) — a stale favorite shouldn't dangle
+ * into a dead-end profile or a booking attempt the backend would reject
+ * anyway. A cast who becomes temporarily ineligible simply disappears from
+ * this list rather than showing some special "unavailable" state — no
+ * source document describes such a state, so inventing one would be scope
+ * creep beyond "wire the favorite toggle."
+ */
+export const getFavoriteCasts = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const favSnap = await db
+    .collection("users")
+    .doc(request.auth.uid)
+    .collection("favorites")
+    .orderBy("created_at", "desc")
+    .get();
+
+  if (favSnap.empty) {
+    return { success: true, items: [] as string[] };
+  }
+
+  const castIds = favSnap.docs.map((d) => d.id);
+  const castDocs = await db.getAll(...castIds.map((id) => db.collection("users").doc(id)));
+
+  const items = castDocs
+    .filter(
+      (d) =>
+        d.exists &&
+        d.data()?.account_type === "cast" &&
+        d.data()?.approval_status === "approved" &&
+        d.data()?.is_frozen !== true &&
+        d.data()?.is_active !== false &&
+        d.data()?.is_stripe_restricted !== true
+    )
+    .map((d) => {
+      const data = d.data()!;
+      const nickname = (data.nickname?.toString() || "").replace(/\|\|\|/g, "");
+      const photoUrl = (data.profile_image_url?.toString() || "").replace(/\|\|\|/g, "");
+      const isOnline = data.is_online === true;
+      return `${d.id}|||${nickname}|||${photoUrl}|||${isOnline}`;
     });
 
   return { success: true, items };
@@ -875,6 +1090,39 @@ export const getServiceAreas = onCall(async (request) => {
   const areas = (config.service_areas || [])
     .filter((a) => a.active === true)
     .map((a) => a.prefecture);
+
+  return { success: true, areas };
+});
+
+/**
+ * Callable: prefecture + municipality representative coordinates
+ * (unimplemented-features pass, IMPLEMENTATION_PLAN.md §3.8 item 5's
+ * "add/edit municipalities and their representative GPS coordinates"
+ * half). Deliberately a SEPARATE callable from `getServiceAreas` above,
+ * not a shape change to it — that function's existing `areas: string[]`
+ * contract is a live, working consumer (the registration-flow prefecture
+ * picker), and changing its return shape would risk breaking that for no
+ * benefit; this is a purely additive read for a different consumer (the
+ * Home-ranking GPS-fallback chain, see `fetchDiscoveryCasts` in
+ * dsl/edit.dart). Same auth gate as `getServiceAreas` (any signed-in
+ * user, not admin-only) for the same reason: every guest browsing Home
+ * needs this, not just admins.
+ */
+export const getServiceAreaCoordinates = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const config = await getSystemConfig();
+  const areas = (config.service_areas || [])
+    .filter((a) => a.active === true)
+    .map((a) => ({
+      name: a.name,
+      prefecture: a.prefecture,
+      lat: a.lat,
+      lng: a.lng,
+      municipalities: Array.isArray(a.municipalities) ? a.municipalities : [],
+    }));
 
   return { success: true, areas };
 });

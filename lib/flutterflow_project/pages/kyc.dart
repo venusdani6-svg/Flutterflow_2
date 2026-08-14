@@ -62,6 +62,9 @@ abstract final class KycWidgets {
                           key: "Icon_7f5t6rr5",
                           type: "Icon",
                           path: "Kyc.appBar[0].title[0].children[0].children[0]",
+                          triggers: const <String>[
+                            "ON_TAP",
+                          ],
                         ),
                         ffai.ProjectWidgetHandle(
                           key: "Image_gnbe0x7a",

@@ -5,13 +5,34 @@ service firebase.storage {
       allow read, write: if false;
     }
     // Banner images are shown publicly in the app UI, so read is open like
-    // the `banners` Firestore collection; write is gated to any signed-in
-    // user (same leniency already accepted project-wide for Firestore's
-    // open-create pattern — true admin-only enforcement isn't done here,
-    // consistent with existing known debt, see PROJECT_KNOWLEDGE.md §18.36).
+    // the `banners` Firestore collection.
+    //
+    // FIX (comprehensive project-wide review round 2, confirmed live
+    // vulnerability): write used to be gated to ANY signed-in user, not
+    // just admins — a real exploit, not just disclosed debt (PROJECT_
+    // KNOWLEDGE.md §18.36's "accepted" framing undersold it): any
+    // authenticated non-admin could upload/overwrite arbitrary files under
+    // the public `banners/` path via the Storage SDK directly, e.g.
+    // defacing a live promotional banner by overwriting a known/guessed
+    // file path. Fixed to mirror firestore.rules' own `isAdmin()` check
+    // (users/{uid}.role == 'admin') via a cross-service `firestore.get()`
+    // call — the same admin definition used everywhere else in this
+    // project, not a separate one to keep in sync.
     match /banners/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // CocoTen venue photos (unimplemented-features pass, IMPLEMENTATION_
+    // PLAN.md §3.8 item 7) — same public-read/admin-only-write shape as
+    // banners above, for the same reason: shown publicly in the guest-
+    // facing app UI (CocoTenDetailPage), uploaded only via
+    // CocotenManagementPage's admin form.
+    match /cocoten_shops/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // KYC documents + selfie (kyc.dart -> pickAndUploadImage custom action)

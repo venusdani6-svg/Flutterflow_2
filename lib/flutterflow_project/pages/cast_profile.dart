@@ -31,6 +31,12 @@ final class CastProfileState {
         key: "eu8ts84x",
         typeName: "List<String>",
       );
+  ffai.ProjectStateFieldHandle get isFavorited =>
+      const ffai.ProjectStateFieldHandle(
+        name: "isFavorited",
+        key: "4j76vhzb",
+        typeName: "Boolean",
+      );
   ffai.ProjectStateFieldHandle get reportReason =>
       const ffai.ProjectStateFieldHandle(
         name: "reportReason",
@@ -95,6 +101,9 @@ abstract final class CastProfileWidgets {
                           key: "Icon_s7gxbstb",
                           type: "Icon",
                           path: "CastProfile.appBar[0].title[0].children[0].children[0]",
+                          triggers: const <String>[
+                            "ON_TAP",
+                          ],
                         ),
                         ffai.ProjectWidgetHandle(
                           key: "Image_gnr33ifp",
@@ -445,6 +454,32 @@ abstract final class CastProfileWidgets {
                             text: "ココ店で誘う",
                             triggers: const <String>[
                               "ON_TAP",
+                            ],
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Stack_or3bvlqg",
+                            type: "Stack",
+                            path: "CastProfile.body[0].children[0].children[0].children[4].children[2]",
+                            name: "FavoriteToggleStack",
+                            children: <ffai.ProjectWidgetHandle>[
+                              ffai.ProjectWidgetHandle(
+                                key: "IconButton_y2yu52gl",
+                                type: "IconButton",
+                                path: "CastProfile.body[0].children[0].children[0].children[4].children[2].children[0]",
+                                name: "FavoriteOnIcon",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "IconButton_9ijp0nz1",
+                                type: "IconButton",
+                                path: "CastProfile.body[0].children[0].children[0].children[4].children[2].children[1]",
+                                name: "FavoriteOffIcon",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
+                              ),
                             ],
                           ),
                         ],

@@ -95,6 +95,9 @@ abstract final class ExtensionPaymentWidgets {
                           key: "Icon_w27y1h4h",
                           type: "Icon",
                           path: "ExtensionPayment.appBar[0].title[0].children[0].children[0]",
+                          triggers: const <String>[
+                            "ON_TAP",
+                          ],
                         ),
                         ffai.ProjectWidgetHandle(
                           key: "Image_1w2spzyc",
