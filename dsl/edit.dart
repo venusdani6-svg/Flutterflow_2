@@ -24424,4 +24424,436 @@ Future<bool> registerFcmToken() async {
       ],
     );
   });
+
+  // ==========================================================================
+  // Confirm-before-action + success/failure notification pass, Tier 1
+  // (highest-stakes: real money / irreversible). Each block below re-declares
+  // the EXACT existing action chain (verified byte-for-byte against
+  // generated_code and/or this file's own original, now-frozen construction
+  // comments before writing this) gated behind the shared `confirmDialog`
+  // custom action declared near the top of this function — same proven
+  // pattern as ReservationDetail's "キャンセルする" fix above. All 8 targets
+  // here are FLAT page-level buttons (not ListView.itemBuilder children), so
+  // this is the safe case per that fix's own documented itemBuilder
+  // limitation.
+  //
+  // NOT included in this pass — genuinely BLOCKED, not overlooked:
+  // WithdrawalQueuePage's 承認/保留/却下 and ReservationOversightPage's
+  // 強制キャンセル/手動返金 (both confirmed itemBuilder-scoped, both already
+  // documented above as failing `compileDslApp` two independent ways on the
+  // shared refetch action — a platform/SDK validator limitation, not
+  // reattempted here per this project's own two-attempts-then-stop rule).
+  // ==========================================================================
+
+  app.editPage(ff.Pages.paymentConfirm, (page) {
+    page.ensureActions(
+      page.findByKey('Button_0qmju6dw'), // 予約を確定する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '予約を確定しますか？',
+            'message': 'この内容でお支払いを確定します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'paymentConfirmConfirmed',
+        ),
+        If(
+          ActionOutput('paymentConfirmConfirmed'),
+          then: [
+            SetState('isSubmittingPayment', true),
+            CallCustomAction.named(
+              'getPaymentClientSecret',
+              arguments: {'resId': PageParam('resId')},
+              outputAs: 'clientSecretResult',
+            ),
+            CallCustomAction.named(
+              'isNonEmptyString',
+              arguments: {'value': ActionOutput('clientSecretResult')},
+              outputAs: 'clientSecretObtained',
+            ),
+            If(
+              ActionOutput('clientSecretObtained'),
+              then: [
+                CallCustomAction.named(
+                  'confirmStripePayment',
+                  arguments: {'clientSecret': ActionOutput('clientSecretResult')},
+                  outputAs: 'stripePaymentResult',
+                ),
+                CallCustomAction.named(
+                  'isPaymentSuccess',
+                  arguments: {'value': ActionOutput('stripePaymentResult')},
+                  outputAs: 'paymentSucceeded',
+                ),
+                If(
+                  ActionOutput('paymentSucceeded'),
+                  then: [
+                    Snackbar('お支払いが完了しました。'),
+                    SetState('isSubmittingPayment', false),
+                    Navigate(
+                      ff.Pages.reservationConfirmed,
+                      replaceRoute: true,
+                      params: {'resId': PageParam('resId')},
+                    ),
+                  ],
+                  orElse: [
+                    Snackbar('決済がキャンセルされたか失敗しました。'),
+                    SetState('isSubmittingPayment', false),
+                  ],
+                ),
+              ],
+              orElse: [
+                Snackbar('決済情報の取得に失敗しました。もう一度お試しください。'),
+                SetState('isSubmittingPayment', false),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.extensionPayment, (page) {
+    page.ensureActions(
+      page.findByKey('Button_jiosuscb'), // 延長申請する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '延長を申請しますか？',
+            'message': '延長料金のお支払いを行います。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'extensionConfirmed',
+        ),
+        If(
+          ActionOutput('extensionConfirmed'),
+          then: [
+            SetState('isSubmittingExtension', true),
+            CallCustomAction.named(
+              'callCreateExtensionPayment',
+              arguments: {
+                'resId': PageParam('resId'),
+                'minutes': State(ff.Pages.extensionPayment.state.extensionMinutes),
+                'amount': State(ff.Pages.extensionPayment.state.totalAmount),
+              },
+              outputAs: 'extCreateResult',
+            ),
+            CallCustomAction.named(
+              'isNonEmptyString',
+              arguments: {'value': ActionOutput('extCreateResult')},
+              outputAs: 'extCreateSucceeded',
+            ),
+            If(
+              ActionOutput('extCreateSucceeded'),
+              then: [
+                CallCustomAction.named(
+                  'confirmStripePayment',
+                  arguments: {
+                    'clientSecret': CustomFunction(
+                      splitFieldFn,
+                      args: {'data': ActionOutput('extCreateResult'), 'index': 0},
+                    ),
+                  },
+                  outputAs: 'extStripeResult',
+                ),
+                CallCustomAction.named(
+                  'isPaymentSuccess',
+                  arguments: {'value': ActionOutput('extStripeResult')},
+                  outputAs: 'extPaymentSucceeded',
+                ),
+                If(
+                  ActionOutput('extPaymentSucceeded'),
+                  then: [
+                    Snackbar('延長のお支払いが完了しました。'),
+                    SetState('isSubmittingExtension', false),
+                    NavigateBack(),
+                  ],
+                  orElse: [
+                    CallCustomAction.named(
+                      'callCancelExtensionPayment',
+                      arguments: {
+                        'resId': PageParam('resId'),
+                        'extensionId': CustomFunction(
+                          splitFieldFn,
+                          args: {'data': ActionOutput('extCreateResult'), 'index': 1},
+                        ),
+                      },
+                      outputAs: 'extCancelResult',
+                    ),
+                    Snackbar('決済がキャンセルされたか失敗しました。'),
+                    SetState('isSubmittingExtension', false),
+                  ],
+                ),
+              ],
+              orElse: [
+                Snackbar('延長申請に失敗しました。もう一度お試しください。'),
+                SetState('isSubmittingExtension', false),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.walletPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_gm1vz6dr'), // 出金申請する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '出金を申請しますか？',
+            'message': '出金申請を行います。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'payoutConfirmed',
+        ),
+        If(
+          ActionOutput('payoutConfirmed'),
+          then: [
+            SetState('isSubmittingPayout', true),
+            CallCustomAction.named('callRequestPayout', outputAs: 'payoutResult'),
+            If(
+              Equals(ActionOutput('payoutResult'), 'success'),
+              then: [
+                Snackbar('出金申請を受け付けました。運営の承認をお待ちください。'),
+                CallCustomAction.named('fetchWalletBalance', outputAs: 'balanceRefetch'),
+                SetState(
+                  ff.Pages.walletPage.state.walletAvailableStr,
+                  CustomFunction(splitFieldFn, args: {'data': ActionOutput('balanceRefetch'), 'index': 0}),
+                ),
+                SetState(
+                  ff.Pages.walletPage.state.walletPendingStr,
+                  CustomFunction(splitFieldFn, args: {'data': ActionOutput('balanceRefetch'), 'index': 1}),
+                ),
+                SetState('isSubmittingPayout', false),
+              ],
+              orElse: [
+                Snackbar(ActionOutput('payoutResult')),
+                SetState('isSubmittingPayout', false),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.settingsPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_3o5egwdb'), // 退会する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '本当に退会しますか？',
+            'message': 'この操作は取り消せません。アカウントを削除して退会します。',
+            'confirmText': '退会する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'withdrawalConfirmed',
+        ),
+        If(
+          ActionOutput('withdrawalConfirmed'),
+          then: [
+            CallCustomAction.named('callRequestWithdrawal', outputAs: 'withdrawalResult'),
+            If(
+              Equals(ActionOutput('withdrawalResult'), 'success'),
+              then: [Snackbar('退会処理が完了しました。'), Navigate(ff.Pages.loginPage, replaceRoute: true)],
+              orElse: [Snackbar(ActionOutput('withdrawalResult'))],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.adminAffiliateManagement, (page) {
+    page.ensureActions(
+      page.findByKey('Button_el5zbkh5'), // 変更する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '料率を変更しますか？',
+            'message': 'この会員の紹介料率を変更します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'rateChangeConfirmed',
+        ),
+        If(
+          ActionOutput('rateChangeConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callUpdateAffiliateRate',
+              arguments: {
+                'userId': State(ff.Pages.adminAffiliateManagement.state.selectedUid),
+                'newRatePercent': State(ff.Pages.adminAffiliateManagement.state.newRatePercent),
+              },
+              outputAs: 'updateResult',
+            ),
+            If(
+              ActionOutput('updateResult'),
+              then: [
+                Snackbar('料率を変更しました。'),
+                CallCustomAction.named('fetchAffiliatorList', outputAs: 'affiliatorsRefetchResult'),
+                SetState(
+                  ff.Pages.adminAffiliateManagement.state.affiliatorsList,
+                  ActionOutput('affiliatorsRefetchResult'),
+                ),
+                CallCustomAction.named(
+                  'fetchAffiliateRateHistory',
+                  arguments: {'userId': State(ff.Pages.adminAffiliateManagement.state.selectedUid)},
+                  outputAs: 'historyRefetchResult',
+                ),
+                SetState(
+                  ff.Pages.adminAffiliateManagement.state.rateHistoryList,
+                  ActionOutput('historyRefetchResult'),
+                ),
+              ],
+              orElse: [Snackbar('料率の変更に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.reservationDetail, (page) {
+    page.ensureActions(
+      page.findByKey('Button_qaw6isi5'), // 送る（チップ）
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        If(
+          Not(Equals(State(ff.Pages.reservationDetail.state.tipAmount), '')),
+          then: [
+            CallCustomAction.named(
+              'confirmDialog',
+              arguments: {
+                'title': 'チップを送りますか？',
+                'message': '入力した金額のチップを送ります。よろしいですか？',
+                'confirmText': 'はい',
+                'dismissText': 'いいえ',
+              },
+              outputAs: 'tipConfirmed',
+            ),
+            If(
+              ActionOutput('tipConfirmed'),
+              then: [
+                CallCustomAction.named(
+                  'callProcessTip',
+                  arguments: {
+                    'resId': PageParam('resId'),
+                    'castId': PageParam('castId'),
+                    'amountYen': State(ff.Pages.reservationDetail.state.tipAmount),
+                  },
+                  outputAs: 'tipResult',
+                ),
+                If(
+                  ActionOutput('tipResult'),
+                  then: [
+                    SetState(ff.Pages.reservationDetail.state.tipAmount, ''),
+                    Snackbar('チップを送りました。'),
+                  ],
+                  orElse: [Snackbar('チップの送信に失敗しました。')],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.adminReportReviewPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_dzuv9r1c'), // 解決する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '通報を解決しますか？',
+            'message': 'この通報を解決済みにします。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'resolveConfirmed',
+        ),
+        If(
+          ActionOutput('resolveConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callResolveReport',
+              arguments: {
+                'reportId': State(ff.Pages.adminReportReviewPage.state.selectedReportId),
+                'adminNote': State(ff.Pages.adminReportReviewPage.state.adminNote),
+              },
+              outputAs: 'resolveResult',
+            ),
+            If(
+              ActionOutput('resolveResult'),
+              then: [
+                Snackbar('通報を解決しました。'),
+                SetState(ff.Pages.adminReportReviewPage.state.selectedReportId, ''),
+                SetState(ff.Pages.adminReportReviewPage.state.adminNote, ''),
+                CallCustomAction.named('fetchPendingReports', outputAs: 'reportResolveRefetchResult'),
+                SetState(
+                  ff.Pages.adminReportReviewPage.state.pendingReportsList,
+                  ActionOutput('reportResolveRefetchResult'),
+                ),
+              ],
+              orElse: [Snackbar('解決処理に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    page.ensureActions(
+      page.findByKey('Button_farka8z2'), // 対象ユーザーを凍結する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '対象ユーザーを凍結しますか？',
+            'message': 'この通報の対象ユーザーを凍結します。よろしいですか？',
+            'confirmText': '凍結する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'reportFreezeConfirmed',
+        ),
+        If(
+          ActionOutput('reportFreezeConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminToggleFreeze',
+              arguments: {
+                'userId': State(ff.Pages.adminReportReviewPage.state.selectedReportedUserId),
+                'freeze': true,
+              },
+              outputAs: 'reportFreezeResult',
+            ),
+            If(
+              ActionOutput('reportFreezeResult'),
+              then: [Snackbar('対象ユーザーを凍結しました。')],
+              orElse: [Snackbar('凍結処理に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
 }
