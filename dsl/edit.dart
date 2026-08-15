@@ -352,6 +352,86 @@ FFDataTypeV2 _enumTypeOf(FFProject project, String enumName) {
 
 void buildStarterEditFlow(App app) {
   // ==========================================================================
+  // Confirm-before-action + success/failure notification pass — shared
+  // building block. User report: key-action buttons show only a spinning
+  // icon (FFButtonWidget's own default `showLoadingIndicator`) with no way
+  // to tell whether the tap did anything, and no way to back out of a
+  // destructive tap. Full-app audit found 82 buttons across 71 pages
+  // calling a real backend/state-mutating action, ZERO of which showed a
+  // confirm dialog first.
+  //
+  // First implementation attempt used the DSL's `ConfirmDialog` action +
+  // a hand-built raw-proto gate on `FFActionCondition.confirmationDialogResponse`
+  // (the typed `If`/`Actions.conditional` can only build a variable-sourced
+  // condition — confirmed by reading `compiler.dart`, `Actions.conditional`
+  // hardcodes `FFActionCondition(variable: condition)`; there is no typed
+  // path to the OTHER oneof member a confirm-dialog gate needs). That
+  // approach is ABANDONED — the gate step required selecting the button via
+  // `page.mutateNode(page.findByName(...)/findByText(...), ...)`, which
+  // fails outright ("found no matches") for any button living inside a
+  // `ListView.itemBuilder` template (confirmed: the DSL-authoring-side
+  // selector model doesn't recurse into itemBuilder closures at all) — i.e.
+  // it fails for almost every button in this app, since nearly all admin
+  // list actions live inside an itemBuilder row. Where it silently "worked"
+  // (no itemBuilder), it still shipped a live bug: the ConfirmDialog showed,
+  // but without the gate the follow-up action fired UNCONDITIONALLY
+  // regardless of Yes/No — confirmed live in generated_code for
+  // UserManagementPage's 凍結/解除 and 強制退会 buttons before this fix.
+  //
+  // Replacement (this custom action): a single shared Dart action that
+  // calls Flutter's own `showDialog<bool>` directly (native AlertDialog,
+  // Yes/No via `Navigator.pop(ctx, true/false)`) and returns the answer as
+  // a plain bool. Every button then wires
+  // `CallCustomAction.named('confirmDialog', arguments: {...}, outputAs: 'x')`
+  // followed by a normal typed `If(ActionOutput('x'), then: [...the real
+  // actions...])` — the SAME proven `CallCustomAction` + `If` + `ActionOutput`
+  // shape already used for every success/failure snackbar in this app, so
+  // it needs no new selector mechanism and works identically whether the
+  // button lives inside an itemBuilder or not.
+  app.customAction(
+    'confirmDialog',
+    args: {
+      'title': string,
+      'message': string,
+      'confirmText': string.withDefault('はい'),
+      'dismissText': string.withDefault('いいえ'),
+    },
+    returns: bool_,
+    includeContext: true,
+    description: '確認ダイアログ（タイトル・本文・はい/いいえボタン）を表示し、ユーザーの選択をbooleanで返す。',
+    code: r'''
+import 'package:flutter/material.dart';
+
+Future<bool> confirmDialog(
+  BuildContext context,
+  String? title,
+  String? message,
+  String? confirmText,
+  String? dismissText,
+) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(title ?? ''),
+      content: Text(message ?? ''),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: Text(dismissText ?? 'いいえ'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: Text(confirmText ?? 'はい'),
+        ),
+      ],
+    ),
+  );
+  return result ?? false;
+}
+''',
+  );
+
+  // ==========================================================================
   // Phase 1 — Data model remediation (IMPLEMENTATION_PLAN.md §5)
   //
   // Confirmed hard prerequisite for the onboarding/reservation UI work this
@@ -21062,14 +21142,30 @@ return '利用可能なジャンル: ${list.join('、')}';
                       color: Colors.error,
                       onTap: [
                         CallCustomAction.named(
-                          'callAdminRemoveCocotenGenre',
+                          'confirmDialog',
                           arguments: {
-                            'genres': State(ff.Pages.cocotenGenreMasterPage.state.genresList),
-                            'toRemove': item,
+                            'title': '本当に削除しますか？',
+                            'message': 'この操作は取り消せません。このジャンルを削除します。',
+                            'confirmText': '削除する',
+                            'dismissText': 'キャンセル',
                           },
-                          outputAs: 'removeGenreResult',
+                          outputAs: 'genreDeleteConfirmed',
                         ),
-                        SetState(ff.Pages.cocotenGenreMasterPage.state.genresList, ActionOutput('removeGenreResult')),
+                        If(
+                          ActionOutput('genreDeleteConfirmed'),
+                          then: [
+                            CallCustomAction.named(
+                              'callAdminRemoveCocotenGenre',
+                              arguments: {
+                                'genres': State(ff.Pages.cocotenGenreMasterPage.state.genresList),
+                                'toRemove': item,
+                              },
+                              outputAs: 'removeGenreResult',
+                            ),
+                            SetState(ff.Pages.cocotenGenreMasterPage.state.genresList, ActionOutput('removeGenreResult')),
+                            Snackbar('ジャンルを削除しました。'),
+                          ],
+                        ),
                       ],
                     ),
                   ],
@@ -21436,24 +21532,44 @@ return '利用可能なジャンル: ${list.join('、')}';
                           color: Colors.tertiary,
                           onTap: [
                             CallCustomAction.named(
-                              'callAdminUpsertCocotenShop',
+                              'confirmDialog',
                               arguments: {
-                                'shopId': CustomFunction(adminShopIdFn, args: {'item': item}),
-                                'name': '',
-                                'genre': '',
-                                'prefecture': '',
-                                'city': '',
-                                'townBlock': '',
-                                'building': '',
-                                'active': CustomFunction(
-                                  boolToStringFn,
-                                  args: {'value': Not(CustomFunction(adminShopIsActiveFn, args: {'item': item}))},
-                                ),
+                                'title': '公開状態を切り替えますか？',
+                                'message': 'この店舗の公開/非公開を切り替えます。よろしいですか？',
+                                'confirmText': '実行する',
+                                'dismissText': 'キャンセル',
                               },
-                              outputAs: 'toggleShopResult',
+                              outputAs: 'shopToggleConfirmed',
                             ),
-                            CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult2'),
-                            SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult2')),
+                            If(
+                              ActionOutput('shopToggleConfirmed'),
+                              then: [
+                                CallCustomAction.named(
+                                  'callAdminUpsertCocotenShop',
+                                  arguments: {
+                                    'shopId': CustomFunction(adminShopIdFn, args: {'item': item}),
+                                    'name': '',
+                                    'genre': '',
+                                    'prefecture': '',
+                                    'city': '',
+                                    'townBlock': '',
+                                    'building': '',
+                                    'active': CustomFunction(
+                                      boolToStringFn,
+                                      args: {'value': Not(CustomFunction(adminShopIsActiveFn, args: {'item': item}))},
+                                    ),
+                                  },
+                                  outputAs: 'toggleShopResult',
+                                ),
+                                CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult2'),
+                                SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult2')),
+                                If(
+                                  ActionOutput('toggleShopResult'),
+                                  then: [Snackbar('公開状態を変更しました。')],
+                                  orElse: [Snackbar('変更に失敗しました。')],
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                         // 削除 — destructive. Named for the first time here.
@@ -21463,12 +21579,32 @@ return '利用可能なジャンル: ${list.join('、')}';
                           color: Colors.error,
                           onTap: [
                             CallCustomAction.named(
-                              'callAdminDeleteCocotenShop',
-                              arguments: {'shopId': CustomFunction(adminShopIdFn, args: {'item': item})},
-                              outputAs: 'deleteShopResult',
+                              'confirmDialog',
+                              arguments: {
+                                'title': '本当に削除しますか？',
+                                'message': 'この操作は取り消せません。この店舗を削除します。',
+                                'confirmText': '削除する',
+                                'dismissText': 'キャンセル',
+                              },
+                              outputAs: 'shopDeleteConfirmed',
                             ),
-                            CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult3'),
-                            SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult3')),
+                            If(
+                              ActionOutput('shopDeleteConfirmed'),
+                              then: [
+                                CallCustomAction.named(
+                                  'callAdminDeleteCocotenShop',
+                                  arguments: {'shopId': CustomFunction(adminShopIdFn, args: {'item': item})},
+                                  outputAs: 'deleteShopResult',
+                                ),
+                                CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult3'),
+                                SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult3')),
+                                If(
+                                  ActionOutput('deleteShopResult'),
+                                  then: [Snackbar('店舗を削除しました。')],
+                                  orElse: [Snackbar('削除に失敗しました。')],
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ],
@@ -22024,6 +22160,12 @@ return '${parts[0]}（緯度${parts[1]}・経度${parts[2]}）';
                       name: 'AdminRemoveMunicipalityButton',
                       color: Colors.error,
                       onTap: [
+                        ConfirmDialog(
+                          title: '本当に削除しますか？',
+                          message: 'この操作は取り消せません。この市区町村を削除します。',
+                          confirmText: '削除する',
+                          dismissText: 'キャンセル',
+                        ),
                         CallCustomAction.named(
                           'callAdminRemoveServiceAreaMunicipality',
                           arguments: {
@@ -22183,19 +22325,39 @@ return '${parts[0]}（緯度${parts[1]}・経度${parts[2]}）';
                       color: Colors.error,
                       onTap: [
                         CallCustomAction.named(
-                          'callAdminRemoveServiceAreaMunicipality',
+                          'confirmDialog',
                           arguments: {
-                            'prefecture': State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture),
-                            'municipalityName': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+                            'title': '本当に削除しますか？',
+                            'message': 'この操作は取り消せません。この市区町村を削除します。',
+                            'confirmText': '削除する',
+                            'dismissText': 'キャンセル',
                           },
-                          outputAs: 'removeMunicipalityResult',
+                          outputAs: 'municipalityDeleteConfirmed',
                         ),
-                        CallCustomAction.named(
-                          'fetchAdminServiceAreaMunicipalities',
-                          arguments: {'prefecture': State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture)},
-                          outputAs: 'municipalitiesRefetchResult2',
+                        If(
+                          ActionOutput('municipalityDeleteConfirmed'),
+                          then: [
+                            CallCustomAction.named(
+                              'callAdminRemoveServiceAreaMunicipality',
+                              arguments: {
+                                'prefecture': State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture),
+                                'municipalityName': CustomFunction(splitFieldFn, args: {'data': item, 'index': 0}),
+                              },
+                              outputAs: 'removeMunicipalityResult',
+                            ),
+                            CallCustomAction.named(
+                              'fetchAdminServiceAreaMunicipalities',
+                              arguments: {'prefecture': State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture)},
+                              outputAs: 'municipalitiesRefetchResult2',
+                            ),
+                            SetState(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalitiesList, ActionOutput('municipalitiesRefetchResult2')),
+                            If(
+                              ActionOutput('removeMunicipalityResult'),
+                              then: [Snackbar('市区町村を削除しました。')],
+                              orElse: [Snackbar('削除に失敗しました。')],
+                            ),
+                          ],
                         ),
-                        SetState(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalitiesList, ActionOutput('municipalitiesRefetchResult2')),
                       ],
                     ),
                   ],
@@ -22911,17 +23073,37 @@ return parts.length > 4 && parts[4] == 'true';
                             color: Colors.tertiary,
                             onTap: [
                               CallCustomAction.named(
-                                'callAdminToggleFreeze',
+                                'confirmDialog',
                                 arguments: {
-                                  'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
-                                  'freeze': Not(CustomFunction(adminUserIsFrozenFn, args: {'item': item})),
+                                  'title': '凍結状態を変更しますか？',
+                                  'message': 'このユーザーの凍結/解除を切り替えます。よろしいですか？',
+                                  'confirmText': '実行する',
+                                  'dismissText': 'キャンセル',
                                 },
-                                outputAs: 'adminToggleFreezeResult',
+                                outputAs: 'toggleFreezeConfirmed',
                               ),
-                              CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult'),
-                              SetState(
-                                ff.Pages.userManagementPage.state.adminUsersList,
-                                ActionOutput('adminUsersRefetchResult'),
+                              If(
+                                ActionOutput('toggleFreezeConfirmed'),
+                                then: [
+                                  CallCustomAction.named(
+                                    'callAdminToggleFreeze',
+                                    arguments: {
+                                      'userId': CustomFunction(adminUserIdFn, args: {'item': item}),
+                                      'freeze': Not(CustomFunction(adminUserIsFrozenFn, args: {'item': item})),
+                                    },
+                                    outputAs: 'adminToggleFreezeResult',
+                                  ),
+                                  CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult'),
+                                  SetState(
+                                    ff.Pages.userManagementPage.state.adminUsersList,
+                                    ActionOutput('adminUsersRefetchResult'),
+                                  ),
+                                  If(
+                                    ActionOutput('adminToggleFreezeResult'),
+                                    then: [Snackbar('凍結状態を変更しました。')],
+                                    orElse: [Snackbar('変更に失敗しました。')],
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -22932,14 +23114,34 @@ return parts.length > 4 && parts[4] == 'true';
                             color: Colors.error,
                             onTap: [
                               CallCustomAction.named(
-                                'callAdminForceDeleteUser',
-                                arguments: {'userId': CustomFunction(adminUserIdFn, args: {'item': item})},
-                                outputAs: 'adminForceDeleteResult',
+                                'confirmDialog',
+                                arguments: {
+                                  'title': '本当に強制退会させますか？',
+                                  'message': 'この操作は取り消せません。このユーザーを強制的に退会させます。',
+                                  'confirmText': '強制退会する',
+                                  'dismissText': 'キャンセル',
+                                },
+                                outputAs: 'forceDeleteConfirmed',
                               ),
-                              CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult2'),
-                              SetState(
-                                ff.Pages.userManagementPage.state.adminUsersList,
-                                ActionOutput('adminUsersRefetchResult2'),
+                              If(
+                                ActionOutput('forceDeleteConfirmed'),
+                                then: [
+                                  CallCustomAction.named(
+                                    'callAdminForceDeleteUser',
+                                    arguments: {'userId': CustomFunction(adminUserIdFn, args: {'item': item})},
+                                    outputAs: 'adminForceDeleteResult',
+                                  ),
+                                  CallCustomAction.named('fetchAdminUsers', outputAs: 'adminUsersRefetchResult2'),
+                                  SetState(
+                                    ff.Pages.userManagementPage.state.adminUsersList,
+                                    ActionOutput('adminUsersRefetchResult2'),
+                                  ),
+                                  If(
+                                    ActionOutput('adminForceDeleteResult'),
+                                    then: [Snackbar('ユーザーを強制退会させました。')],
+                                    orElse: [Snackbar('強制退会に失敗しました。')],
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -24181,5 +24383,45 @@ Future<bool> registerFcmToken() async {
   // justify it given the rest of the pass has already landed successfully.
   app.editPage(ff.Pages.serviceAreaPage, (page) {
     page.update(page.findByKey('AppBar_h8np274u'), (patch) => patch.appBarElevation(2));
+  });
+
+  // ReservationDetail's "キャンセルする" (cancel reservation) — re-declares
+  // the EXACT existing action chain (verified byte-for-byte against
+  // generated_code/lib/reservation/reservation_detail/reservation_detail_widget.dart
+  // before writing this — same custom action, same 2 snackbar messages,
+  // same NavigateBack-on-success), gated behind the shared `confirmDialog`
+  // custom action declared above.
+  app.editPage(ff.Pages.reservationDetail, (page) {
+    page.ensureActions(
+      page.findByKey('Button_jdm282w6'), // CancelReservationButton
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '予約をキャンセルしますか？',
+            'message': 'この操作は取り消せません。本当に予約をキャンセルしますか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'cancelReservationConfirmed',
+        ),
+        If(
+          ActionOutput('cancelReservationConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callCancelReservation',
+              arguments: {'resId': PageParam('resId')},
+              outputAs: 'cancelResult',
+            ),
+            If(
+              ActionOutput('cancelResult'),
+              then: [Snackbar('予約をキャンセルしました。'), NavigateBack()],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
   });
 }

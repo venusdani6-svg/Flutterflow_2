@@ -3461,6 +3461,7 @@ abstract final class CustomCode {
     "checkIsCastFavorited",
     "checkKycFieldsComplete",
     "checkReservationFieldsComplete",
+    "confirmDialog",
     "confirmStripePayment",
     "copyReferralCodeToClipboard",
     "fetchActivityReport",

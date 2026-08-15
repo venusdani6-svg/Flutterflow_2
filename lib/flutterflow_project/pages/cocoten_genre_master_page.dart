@@ -71,20 +71,20 @@ abstract final class CocotenGenreMasterPageWidgets {
             name: "CocotenGenreMasterColumn",
             children: <ffai.ProjectWidgetHandle>[
               ffai.ProjectWidgetHandle(
-                key: "Container_hm2eu2va",
+                key: "Container_ja685nh7",
                 type: "Container",
                 path: "CocotenGenreMasterPage.body[0].children[0]",
                 name: "CocotenGenreMasterAccentBar",
               ),
               ffai.ProjectWidgetHandle(
-                key: "Text_v9q3w3ps",
+                key: "Text_ir1rmii0",
                 type: "Text",
                 path: "CocotenGenreMasterPage.body[0].children[1]",
                 name: "Text",
                 text: "CocoTen店舗のジャンル一覧。ここで管理した値のみ店舗登録時に使用できます。",
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_qk350um1",
+                key: "TextField_ehqlbu2w",
                 type: "TextField",
                 path: "CocotenGenreMasterPage.body[0].children[2]",
                 name: "NewGenreNameField",
@@ -94,7 +94,7 @@ abstract final class CocotenGenreMasterPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Button_whdu4i3o",
+                key: "Button_jm7kxl0p",
                 type: "Button",
                 path: "CocotenGenreMasterPage.body[0].children[3]",
                 name: "AdminAddGenreButton",
@@ -104,43 +104,43 @@ abstract final class CocotenGenreMasterPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Divider_zlyjlg3d",
+                key: "Divider_gqdvjnqp",
                 type: "Divider",
                 path: "CocotenGenreMasterPage.body[0].children[4]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
-                key: "Container_bh8w5vlc",
+                key: "Container_4z8eunqk",
                 type: "Container",
                 path: "CocotenGenreMasterPage.body[0].children[5]",
                 name: "Container",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Row_egq1dude",
+                    key: "Row_nco3yj90",
                     type: "Row",
                     path: "CocotenGenreMasterPage.body[0].children[5].children[0]",
                     name: "Row",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Container_ub16r7qj",
+                        key: "Container_u116isgc",
                         type: "Container",
                         path: "CocotenGenreMasterPage.body[0].children[5].children[0].children[0]",
                         name: "Container",
                       ),
                       ffai.ProjectWidgetHandle(
-                        key: "Row_uw6nn1c0",
+                        key: "Row_654bys44",
                         type: "Row",
                         path: "CocotenGenreMasterPage.body[0].children[5].children[0].children[1]",
                         name: "Row",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Icon_fn3o8r0h",
+                            key: "Icon_16y1kx8n",
                             type: "Icon",
                             path: "CocotenGenreMasterPage.body[0].children[5].children[0].children[1].children[0]",
                             name: "Icon",
                           ),
                           ffai.ProjectWidgetHandle(
-                            key: "Text_pwlvdk3v",
+                            key: "Text_yoo4vqvq",
                             type: "Text",
                             path: "CocotenGenreMasterPage.body[0].children[5].children[0].children[1].children[1]",
                             name: "Text",
@@ -153,43 +153,43 @@ abstract final class CocotenGenreMasterPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "ListView_auzoz9p7",
+                key: "ListView_1ztclunh",
                 type: "ListView",
                 path: "CocotenGenreMasterPage.body[0].children[6]",
                 name: "GenreMasterListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Card_br3wk4fo",
+                    key: "Card_ji1jx9md",
                     type: "Card",
                     path: "CocotenGenreMasterPage.body[0].children[6].children[0]",
                     name: "Card",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Container_6jii8llb",
+                        key: "Container_2a0cj99t",
                         type: "Container",
                         path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0]",
                         name: "Container",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Row_ws8wj4dm",
+                            key: "Row_zb92wqcf",
                             type: "Row",
                             path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0].children[0]",
                             name: "GenreMasterRow",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "Row_dmgv328g",
+                                key: "Row_4qfku7s1",
                                 type: "Row",
                                 path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0].children[0].children[0]",
                                 name: "Row",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Icon_39bix2tf",
+                                    key: "Icon_j5yp5qfc",
                                     type: "Icon",
                                     path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0].children[0].children[0].children[0]",
                                     name: "Icon",
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_c6de5n1t",
+                                    key: "Text_jpndcg9b",
                                     type: "Text",
                                     path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0].children[0].children[0].children[1]",
                                     name: "Text",
@@ -197,7 +197,7 @@ abstract final class CocotenGenreMasterPageWidgets {
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Button_83mp03oj",
+                                key: "Button_o4pe3su8",
                                 type: "Button",
                                 path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0].children[0].children[1]",
                                 name: "AdminRemoveGenreButton",
