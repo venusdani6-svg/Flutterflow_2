@@ -131,28 +131,70 @@ abstract final class CocotenManagementPageWidgets {
             name: "CocotenManagementColumn",
             children: <ffai.ProjectWidgetHandle>[
               ffai.ProjectWidgetHandle(
-                key: "Text_iscm81tp",
-                type: "Text",
+                key: "Container_oydeyhew",
+                type: "Container",
                 path: "CocotenManagementPage.body[0].children[0]",
-                name: "Text",
-                text: "新規店舗を追加",
+                name: "CocotenManagementAccentBar",
               ),
               ffai.ProjectWidgetHandle(
-                key: "Row_il6llxar",
-                type: "Row",
+                key: "Container_0u7mmab7",
+                type: "Container",
                 path: "CocotenManagementPage.body[0].children[1]",
+                name: "Container",
+                children: <ffai.ProjectWidgetHandle>[
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_0dbum6g5",
+                    type: "Row",
+                    path: "CocotenManagementPage.body[0].children[1].children[0]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Container_i7r9i337",
+                        type: "Container",
+                        path: "CocotenManagementPage.body[0].children[1].children[0].children[0]",
+                        name: "Container",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Row_xrh5yko9",
+                        type: "Row",
+                        path: "CocotenManagementPage.body[0].children[1].children[0].children[1]",
+                        name: "Row",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Icon_l1hf73r6",
+                            type: "Icon",
+                            path: "CocotenManagementPage.body[0].children[1].children[0].children[1].children[0]",
+                            name: "Icon",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_gtt6qqvv",
+                            type: "Text",
+                            path: "CocotenManagementPage.body[0].children[1].children[0].children[1].children[1]",
+                            name: "Text",
+                            text: "新規店舗を追加",
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Row_7jg6sghe",
+                type: "Row",
+                path: "CocotenManagementPage.body[0].children[2]",
                 name: "CocotenGenreMasterLinkRow",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Text_3cbci07n",
+                    key: "Text_408ap5kj",
                     type: "Text",
-                    path: "CocotenManagementPage.body[0].children[1].children[0]",
+                    path: "CocotenManagementPage.body[0].children[2].children[0]",
                     name: "Text",
                   ),
                   ffai.ProjectWidgetHandle(
-                    key: "Button_daomdnms",
+                    key: "Button_vqq5ijc4",
                     type: "Button",
-                    path: "CocotenManagementPage.body[0].children[1].children[1]",
+                    path: "CocotenManagementPage.body[0].children[2].children[1]",
                     name: "AdminCocotenGenreMasterNavButton",
                     text: "ジャンルマスタ管理",
                     triggers: const <String>[
@@ -162,9 +204,9 @@ abstract final class CocotenManagementPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_qzxv7o9v",
+                key: "TextField_swabe4hc",
                 type: "TextField",
-                path: "CocotenManagementPage.body[0].children[2]",
+                path: "CocotenManagementPage.body[0].children[3]",
                 name: "NewShopNameField",
                 text: "店舗名",
                 triggers: const <String>[
@@ -172,9 +214,9 @@ abstract final class CocotenManagementPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_z0aiyxus",
+                key: "TextField_yo1oo6wg",
                 type: "TextField",
-                path: "CocotenManagementPage.body[0].children[3]",
+                path: "CocotenManagementPage.body[0].children[4]",
                 name: "NewShopGenreField",
                 text: "ジャンル（上記マスタのいずれかを入力）",
                 triggers: const <String>[
@@ -182,9 +224,9 @@ abstract final class CocotenManagementPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_czb5yidw",
+                key: "TextField_976s7rxs",
                 type: "TextField",
-                path: "CocotenManagementPage.body[0].children[4]",
+                path: "CocotenManagementPage.body[0].children[5]",
                 name: "NewShopPrefectureField",
                 text: "都道府県",
                 triggers: const <String>[
@@ -192,9 +234,9 @@ abstract final class CocotenManagementPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_pslvrn67",
+                key: "TextField_cb5ioram",
                 type: "TextField",
-                path: "CocotenManagementPage.body[0].children[5]",
+                path: "CocotenManagementPage.body[0].children[6]",
                 name: "NewShopCityField",
                 text: "市区町村",
                 triggers: const <String>[
@@ -202,9 +244,9 @@ abstract final class CocotenManagementPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_8l4qhr8c",
+                key: "TextField_sr482txa",
                 type: "TextField",
-                path: "CocotenManagementPage.body[0].children[6]",
+                path: "CocotenManagementPage.body[0].children[7]",
                 name: "NewShopTownBlockField",
                 text: "町名番地",
                 triggers: const <String>[
@@ -212,9 +254,9 @@ abstract final class CocotenManagementPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_r28gmp6y",
+                key: "TextField_71pry234",
                 type: "TextField",
-                path: "CocotenManagementPage.body[0].children[7]",
+                path: "CocotenManagementPage.body[0].children[8]",
                 name: "NewShopBuildingField",
                 text: "建物名",
                 triggers: const <String>[
@@ -222,9 +264,9 @@ abstract final class CocotenManagementPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Button_wvqm38e7",
+                key: "Button_ejysane5",
                 type: "Button",
-                path: "CocotenManagementPage.body[0].children[8]",
+                path: "CocotenManagementPage.body[0].children[9]",
                 name: "AdminCreateShopButton",
                 text: "店舗を追加",
                 triggers: const <String>[
@@ -232,29 +274,65 @@ abstract final class CocotenManagementPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Divider_74hfax8n",
+                key: "Divider_chlticus",
                 type: "Divider",
-                path: "CocotenManagementPage.body[0].children[9]",
+                path: "CocotenManagementPage.body[0].children[10]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
-                key: "Text_q5g4rzvl",
-                type: "Text",
-                path: "CocotenManagementPage.body[0].children[10]",
-                name: "Text",
-                text: "詳細編集（メニュー・特典・写真）",
+                key: "Container_him6nlbi",
+                type: "Container",
+                path: "CocotenManagementPage.body[0].children[11]",
+                name: "Container",
+                children: <ffai.ProjectWidgetHandle>[
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_zggs14ji",
+                    type: "Row",
+                    path: "CocotenManagementPage.body[0].children[11].children[0]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Container_619479cn",
+                        type: "Container",
+                        path: "CocotenManagementPage.body[0].children[11].children[0].children[0]",
+                        name: "Container",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Row_8ktbyhb7",
+                        type: "Row",
+                        path: "CocotenManagementPage.body[0].children[11].children[0].children[1]",
+                        name: "Row",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Icon_w0kp5qxn",
+                            type: "Icon",
+                            path: "CocotenManagementPage.body[0].children[11].children[0].children[1].children[0]",
+                            name: "Icon",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_z673hsrd",
+                            type: "Text",
+                            path: "CocotenManagementPage.body[0].children[11].children[0].children[1].children[1]",
+                            name: "Text",
+                            text: "詳細編集（メニュー・特典・写真）",
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Text_xskcgmxm",
+                key: "Text_yvf6834t",
                 type: "Text",
-                path: "CocotenManagementPage.body[0].children[11]",
+                path: "CocotenManagementPage.body[0].children[12]",
                 name: "Text",
                 text: "下の一覧から店舗の「この店舗に反映」ボタンで、入力した内容をその店舗に反映します。",
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_eyh9zcw7",
+                key: "TextField_anz43fey",
                 type: "TextField",
-                path: "CocotenManagementPage.body[0].children[12]",
+                path: "CocotenManagementPage.body[0].children[13]",
                 name: "DetailsMenuField",
                 text: "メニュー情報",
                 triggers: const <String>[
@@ -262,9 +340,9 @@ abstract final class CocotenManagementPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_s8uchydt",
+                key: "TextField_metpguvm",
                 type: "TextField",
-                path: "CocotenManagementPage.body[0].children[13]",
+                path: "CocotenManagementPage.body[0].children[14]",
                 name: "DetailsGuestBenefitsField",
                 text: "ゲスト用特典",
                 triggers: const <String>[
@@ -272,93 +350,173 @@ abstract final class CocotenManagementPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Row_fndh15bp",
-                type: "Row",
-                path: "CocotenManagementPage.body[0].children[14]",
-                name: "DetailsPhotoRow",
+                key: "Button_n7im5vcy",
+                type: "Button",
+                path: "CocotenManagementPage.body[0].children[15]",
+                name: "AdminUploadShopPhotoButton",
+                text: "写真を選択してアップロード",
+                triggers: const <String>[
+                  "ON_TAP",
+                ],
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Image_vcnrx266",
+                type: "Image",
+                path: "CocotenManagementPage.body[0].children[16]",
+                name: "DetailsPhotoPreviewImage",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Divider_vb050fqq",
+                type: "Divider",
+                path: "CocotenManagementPage.body[0].children[17]",
+                name: "Divider",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Container_5v1kv976",
+                type: "Container",
+                path: "CocotenManagementPage.body[0].children[18]",
+                name: "Container",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Button_8m0qod1j",
-                    type: "Button",
-                    path: "CocotenManagementPage.body[0].children[14].children[0]",
-                    name: "AdminUploadShopPhotoButton",
-                    text: "写真を選択してアップロード",
-                    triggers: const <String>[
-                      "ON_TAP",
+                    key: "Row_m1vv9cuc",
+                    type: "Row",
+                    path: "CocotenManagementPage.body[0].children[18].children[0]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Container_nhkht36y",
+                        type: "Container",
+                        path: "CocotenManagementPage.body[0].children[18].children[0].children[0]",
+                        name: "Container",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Row_wvhlj1zt",
+                        type: "Row",
+                        path: "CocotenManagementPage.body[0].children[18].children[0].children[1]",
+                        name: "Row",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Icon_tl0yfs1t",
+                            type: "Icon",
+                            path: "CocotenManagementPage.body[0].children[18].children[0].children[1].children[0]",
+                            name: "Icon",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_b3ylsul4",
+                            type: "Text",
+                            path: "CocotenManagementPage.body[0].children[18].children[0].children[1].children[1]",
+                            name: "Text",
+                            text: "既存店舗",
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Image_41kcbvyp",
-                type: "Image",
-                path: "CocotenManagementPage.body[0].children[15]",
-                name: "DetailsPhotoPreviewImage",
-              ),
-              ffai.ProjectWidgetHandle(
-                key: "Divider_phmv4q0e",
-                type: "Divider",
-                path: "CocotenManagementPage.body[0].children[16]",
-                name: "Divider",
-              ),
-              ffai.ProjectWidgetHandle(
-                key: "Text_mqnbfja1",
-                type: "Text",
-                path: "CocotenManagementPage.body[0].children[17]",
-                name: "Text",
-                text: "既存店舗",
-              ),
-              ffai.ProjectWidgetHandle(
-                key: "ListView_rwy15bbh",
+                key: "ListView_lz38arip",
                 type: "ListView",
-                path: "CocotenManagementPage.body[0].children[18]",
+                path: "CocotenManagementPage.body[0].children[19]",
                 name: "AdminShopsListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Card_k4clwta0",
+                    key: "Card_862zquzg",
                     type: "Card",
-                    path: "CocotenManagementPage.body[0].children[18].children[0]",
+                    path: "CocotenManagementPage.body[0].children[19].children[0]",
                     name: "Card",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Container_zvrmi3oo",
+                        key: "Container_7gjtshbr",
                         type: "Container",
-                        path: "CocotenManagementPage.body[0].children[18].children[0].children[0]",
+                        path: "CocotenManagementPage.body[0].children[19].children[0].children[0]",
                         name: "Container",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Column_0daxtwmk",
+                            key: "Column_2mpz3823",
                             type: "Column",
-                            path: "CocotenManagementPage.body[0].children[18].children[0].children[0].children[0]",
+                            path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0]",
                             name: "Column",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "Text_qpe4ir85",
-                                type: "Text",
-                                path: "CocotenManagementPage.body[0].children[18].children[0].children[0].children[0].children[0]",
-                                name: "Text",
-                              ),
-                              ffai.ProjectWidgetHandle(
-                                key: "Row_0ycxtz6z",
+                                key: "Row_7it4fja7",
                                 type: "Row",
-                                path: "CocotenManagementPage.body[0].children[18].children[0].children[0].children[0].children[1]",
+                                path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[0]",
                                 name: "Row",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Button_g1axcvm1",
+                                    key: "Icon_meyquk0d",
+                                    type: "Icon",
+                                    path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[0].children[0]",
+                                    name: "Icon",
+                                  ),
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Row_x10l9ooj",
+                                    type: "Row",
+                                    path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[0].children[1]",
+                                    name: "Row",
+                                    children: <ffai.ProjectWidgetHandle>[
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Container_2or8tjcn",
+                                        type: "Container",
+                                        path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[0].children[1].children[0]",
+                                        name: "Container",
+                                        children: <ffai.ProjectWidgetHandle>[
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Text_btved37t",
+                                            type: "Text",
+                                            path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[0].children[1].children[0].children[0]",
+                                            name: "Text",
+                                            text: "公開中",
+                                          ),
+                                        ],
+                                      ),
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Container_yfge4eks",
+                                        type: "Container",
+                                        path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[0].children[1].children[1]",
+                                        name: "Container",
+                                        children: <ffai.ProjectWidgetHandle>[
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Text_xm4q17du",
+                                            type: "Text",
+                                            path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[0].children[1].children[1].children[0]",
+                                            name: "Text",
+                                            text: "非公開",
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_gf8x9vzc",
+                                type: "Text",
+                                path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[1]",
+                                name: "Text",
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Row_z74gqg0i",
+                                type: "Row",
+                                path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[2]",
+                                name: "Row",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Button_ke1y8wo6",
                                     type: "Button",
-                                    path: "CocotenManagementPage.body[0].children[18].children[0].children[0].children[0].children[1].children[0]",
-                                    name: "Button",
+                                    path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[2].children[0]",
+                                    name: "AdminToggleShopActiveButton",
                                     text: "公開/非公開切替",
                                     triggers: const <String>[
                                       "ON_TAP",
                                     ],
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Button_vag3tldc",
+                                    key: "Button_xa8h1dkw",
                                     type: "Button",
-                                    path: "CocotenManagementPage.body[0].children[18].children[0].children[0].children[0].children[1].children[1]",
-                                    name: "Button",
+                                    path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[2].children[1]",
+                                    name: "AdminRemoveShopButton",
                                     text: "削除",
                                     triggers: const <String>[
                                       "ON_TAP",
@@ -367,9 +525,9 @@ abstract final class CocotenManagementPageWidgets {
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Button_ne1px7fa",
+                                key: "Button_xz0u5m04",
                                 type: "Button",
-                                path: "CocotenManagementPage.body[0].children[18].children[0].children[0].children[0].children[2]",
+                                path: "CocotenManagementPage.body[0].children[19].children[0].children[0].children[0].children[3]",
                                 name: "AdminApplyShopDetailsButton",
                                 text: "この店舗に反映（メニュー・特典・写真）",
                                 triggers: const <String>[

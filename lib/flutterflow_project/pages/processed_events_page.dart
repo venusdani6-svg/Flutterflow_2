@@ -65,9 +65,15 @@ abstract final class ProcessedEventsPageWidgets {
             name: "ProcessedEventsWithExportColumn",
             children: <ffai.ProjectWidgetHandle>[
               ffai.ProjectWidgetHandle(
-                key: "Button_ad1x2ovi",
-                type: "Button",
+                key: "Container_23h2z5sq",
+                type: "Container",
                 path: "ProcessedEventsPage.body[0].children[0]",
+                name: "ProcessedEventsAccentBar",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Button_s7n622nt",
+                type: "Button",
+                path: "ProcessedEventsPage.body[0].children[1]",
                 name: "AdminExportProcessedEventsCsvButton",
                 text: "CSVをコピー（読み込み済みの行のみ）",
                 triggers: const <String>[
@@ -75,34 +81,48 @@ abstract final class ProcessedEventsPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Divider_yninxc7p",
+                key: "Divider_d40hkbpv",
                 type: "Divider",
-                path: "ProcessedEventsPage.body[0].children[1]",
+                path: "ProcessedEventsPage.body[0].children[2]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
-                key: "ListView_2tcy6y9j",
+                key: "ListView_6tlp7e3s",
                 type: "ListView",
-                path: "ProcessedEventsPage.body[0].children[2]",
+                path: "ProcessedEventsPage.body[0].children[3]",
                 name: "ProcessedEventsListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Card_pp9k4h1p",
+                    key: "Card_bbotgvgy",
                     type: "Card",
-                    path: "ProcessedEventsPage.body[0].children[2].children[0]",
+                    path: "ProcessedEventsPage.body[0].children[3].children[0]",
                     name: "Card",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Container_djhsd60v",
+                        key: "Container_qzhjpb3d",
                         type: "Container",
-                        path: "ProcessedEventsPage.body[0].children[2].children[0].children[0]",
+                        path: "ProcessedEventsPage.body[0].children[3].children[0].children[0]",
                         name: "Container",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Text_aotd3m0u",
-                            type: "Text",
-                            path: "ProcessedEventsPage.body[0].children[2].children[0].children[0].children[0]",
-                            name: "Text",
+                            key: "Row_unmckg8f",
+                            type: "Row",
+                            path: "ProcessedEventsPage.body[0].children[3].children[0].children[0].children[0]",
+                            name: "Row",
+                            children: <ffai.ProjectWidgetHandle>[
+                              ffai.ProjectWidgetHandle(
+                                key: "Icon_tf9k6jlr",
+                                type: "Icon",
+                                path: "ProcessedEventsPage.body[0].children[3].children[0].children[0].children[0].children[0]",
+                                name: "Icon",
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_9b49eqbv",
+                                type: "Text",
+                                path: "ProcessedEventsPage.body[0].children[3].children[0].children[0].children[0].children[1]",
+                                name: "Text",
+                              ),
+                            ],
                           ),
                         ],
                       ),

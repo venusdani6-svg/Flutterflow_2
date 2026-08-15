@@ -65,9 +65,15 @@ abstract final class UserManagementPageWidgets {
             name: "AdminUsersWithExportColumn",
             children: <ffai.ProjectWidgetHandle>[
               ffai.ProjectWidgetHandle(
-                key: "Button_rmjkvlp5",
-                type: "Button",
+                key: "Container_fcob0skz",
+                type: "Container",
                 path: "UserManagementPage.body[0].children[0]",
+                name: "UserManagementAccentBar",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Button_92p7txph",
+                type: "Button",
+                path: "UserManagementPage.body[0].children[1]",
                 name: "AdminExportUsersCsvButton",
                 text: "CSVをコピー（読み込み済みの行のみ）",
                 triggers: const <String>[
@@ -75,51 +81,101 @@ abstract final class UserManagementPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Divider_b636u8pm",
+                key: "Divider_8upkswkw",
                 type: "Divider",
-                path: "UserManagementPage.body[0].children[1]",
+                path: "UserManagementPage.body[0].children[2]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
-                key: "ListView_30cxhdgf",
+                key: "ListView_vrlj9x30",
                 type: "ListView",
-                path: "UserManagementPage.body[0].children[2]",
+                path: "UserManagementPage.body[0].children[3]",
                 name: "AdminUsersListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Card_9v23nz0w",
+                    key: "Card_n5gm2j13",
                     type: "Card",
-                    path: "UserManagementPage.body[0].children[2].children[0]",
+                    path: "UserManagementPage.body[0].children[3].children[0]",
                     name: "Card",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Container_w4o774ai",
+                        key: "Container_vz5mtjrd",
                         type: "Container",
-                        path: "UserManagementPage.body[0].children[2].children[0].children[0]",
+                        path: "UserManagementPage.body[0].children[3].children[0].children[0]",
                         name: "Container",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Column_fxhotqj5",
+                            key: "Column_vz62nusr",
                             type: "Column",
-                            path: "UserManagementPage.body[0].children[2].children[0].children[0].children[0]",
+                            path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0]",
                             name: "Column",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "Text_dxiqaufe",
-                                type: "Text",
-                                path: "UserManagementPage.body[0].children[2].children[0].children[0].children[0].children[0]",
-                                name: "Text",
-                              ),
-                              ffai.ProjectWidgetHandle(
-                                key: "Row_gc24auj8",
+                                key: "Row_cu2dwclp",
                                 type: "Row",
-                                path: "UserManagementPage.body[0].children[2].children[0].children[0].children[0].children[1]",
+                                path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[0]",
                                 name: "Row",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Button_i0un4j6a",
+                                    key: "Icon_su0id4tg",
+                                    type: "Icon",
+                                    path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[0].children[0]",
+                                    name: "Icon",
+                                  ),
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Row_y0232lok",
+                                    type: "Row",
+                                    path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[0].children[1]",
+                                    name: "Row",
+                                    children: <ffai.ProjectWidgetHandle>[
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Row_7cgck5ja",
+                                        type: "Row",
+                                        path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[0].children[1].children[0]",
+                                        name: "Row",
+                                        children: <ffai.ProjectWidgetHandle>[
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Icon_hcf6than",
+                                            type: "Icon",
+                                            path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[0].children[1].children[0].children[0]",
+                                            name: "Icon",
+                                          ),
+                                          ffai.ProjectWidgetHandle(
+                                            key: "Text_yztcrcrv",
+                                            type: "Text",
+                                            path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[0].children[1].children[0].children[1]",
+                                            name: "Text",
+                                            text: "凍結中",
+                                          ),
+                                        ],
+                                      ),
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Container_qs9k5l7z",
+                                        type: "Container",
+                                        path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[0].children[1].children[1]",
+                                        name: "ApprovalStatusBadge",
+                                        componentName: "ApprovalStatusBadge",
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_g8xybs92",
+                                type: "Text",
+                                path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[1]",
+                                name: "Text",
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Row_kh0vfi7u",
+                                type: "Row",
+                                path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[2]",
+                                name: "Row",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Button_p12l5vts",
                                     type: "Button",
-                                    path: "UserManagementPage.body[0].children[2].children[0].children[0].children[0].children[1].children[0]",
+                                    path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[2].children[0]",
                                     name: "AdminToggleFreezeButton",
                                     text: "凍結/解除",
                                     triggers: const <String>[
@@ -127,9 +183,9 @@ abstract final class UserManagementPageWidgets {
                                     ],
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Button_2triya65",
+                                    key: "Button_r5liabgt",
                                     type: "Button",
-                                    path: "UserManagementPage.body[0].children[2].children[0].children[0].children[0].children[1].children[1]",
+                                    path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[2].children[1]",
                                     name: "AdminForceDeleteButton",
                                     text: "強制退会",
                                     triggers: const <String>[
@@ -139,9 +195,9 @@ abstract final class UserManagementPageWidgets {
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Button_usce4q4u",
+                                key: "Button_flkpj18m",
                                 type: "Button",
-                                path: "UserManagementPage.body[0].children[2].children[0].children[0].children[0].children[2]",
+                                path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[3]",
                                 name: "AdminContentModerationNavButton",
                                 text: "コンテンツ管理",
                                 triggers: const <String>[
@@ -149,9 +205,9 @@ abstract final class UserManagementPageWidgets {
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Button_povonv92",
+                                key: "Button_1g03a7nj",
                                 type: "Button",
-                                path: "UserManagementPage.body[0].children[2].children[0].children[0].children[0].children[3]",
+                                path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[4]",
                                 name: "AdminDeletionMonitorNavButton",
                                 text: "退会ブロック状況",
                                 triggers: const <String>[
@@ -159,9 +215,9 @@ abstract final class UserManagementPageWidgets {
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Button_7ir3rwq8",
+                                key: "Button_0rljnylb",
                                 type: "Button",
-                                path: "UserManagementPage.body[0].children[2].children[0].children[0].children[0].children[4]",
+                                path: "UserManagementPage.body[0].children[3].children[0].children[0].children[0].children[5]",
                                 name: "AdminConsentRecordNavButton",
                                 text: "同意記録",
                                 triggers: const <String>[

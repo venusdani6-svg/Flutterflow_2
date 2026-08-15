@@ -80,22 +80,28 @@ abstract final class ServiceAreaMunicipalitiesPageWidgets {
         ],
         "body": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
-            key: "Column_7u00rwb9",
+            key: "Column_zqd8ifrt",
             type: "Column",
             path: "ServiceAreaMunicipalitiesPage.body[0]",
             name: "ServiceAreaMunicipalitiesColumn",
             children: <ffai.ProjectWidgetHandle>[
               ffai.ProjectWidgetHandle(
-                key: "Text_78khnbut",
-                type: "Text",
+                key: "Container_keaflbra",
+                type: "Container",
                 path: "ServiceAreaMunicipalitiesPage.body[0].children[0]",
+                name: "ServiceAreaMunicipalitiesAccentBar",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Text_wp8v6vsi",
+                type: "Text",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[1]",
                 name: "Text",
                 text: "対象の都道府県名（東京都・神奈川県・千葉県・愛知県・京都府・大阪府・兵庫県・岡山県・広島県・福岡県のいずれか）を入力してください。",
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_9jlz1aj4",
+                key: "TextField_kpdhfx23",
                 type: "TextField",
-                path: "ServiceAreaMunicipalitiesPage.body[0].children[1]",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[2]",
                 name: "MunicipalityPrefectureField",
                 text: "都道府県",
                 triggers: const <String>[
@@ -103,9 +109,9 @@ abstract final class ServiceAreaMunicipalitiesPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Button_45jtmn9l",
+                key: "Button_hyyt0506",
                 type: "Button",
-                path: "ServiceAreaMunicipalitiesPage.body[0].children[2]",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[3]",
                 name: "AdminLoadMunicipalitiesButton",
                 text: "市区町村一覧を読み込む",
                 triggers: const <String>[
@@ -113,22 +119,58 @@ abstract final class ServiceAreaMunicipalitiesPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Divider_lo72bnhc",
+                key: "Divider_1itp3grn",
                 type: "Divider",
-                path: "ServiceAreaMunicipalitiesPage.body[0].children[3]",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[4]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
-                key: "Text_hbc556zi",
-                type: "Text",
-                path: "ServiceAreaMunicipalitiesPage.body[0].children[4]",
-                name: "Text",
-                text: "新しい市区町村を追加",
+                key: "Container_ui15teqn",
+                type: "Container",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[5]",
+                name: "Container",
+                children: <ffai.ProjectWidgetHandle>[
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_dpfb5jlu",
+                    type: "Row",
+                    path: "ServiceAreaMunicipalitiesPage.body[0].children[5].children[0]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Container_y5urmap5",
+                        type: "Container",
+                        path: "ServiceAreaMunicipalitiesPage.body[0].children[5].children[0].children[0]",
+                        name: "Container",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Row_dyqznev4",
+                        type: "Row",
+                        path: "ServiceAreaMunicipalitiesPage.body[0].children[5].children[0].children[1]",
+                        name: "Row",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Icon_j192qxv4",
+                            type: "Icon",
+                            path: "ServiceAreaMunicipalitiesPage.body[0].children[5].children[0].children[1].children[0]",
+                            name: "Icon",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_xdalf8kj",
+                            type: "Text",
+                            path: "ServiceAreaMunicipalitiesPage.body[0].children[5].children[0].children[1].children[1]",
+                            name: "Text",
+                            text: "新しい市区町村を追加",
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_9ydivfee",
+                key: "TextField_x9zapks5",
                 type: "TextField",
-                path: "ServiceAreaMunicipalitiesPage.body[0].children[5]",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[6]",
                 name: "NewMunicipalityNameField",
                 text: "市区町村名（例: 渋谷区）",
                 triggers: const <String>[
@@ -136,9 +178,9 @@ abstract final class ServiceAreaMunicipalitiesPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_4vbzblbt",
+                key: "TextField_f91fyl6m",
                 type: "TextField",
-                path: "ServiceAreaMunicipalitiesPage.body[0].children[6]",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[7]",
                 name: "NewMunicipalityLatField",
                 text: "緯度（例: 35.6580）",
                 triggers: const <String>[
@@ -146,9 +188,9 @@ abstract final class ServiceAreaMunicipalitiesPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_4vb9vxl0",
+                key: "TextField_uhm8a9xp",
                 type: "TextField",
-                path: "ServiceAreaMunicipalitiesPage.body[0].children[7]",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[8]",
                 name: "NewMunicipalityLngField",
                 text: "経度（例: 139.7016）",
                 triggers: const <String>[
@@ -156,9 +198,9 @@ abstract final class ServiceAreaMunicipalitiesPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Button_u8pe2uju",
+                key: "Button_c6v3yg7r",
                 type: "Button",
-                path: "ServiceAreaMunicipalitiesPage.body[0].children[8]",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[9]",
                 name: "AdminAddMunicipalityButton",
                 text: "追加",
                 triggers: const <String>[
@@ -166,44 +208,110 @@ abstract final class ServiceAreaMunicipalitiesPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Divider_qc8s2o0r",
+                key: "Divider_ppxhyt9m",
                 type: "Divider",
-                path: "ServiceAreaMunicipalitiesPage.body[0].children[9]",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[10]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
-                key: "Text_gqaj26go",
-                type: "Text",
-                path: "ServiceAreaMunicipalitiesPage.body[0].children[10]",
-                name: "Text",
-                text: "登録済みの市区町村",
+                key: "Container_ds87l14k",
+                type: "Container",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[11]",
+                name: "Container",
+                children: <ffai.ProjectWidgetHandle>[
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_11ump8ks",
+                    type: "Row",
+                    path: "ServiceAreaMunicipalitiesPage.body[0].children[11].children[0]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Container_k6f4puz1",
+                        type: "Container",
+                        path: "ServiceAreaMunicipalitiesPage.body[0].children[11].children[0].children[0]",
+                        name: "Container",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Row_9i7l4yll",
+                        type: "Row",
+                        path: "ServiceAreaMunicipalitiesPage.body[0].children[11].children[0].children[1]",
+                        name: "Row",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Icon_j4sd18v1",
+                            type: "Icon",
+                            path: "ServiceAreaMunicipalitiesPage.body[0].children[11].children[0].children[1].children[0]",
+                            name: "Icon",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_ystjyzin",
+                            type: "Text",
+                            path: "ServiceAreaMunicipalitiesPage.body[0].children[11].children[0].children[1].children[1]",
+                            name: "Text",
+                            text: "登録済みの市区町村",
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "ListView_w1leecx7",
+                key: "ListView_l5pkbpld",
                 type: "ListView",
-                path: "ServiceAreaMunicipalitiesPage.body[0].children[11]",
+                path: "ServiceAreaMunicipalitiesPage.body[0].children[12]",
                 name: "MunicipalitiesListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Row_fl6do5di",
-                    type: "Row",
-                    path: "ServiceAreaMunicipalitiesPage.body[0].children[11].children[0]",
-                    name: "MunicipalityRow",
+                    key: "Card_j0dcqvbg",
+                    type: "Card",
+                    path: "ServiceAreaMunicipalitiesPage.body[0].children[12].children[0]",
+                    name: "Card",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Text_wj0whclt",
-                        type: "Text",
-                        path: "ServiceAreaMunicipalitiesPage.body[0].children[11].children[0].children[0]",
-                        name: "Text",
-                      ),
-                      ffai.ProjectWidgetHandle(
-                        key: "Button_rjr2t2q7",
-                        type: "Button",
-                        path: "ServiceAreaMunicipalitiesPage.body[0].children[11].children[0].children[1]",
-                        name: "AdminRemoveMunicipalityButton",
-                        text: "削除",
-                        triggers: const <String>[
-                          "ON_TAP",
+                        key: "Container_08ze4bzo",
+                        type: "Container",
+                        path: "ServiceAreaMunicipalitiesPage.body[0].children[12].children[0].children[0]",
+                        name: "Container",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Row_qb4f4oag",
+                            type: "Row",
+                            path: "ServiceAreaMunicipalitiesPage.body[0].children[12].children[0].children[0].children[0]",
+                            name: "MunicipalityRow",
+                            children: <ffai.ProjectWidgetHandle>[
+                              ffai.ProjectWidgetHandle(
+                                key: "Row_bigipbj0",
+                                type: "Row",
+                                path: "ServiceAreaMunicipalitiesPage.body[0].children[12].children[0].children[0].children[0].children[0]",
+                                name: "Row",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Icon_pedzkyv1",
+                                    type: "Icon",
+                                    path: "ServiceAreaMunicipalitiesPage.body[0].children[12].children[0].children[0].children[0].children[0].children[0]",
+                                    name: "Icon",
+                                  ),
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Text_o6y13iyt",
+                                    type: "Text",
+                                    path: "ServiceAreaMunicipalitiesPage.body[0].children[12].children[0].children[0].children[0].children[0].children[1]",
+                                    name: "Text",
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Button_jbtq18z2",
+                                type: "Button",
+                                path: "ServiceAreaMunicipalitiesPage.body[0].children[12].children[0].children[0].children[0].children[1]",
+                                name: "AdminRemoveMunicipalityButton",
+                                text: "削除",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ],

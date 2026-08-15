@@ -77,21 +77,27 @@ abstract final class ReservationOversightPageWidgets {
             name: "Column",
             children: <ffai.ProjectWidgetHandle>[
               ffai.ProjectWidgetHandle(
-                key: "Container_nfohljtf",
+                key: "Container_iqrd41n7",
                 type: "Container",
                 path: "ReservationOversightPage.body[0].children[0]",
+                name: "ReservationOversightAccentBar",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Container_nfohljtf",
+                type: "Container",
+                path: "ReservationOversightPage.body[0].children[1]",
                 name: "Container",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
                     key: "Column_mvoxr3ha",
                     type: "Column",
-                    path: "ReservationOversightPage.body[0].children[0].children[0]",
+                    path: "ReservationOversightPage.body[0].children[1].children[0]",
                     name: "Column",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "TextField_2ipzlnt3",
                         type: "TextField",
-                        path: "ReservationOversightPage.body[0].children[0].children[0].children[0]",
+                        path: "ReservationOversightPage.body[0].children[1].children[0].children[0]",
                         name: "AdminActionReasonField",
                         text: "操作理由（キャンセル・返金共通）",
                         triggers: const <String>[
@@ -101,7 +107,7 @@ abstract final class ReservationOversightPageWidgets {
                       ffai.ProjectWidgetHandle(
                         key: "TextField_7gu9d5fg",
                         type: "TextField",
-                        path: "ReservationOversightPage.body[0].children[0].children[0].children[1]",
+                        path: "ReservationOversightPage.body[0].children[1].children[0].children[1]",
                         name: "AdminRefundAmountField",
                         text: "返金額（円、空欄で全額）",
                         triggers: const <String>[
@@ -115,7 +121,7 @@ abstract final class ReservationOversightPageWidgets {
               ffai.ProjectWidgetHandle(
                 key: "Button_tnki9mhk",
                 type: "Button",
-                path: "ReservationOversightPage.body[0].children[1]",
+                path: "ReservationOversightPage.body[0].children[2]",
                 name: "AdminExportReservationOversightCsvButton",
                 text: "CSVをコピー（読み込み済みの行のみ）",
                 triggers: const <String>[
@@ -125,49 +131,49 @@ abstract final class ReservationOversightPageWidgets {
               ffai.ProjectWidgetHandle(
                 key: "Divider_pjhq7dzq",
                 type: "Divider",
-                path: "ReservationOversightPage.body[0].children[2]",
+                path: "ReservationOversightPage.body[0].children[3]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
                 key: "ListView_1n0f6b6s",
                 type: "ListView",
-                path: "ReservationOversightPage.body[0].children[3]",
+                path: "ReservationOversightPage.body[0].children[4]",
                 name: "AdminReservationsListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
                     key: "Card_6u157rz7",
                     type: "Card",
-                    path: "ReservationOversightPage.body[0].children[3].children[0]",
+                    path: "ReservationOversightPage.body[0].children[4].children[0]",
                     name: "Card",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Container_b6njrbvn",
                         type: "Container",
-                        path: "ReservationOversightPage.body[0].children[3].children[0].children[0]",
+                        path: "ReservationOversightPage.body[0].children[4].children[0].children[0]",
                         name: "Container",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
                             key: "Column_fnuap1iw",
                             type: "Column",
-                            path: "ReservationOversightPage.body[0].children[3].children[0].children[0].children[0]",
+                            path: "ReservationOversightPage.body[0].children[4].children[0].children[0].children[0]",
                             name: "Column",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
                                 key: "Text_10dfvq3d",
                                 type: "Text",
-                                path: "ReservationOversightPage.body[0].children[3].children[0].children[0].children[0].children[0]",
+                                path: "ReservationOversightPage.body[0].children[4].children[0].children[0].children[0].children[0]",
                                 name: "Text",
                               ),
                               ffai.ProjectWidgetHandle(
                                 key: "Row_gn5my65o",
                                 type: "Row",
-                                path: "ReservationOversightPage.body[0].children[3].children[0].children[0].children[0].children[1]",
+                                path: "ReservationOversightPage.body[0].children[4].children[0].children[0].children[0].children[1]",
                                 name: "Row",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
                                     key: "Button_xemi68zy",
                                     type: "Button",
-                                    path: "ReservationOversightPage.body[0].children[3].children[0].children[0].children[0].children[1].children[0]",
+                                    path: "ReservationOversightPage.body[0].children[4].children[0].children[0].children[0].children[1].children[0]",
                                     name: "AdminForceCancelButton",
                                     text: "強制キャンセル",
                                     triggers: const <String>[
@@ -177,7 +183,7 @@ abstract final class ReservationOversightPageWidgets {
                                   ffai.ProjectWidgetHandle(
                                     key: "Button_ox5g97st",
                                     type: "Button",
-                                    path: "ReservationOversightPage.body[0].children[3].children[0].children[0].children[0].children[1].children[1]",
+                                    path: "ReservationOversightPage.body[0].children[4].children[0].children[0].children[0].children[1].children[1]",
                                     name: "AdminManualRefundButton",
                                     text: "手動返金",
                                     triggers: const <String>[
@@ -189,7 +195,7 @@ abstract final class ReservationOversightPageWidgets {
                               ffai.ProjectWidgetHandle(
                                 key: "Button_eslhk4xo",
                                 type: "Button",
-                                path: "ReservationOversightPage.body[0].children[3].children[0].children[0].children[0].children[2]",
+                                path: "ReservationOversightPage.body[0].children[4].children[0].children[0].children[0].children[2]",
                                 name: "AdminExtensionOversightNavButton",
                                 text: "延長・報酬詳細",
                                 triggers: const <String>[

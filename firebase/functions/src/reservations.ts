@@ -7,6 +7,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { db, stripe, Timestamp, getSystemConfig, sendPushNotification } from "./config";
 import { transferPendingCastRewards, captureAuthorizedExtensions } from "./stripe-payments";
 import { findUnavailableCastId, reservedSlotsQuery } from "./schedule";
+import { requireApprovedUser } from "./auth";
 
 // DoS-prevention bound only, not a product rule (PROJECT_KNOWLEDGE.md §68):
 // the DSL only ever sends a single cast_id today, but this callable accepts
@@ -14,8 +15,11 @@ import { findUnavailableCastId, reservedSlotsQuery } from "./schedule";
 // number of writes in the Authorize-time slot-lock transaction
 // (stripe-webhooks.ts), and Firestore hard-caps a transaction at 500
 // writes. Generously above any real group-invite scenario, far below that
-// ceiling even at the max allowed duration.
-const MAX_CAST_IDS_PER_RESERVATION = 10;
+// ceiling even at the max allowed duration. Exported so work-posts.ts's
+// `selectWorkApplicant` can enforce the same bound when adding a
+// group-invite-recruited cast to an existing reservation's `cast_ids`
+// (final precision audit, see that file's own fix comment for why).
+export const MAX_CAST_IDS_PER_RESERVATION = 10;
 
 /**
  * Callable: Create reservation request
@@ -156,6 +160,23 @@ export const createReservation = onCall(async (request) => {
     if (castDoc.data()?.is_frozen) {
       throw new HttpsError("failed-precondition", "選択されたキャストは利用できません。");
     }
+    // FIX (confirmed live bug, found during final precision audit):
+    // `is_stripe_restricted` (written by stripe-webhooks.ts's
+    // `handleAccountUpdated` whenever a cast's Connect account enters a
+    // Stripe-restricted/compliance-hold state) is correctly excluded from
+    // `getDiscoveryCasts`' search results (auth.ts), but was never checked
+    // here — the one place that actually authorizes real money. It's
+    // decoupled from `approval_status` (which can stay "approved" while
+    // Stripe-side restricted), so a guest who already has a restricted
+    // cast's UID (from an existing favorite, a prior chat, or any other
+    // already-known ID — restriction can happen well after the guest first
+    // discovered the cast) could still call this directly and get a real
+    // Stripe authorization hold created for a cast whose payout path is
+    // blocked, defeating the exact real-time-exclusion requirement
+    // `getDiscoveryCasts`'s own search-side filter exists to enforce.
+    if (castDoc.data()?.is_stripe_restricted) {
+      throw new HttpsError("failed-precondition", "選択されたキャストは現在ご利用いただけません。");
+    }
     if (castDoc.data()?.blocked_users?.includes(uid)) {
       throw new HttpsError("permission-denied", "このキャストに予約を送れません。");
     }
@@ -182,6 +203,22 @@ export const createReservation = onCall(async (request) => {
   // side that never fed it real data (staffFee was hardcoded to 0).
   const staffIds: string[] = [];
   let staffFeeTotal = 0;
+  // FIX (confirmed live bug, found during audit): `security_staff_fee`/
+  // `transport_staff_fee` are independently admin-configurable (§5 item 5)
+  // and NOT guaranteed equal — but `recordCastRewardsAndProcessOthers`
+  // (stripe-payments.ts) used to pay every staff_id an EVEN split of the
+  // aggregate `staff_fee` regardless of which role each one actually
+  // filled, silently misallocating pay between a security and a transport
+  // staffer the moment an admin sets those two config values apart (the
+  // only reason today's default of both=¥2,500 hides it). `staff_fee_map`
+  // records each staff member's OWN flat role-fee at the moment they're
+  // attached to the reservation, so payout can pay the right amount to the
+  // right person instead of guessing via an even split. Populated here for
+  // the direct `staff_selections` path; `selectWorkApplicant` (work-posts.ts)
+  // and `adminHireWorkPostApplicant` (admin.ts) populate the same map for
+  // the `needs_security`/`needs_transport` work-post-hire path below (the
+  // one real UI actually uses).
+  const staffFeeMap: Record<string, number> = {};
   for (const sel of staff_selections || []) {
     const staffId = sel?.staff_id;
     const role = sel?.role;
@@ -206,8 +243,9 @@ export const createReservation = onCall(async (request) => {
       );
     }
     staffIds.push(staffId);
-    staffFeeTotal +=
-      role === "security" ? config.security_staff_fee : config.transport_staff_fee;
+    const staffRoleFee = role === "security" ? config.security_staff_fee : config.transport_staff_fee;
+    staffFeeTotal += staffRoleFee;
+    staffFeeMap[staffId] = staffRoleFee;
   }
 
   // `needs_security`/`needs_transport`: the "I need this role but don't
@@ -280,6 +318,7 @@ export const createReservation = onCall(async (request) => {
     guest_id: uid,
     cast_ids: castIds,
     staff_ids: staffIds,
+    staff_fee_map: staffFeeMap,
     status: "request_pending",
     cast_responses: castResponses,
     date: Timestamp.fromDate(new Date(date)),
@@ -711,27 +750,48 @@ export const reportCompletion = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "予約IDが必要です。");
   }
 
-  const resDoc = await db.collection("reservations").doc(res_id).get();
-  if (!resDoc.exists) {
-    throw new HttpsError("not-found", "予約が見つかりません。");
-  }
+  // FIX (confirmed live bug, found during audit): the status guard and the
+  // status-transition write below used to be two separate, non-transactional
+  // operations (a plain `.get()` then a plain `.update()`) — the exact same
+  // race shape already fixed in `respondToReservation`/`confirmMeetup` above.
+  // Two near-simultaneous `reportCompletion` calls (a cast double-tap, a
+  // client retry, or on a multi-cast reservation a SECOND cast calling this
+  // before the first call's write lands — `cast_ids.includes(uid)` accepts
+  // any cast on the reservation) could both read `status: "in_progress"` and
+  // both pass the guard before either write committed, then both proceed to
+  // call `stripe.paymentIntents.capture` a second time (Stripe itself
+  // rejects the double capture, but only after a wasted round trip) and both
+  // send the guest a duplicate "交流が完了しました" notification/push. Wrapped
+  // the read-check-write in a transaction, matching the established pattern
+  // above, so only ONE caller ever wins the transition; a loser sees the
+  // already-updated status and fails the guard exactly as if it had arrived
+  // after the first call actually finished.
+  const resData = await db.runTransaction(async (tx) => {
+    const resRef = db.collection("reservations").doc(res_id);
+    const resSnap = await tx.get(resRef);
+    if (!resSnap.exists) {
+      throw new HttpsError("not-found", "予約が見つかりません。");
+    }
 
-  const resData = resDoc.data()!;
+    const data = resSnap.data()!;
 
-  if (!resData.cast_ids?.includes(uid)) {
-    throw new HttpsError("permission-denied", "キャストのみ完了報告が可能です。");
-  }
+    if (!data.cast_ids?.includes(uid)) {
+      throw new HttpsError("permission-denied", "キャストのみ完了報告が可能です。");
+    }
 
-  if (resData.status !== "in_progress") {
-    throw new HttpsError(
-      "failed-precondition",
-      "この予約は完了報告できる状態ではありません。"
-    );
-  }
+    if (data.status !== "in_progress") {
+      throw new HttpsError(
+        "failed-precondition",
+        "この予約は完了報告できる状態ではありません。"
+      );
+    }
 
-  await db.collection("reservations").doc(res_id).update({
-    status: "completion_pending",
-    updated_at: Timestamp.now(),
+    tx.update(resRef, {
+      status: "completion_pending",
+      updated_at: Timestamp.now(),
+    });
+
+    return data;
   });
 
   // FIX (IMPLEMENTATION_PLAN.md §6 defect #8): §3.5's own state-6 entry
@@ -903,14 +963,23 @@ export const submitReview = onCall(async (request) => {
       status: "completed",
       updated_at: Timestamp.now(),
     });
-  }
 
-  const chatRooms = await db.collection("chat_rooms").where("res_id", "==", res_id).get();
-  for (const room of chatRooms.docs) {
-    await room.ref.update({
-      active: false,
-      closed_at: Timestamp.now(),
-    });
+    // FIX (confirmed live bug, final precision audit second pass): this
+    // loop used to run unconditionally on every review submission, not
+    // just once the reservation actually finished — on a multi-cast
+    // reservation, the guest reviewing the FIRST cast would immediately
+    // deactivate the shared chat room(s) while the reservation was still
+    // correctly open and the remaining cast(s) unreviewed, blocking any
+    // further messages (sendChatMessage checks room.active) even though
+    // nothing about the reservation had actually concluded yet. Gated on
+    // the same allCastsReviewed condition as the status transition above.
+    const chatRooms = await db.collection("chat_rooms").where("res_id", "==", res_id).get();
+    for (const room of chatRooms.docs) {
+      await room.ref.update({
+        active: false,
+        closed_at: Timestamp.now(),
+      });
+    }
   }
 
   await db.collection("users").doc(cast_id).collection("notifications").add({
@@ -1145,6 +1214,27 @@ export const sendChatMessage = onCall(async (request) => {
   const { res_id, text } = request.data;
   const uid = request.auth.uid;
 
+  // FIX (confirmed live bug, found during final precision audit): §3.1.11's
+  // hard functional lock explicitly names "chat" as one of the features
+  // blocked while approval_status != approved, but this only ever checked
+  // room-participancy + room.active — never the SENDER's own current
+  // status. A chat room's participants are fixed at room-creation time
+  // (both parties necessarily approved then, per respondToReservation's own
+  // accept-path gating), but status can change AFTER — most concretely,
+  // `submitKYC` intentionally flips a cast back to `approval_status:
+  // "pending"` on every re-submission — and that cast could keep sending
+  // messages in an already-active room indefinitely while nominally
+  // "under review," with nothing re-checking at send time. Also checks
+  // `is_frozen` for the same reason (an admin freeze after room creation
+  // shouldn't leave chat still open) — every other action-authorizing
+  // function in this codebase that checks approval_status checks is_frozen
+  // alongside it.
+  await requireApprovedUser(uid);
+  const senderDoc = await db.collection("users").doc(uid).get();
+  if (senderDoc.data()?.is_frozen) {
+    throw new HttpsError("permission-denied", "アカウントが凍結されているため送信できません。");
+  }
+
   if (typeof res_id !== "string" || !res_id) {
     throw new HttpsError("invalid-argument", "予約IDが必要です。");
   }
@@ -1211,7 +1301,8 @@ export const sendChatMessage = onCall(async (request) => {
   const otherParticipants: string[] = (roomData.participants || []).filter(
     (id: string) => id !== uid
   );
-  const senderDoc = await db.collection("users").doc(uid).get();
+  // `senderDoc` already fetched above for the approval/frozen check —
+  // reused here instead of a second read.
   const senderNickname = senderDoc.data()?.nickname || "";
   await Promise.all(
     otherParticipants.map((participantId) =>

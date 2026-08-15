@@ -625,23 +625,57 @@ export const adminForceCancel = onCall(async (request) => {
     // NOT marked cancelled unless the Stripe operation actually succeeded.
     try {
       if (refund_amount && refund_amount > 0) {
+        // FIX (confirmed live bug, found during final precision audit):
+        // this capture carried no `metadata.type` tag — unlike the
+        // identical partial-capture-as-cancellation-fee pattern in
+        // `cancelPayment` (stripe-payments.ts), which tags its own capture
+        // with `metadata: { type: "cancellation" }` specifically so
+        // `handlePaymentIntentSucceeded` (stripe-webhooks.ts)'s
+        // `!paymentIntent.metadata?.type` gate skips its normal-completion
+        // side effects for it. Left untagged, every admin partial-capture
+        // force-cancel would: (1) race this function's own
+        // `status: "cancelled"` write below with the webhook's
+        // `status: "review_pending"`, whichever lands last winning; (2) call
+        // `recordCastRewardsAndProcessOthers` using `resData.total_amount`
+        // (the FULL original booking amount, not the admin-chosen
+        // `refund_amount` actually captured), paying the cast(s) and
+        // accruing an affiliate reward for a full-service completion funded
+        // by a partial capture — a genuine platform-funded overpayment with
+        // no corresponding revenue. Tagging `metadata.type` makes the
+        // webhook treat this exactly like `cancelPayment`'s own
+        // cancellation-fee capture, matching how `resolvedReason`/the
+        // `ledger` entry below already frame this as a cancellation, not a
+        // completion.
         const capturedPi = await stripe.paymentIntents.capture(resData.payment_intent_id, {
           amount_to_capture: refund_amount,
+          metadata: { type: "cancellation" },
         });
         // FIX (confirmed live bug, found during audit): this partial-
         // capture path is real money movement (captures `refund_amount`
         // from the guest) but, unlike every other capture path in this
         // codebase, created no `ledger` entry for it at all - that amount
         // was captured but never split/accounted for anywhere. Recorded
-        // here as a `refund`-type entry (net_transfer 0 - this captures
-        // FROM the guest, it doesn't transfer anything TO anyone; a
-        // human admin decided the amount, not the cancellation-fee
-        // matrix) so `adminGetLedger`'s ledger view at least surfaces it.
+        // here as a `cancellation_capture`-type entry (net_transfer 0 -
+        // this captures FROM the guest, it doesn't transfer anything TO
+        // anyone; a human admin decided the amount, not the cancellation-
+        // fee matrix) so `adminGetLedger`'s ledger view at least surfaces
+        // it.
+        //
+        // FIX (final precision audit second pass): originally typed
+        // "refund" — confirmed via a repo-wide grep to be the only write
+        // site using that exact type value other than `adminManualRefund`'s
+        // OWN entry (this file, below), which is a GENUINE refund (money
+        // back to the guest, `platform_profit: 0`) — the opposite meaning
+        // of this row (a capture, `platform_profit: refund_amount`).
+        // `computeLedgerSummary` summing "gross revenue captured" by type
+        // would have had to either double-count real refunds as revenue or
+        // ignore this real capture — renamed to disambiguate rather than
+        // leaving two opposite-meaning rows sharing one type value.
         await db.collection("ledger").add({
           ledger_id: "",
           res_id,
           user_id: resData.guest_id,
-          type: "refund",
+          type: "cancellation_capture",
           gross_amount: refund_amount,
           cast_reward: 0,
           staff_fee: 0,
@@ -794,6 +828,49 @@ export const adminManualRefund = onCall(async (request) => {
     processed: true,
     created_at: Timestamp.now(),
   });
+
+  // FIX (confirmed live bug, final precision audit second pass): a refund
+  // on a `"completed"` reservation happens AFTER `submitReview` has already
+  // called `transferPendingCastRewards` (reservations.ts) — the cast(s) on
+  // this reservation have already received a real Stripe transfer for it.
+  // This used to have no clawback at all: the platform would be out both
+  // the refunded amount AND the reward already paid out, with no recovery
+  // mechanism and no audit trail connecting the two. `"review_pending"`
+  // reservations are unaffected — reward transfer only happens once a
+  // review is actually submitted, so no clawback is needed there. Recovered
+  // via the same `logical_debt`/`debt_history` mechanism already used
+  // elsewhere in this file for platform-absorbed costs (e.g. the
+  // cancellation Stripe-fee split above), split evenly across the casts
+  // actually on this reservation — not a Stripe transfer reversal (higher-
+  // risk, can fail on insufficient destination balance, and this codebase
+  // has no precedent for reversing a Connect transfer already treated as
+  // final).
+  if (resData.status === "completed") {
+    const castIdsForClawback: string[] = resData.cast_ids || [];
+    const perCastClawback =
+      castIdsForClawback.length > 0 ? Math.floor(refund.amount / castIdsForClawback.length) : 0;
+
+    for (const castId of castIdsForClawback) {
+      await db.runTransaction(async (tx) => {
+        const castRef = db.collection("users").doc(castId);
+        const castDoc = await tx.get(castRef);
+        const currentDebt = castDoc.data()?.logical_debt || 0;
+
+        tx.update(castRef, {
+          logical_debt: currentDebt + perCastClawback,
+          updated_at: Timestamp.now(),
+        });
+      });
+
+      await db.collection("debt_history").add({
+        user_id: castId,
+        amount: perCastClawback,
+        reason: "管理者による返金（完了済み予約・報酬支払い済み）",
+        res_id,
+        created_at: Timestamp.now(),
+      });
+    }
+  }
 
   await createAuditLog(
     request.auth!.uid,
@@ -1338,18 +1415,43 @@ async function computeLedgerSummary(
     netTransferTotal += row.net_transfer || 0;
   }
 
-  const seenResIdsForGrossProfit = new Set<string>();
+  // FIX (confirmed live bug, final precision audit second pass): the dedup
+  // key used to be `res_id` alone — correct for the ORIGINAL case this
+  // logic was written for (one capture event fanned out across multiple
+  // casts, identical gross_amount/platform_profit per row), but WRONG once
+  // a reservation can have MULTIPLE, genuinely-different reward-fanout
+  // events over its lifetime (a base capture, plus a LATER extension
+  // capture via `captureAuthorizedExtensions`, plus a cancellation-arrival
+  // tier via `recordCancellationCastRewards` — both confirmed real
+  // `type:"reward"` writers for the same `res_id` with their OWN distinct
+  // amounts). Deduping by `res_id` alone silently dropped every later
+  // event's contribution, undercounting real captured revenue with no
+  // error. Keyed on `(res_id, gross_amount, platform_profit)` instead —
+  // still collapses the true N-casts-one-event duplicate case (identical
+  // triple), while treating genuinely different capture events (different
+  // amounts) as the separate revenue they are.
+  const seenRewardKeys = new Set<string>();
   let grossTotal = 0;
   let platformProfitTotal = 0;
   for (const row of rows) {
     if (row.type === "reward" && row.res_id) {
-      if (!seenResIdsForGrossProfit.has(row.res_id)) {
-        seenResIdsForGrossProfit.add(row.res_id);
+      const key = `${row.res_id}|${row.gross_amount || 0}|${row.platform_profit || 0}`;
+      if (!seenRewardKeys.has(key)) {
+        seenRewardKeys.add(key);
         grossTotal += row.gross_amount || 0;
         platformProfitTotal += row.platform_profit || 0;
       }
     } else if (row.type === "tip") {
       grossTotal += row.gross_amount || 0;
+    } else if (row.type === "cancellation_fee" || row.type === "cancellation_capture") {
+      // FIX (confirmed live bug, final precision audit second pass): both
+      // types represent real Stripe captures with no corresponding
+      // `type:"reward"` row (no cast reward on these — see their own write
+      // sites), so they were invisible to this summary entirely despite
+      // being real captured revenue. Each is a single row per event
+      // (never fanned out per-cast), so no dedup is needed here.
+      grossTotal += row.gross_amount || 0;
+      platformProfitTotal += row.platform_profit || 0;
     }
   }
 
@@ -1688,7 +1790,15 @@ export const adminGetSystemConfig = onCall(async (request) => {
 export const adminUpdateSystemConfig = onCall(async (request) => {
   await verifyAdmin(request);
 
-  const { settings } = request.data;
+  // FIX (confirmed live bug, found during audit): this never destructured
+  // `reason` from `request.data` at all — unlike every sibling mutation in
+  // this file (adminAddServiceAreaMunicipality, adminUpsertCocotenShop,
+  // adminUpdateCocotenGenres, etc.), the audit log below wrote a bare
+  // hardcoded string with no way for a caller to ever supply a real reason,
+  // even though this endpoint can change monetary config (rates, fees,
+  // day-of-month thresholds). Now accepted and threaded the same way as
+  // every other admin mutation in this file.
+  const { settings, reason } = request.data;
 
   // FIX (confirmed live bug, found during audit): `affiliate_payment_day`
   // drove processMonthlyAffiliatePayments' `jstDay !== paymentDay` gate
@@ -1772,7 +1882,7 @@ export const adminUpdateSystemConfig = onCall(async (request) => {
     "system",
     "settings",
     settings,
-    "システム設定の更新"
+    reason || "システム設定の更新"
   );
 
   return { success: true };
@@ -2122,7 +2232,17 @@ export const adminApprovePayout = functionsV1
   .https.onCall(async (data, context) => {
     await verifyAdminV1(context);
 
-    const { requestId, action } = data;
+    // FIX (confirmed live bug, found during audit): `reason` was never
+    // destructured from `data` at all — unlike every other admin mutation in
+    // this file, none of the 3 audit-log call sites below (on_hold/rejected/
+    // approve) had any way to receive a caller-supplied reason; each wrote a
+    // bare hardcoded placeholder string instead. This is real-money oversight
+    // (withdrawal-queue approve/hold/reject) — the same "hardcoded reason,
+    // not threaded from caller input" gap already fixed elsewhere in this
+    // file (adminApproveKYC, adminToggleFreeze, adminForceCancel). Now
+    // accepted and threaded, falling back to the same default text as
+    // before when omitted.
+    const { requestId, action, reason } = data;
     if (!requestId) {
       throw new functionsV1.https.HttpsError("invalid-argument", "requestIdが必要です。");
     }
@@ -2144,8 +2264,8 @@ export const adminApprovePayout = functionsV1
         action === "on_hold" ? "payout_on_hold" : "payout_rejected",
         "payout_request",
         requestId,
-        { user_id: userId },
-        action === "on_hold" ? "出金保留" : "出金否認"
+        { user_id: userId, reason },
+        reason || (action === "on_hold" ? "出金保留" : "出金否認")
       );
       return { success: true };
     }
@@ -2202,6 +2322,23 @@ export const adminApprovePayout = functionsV1
     const userDoc = await db.collection("users").doc(userId).get();
     const userData = userDoc.data();
 
+    // FIX (confirmed live bug, final precision audit second pass): this
+    // branch went straight from the claim to a real `stripe.payouts.create()`
+    // with no re-check of the requesting user's frozen state — an admin
+    // freezing an account for fraud/ToS violation AFTER that account already
+    // had a pending payout request (the exact scenario freezing exists to
+    // stop) would not block this approval at all; the admin queue view
+    // itself also had no way to surface that the requester was frozen. Same
+    // revert-and-reject pattern as the missing-stripe_account_id guard right
+    // below, so the request isn't left stuck in "processing" forever.
+    if (userData?.is_frozen) {
+      await db.collection("payout_requests").doc(requestId).update({ status: "pending" });
+      throw new functionsV1.https.HttpsError(
+        "failed-precondition",
+        "このユーザーは凍結されているため出金を承認できません。"
+      );
+    }
+
     if (!userData?.stripe_account_id) {
       // Claimed above but can't proceed — revert the claim so the request
       // isn't stuck "processing" forever with no payout ever attempted.
@@ -2227,8 +2364,20 @@ export const adminApprovePayout = functionsV1
         { stripeAccount: userData.stripe_account_id }
       );
 
+      // FIX (confirmed live bug, found during final precision audit):
+      // `stripe_payout_id` was never persisted onto this doc (only ever
+      // returned to the caller and buried in a notification payload) —
+      // `handlePayoutPaid`/`handlePayoutFailed` (stripe-webhooks.ts) had no
+      // way to look up which payout_requests doc a given Stripe `payout.id`
+      // corresponds to, so those handlers were dead-end no-op stubs by
+      // construction: status stayed "approved" forever regardless of
+      // whether the payout actually landed or bounced (bad bank details,
+      // account restricted, etc.) on Stripe's side days later. Persisting
+      // it here is what makes the webhook-side fix (see that file) able to
+      // find this doc at all.
       await db.collection("payout_requests").doc(requestId).update({
         status: "approved",
+        stripe_payout_id: payout.id,
         updated_at: Timestamp.now(),
       });
 
@@ -2252,8 +2401,8 @@ export const adminApprovePayout = functionsV1
         "approve_payout",
         "user",
         userId,
-        { amount: available.amount, payout_id: payout.id, request_id: requestId },
-        "出金承認"
+        { amount: available.amount, payout_id: payout.id, request_id: requestId, reason },
+        reason || "出金承認"
       );
 
       return { success: true, payout_id: payout.id, amount: available.amount };
@@ -2292,10 +2441,19 @@ export const adminGetPayoutRequests = functionsV1
         const userId = requestData.user_id;
         let stripeBalance = 0;
         let debtTotal = 0;
+        // FIX (confirmed live bug, final precision audit second pass): this
+        // queue view had no way to show a reviewing admin that the
+        // requester is frozen — the approve action itself is now also
+        // gated (see adminApprovePayout above), but surfacing it here too
+        // means a frozen request is visibly flagged before an admin ever
+        // clicks approve, not just silently rejected after the fact.
+        let isFrozen = false;
 
         try {
           const userDoc = await db.collection("users").doc(userId).get();
-          const stripeAccountId = userDoc.data()?.stripe_account_id;
+          const userData = userDoc.data();
+          isFrozen = userData?.is_frozen === true;
+          const stripeAccountId = userData?.stripe_account_id;
           if (stripeAccountId) {
             const balance = await stripe.balance.retrieve({
               stripeAccount: stripeAccountId,
@@ -2322,6 +2480,7 @@ export const adminGetPayoutRequests = functionsV1
           ...requestData,
           stripe_balance: stripeBalance,
           debt_total: debtTotal,
+          is_frozen: isFrozen,
         };
       })
     );
@@ -3258,7 +3417,19 @@ export const adminUpsertCocotenShop = onCall(async (request) => {
     // this app, a real, disclosed, standing limitation, not new to this
     // change.
     photos: photo_url || (shopId ? existingData.photos : "") || "",
-    active: active !== undefined ? active : true,
+    // FIX (confirmed live bug, found during audit): unlike every other
+    // field in this object, `active` used to hardcode `true` whenever the
+    // caller omitted it — on UPDATE that ignored the shop's current
+    // `active` value instead of preserving it like the rest of this
+    // function's own "blank means unchanged" convention (and like
+    // `adminUpsertBanner`'s identical `active` handling above). Live
+    // impact: `callAdminUpdateCocotenShopDetails` (dsl/edit.dart) calls
+    // this same function with only `shop_id`/`menu`/`guest_benefits`/
+    // `photo_url` — never `active` — so every "詳細を更新" (update details)
+    // call on a shop an admin had deliberately deactivated silently
+    // reactivated it. Now falls back to the existing value (defaulting to
+    // `true` only when there is no existing doc, i.e. on create).
+    active: active !== undefined ? active : (existingData.active ?? true),
     updated_at: Timestamp.now(),
   };
 
@@ -3380,7 +3551,7 @@ export const adminUpdateCocotenGenres = onCall(async (request) => {
 export const adminGetWorkPosts = onCall(async (request) => {
   await verifyAdmin(request);
 
-  const { status, limit: queryLimit } = request.data;
+  const { status, limit: queryLimit } = request.data ?? {};
 
   let query: FirebaseFirestore.Query = db.collection("work_posts");
   if (status) query = query.where("status", "==", status);
@@ -3582,7 +3753,22 @@ export const adminHireWorkPostApplicant = onCall(async (request) => {
     // admin panel instead of the client-facing flow was never wired to
     // receive their fee. Mirrors selectWorkApplicant's logic exactly.
     if (resRef) {
-      tx.update(resRef, { staff_ids: FieldValue.arrayUnion(applicant_id) });
+      // FIX (confirmed live bug, found during audit — same gap as
+      // work-posts.ts's selectWorkApplicant, mirrored here for the
+      // admin-facing hire path): `security_staff_fee`/`transport_staff_fee`
+      // are independently admin-configurable and not guaranteed equal, but
+      // `recordCastRewardsAndProcessOthers` (stripe-payments.ts) used to
+      // pay every staff_id on a reservation an EVEN split of the aggregate
+      // `staff_fee` — misallocating pay between a security and a transport
+      // staffer whenever those two config values differ. This work_post's
+      // own `fee` is the authoritative amount THIS hire should be paid;
+      // recorded into `staff_fee_map` (dot-path update) so payout can pay
+      // the right amount to the right person instead of guessing via an
+      // even split.
+      tx.update(resRef, {
+        staff_ids: FieldValue.arrayUnion(applicant_id),
+        [`staff_fee_map.${applicant_id}`]: data.fee || 0,
+      });
     }
 
   });

@@ -65,22 +65,28 @@ abstract final class CocotenGenreMasterPageWidgets {
         ],
         "body": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(
-            key: "Column_flfznko0",
+            key: "Column_l86emncr",
             type: "Column",
             path: "CocotenGenreMasterPage.body[0]",
             name: "CocotenGenreMasterColumn",
             children: <ffai.ProjectWidgetHandle>[
               ffai.ProjectWidgetHandle(
-                key: "Text_81pfgvnj",
-                type: "Text",
+                key: "Container_hm2eu2va",
+                type: "Container",
                 path: "CocotenGenreMasterPage.body[0].children[0]",
+                name: "CocotenGenreMasterAccentBar",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Text_v9q3w3ps",
+                type: "Text",
+                path: "CocotenGenreMasterPage.body[0].children[1]",
                 name: "Text",
                 text: "CocoTen店舗のジャンル一覧。ここで管理した値のみ店舗登録時に使用できます。",
               ),
               ffai.ProjectWidgetHandle(
-                key: "TextField_u0sax807",
+                key: "TextField_qk350um1",
                 type: "TextField",
-                path: "CocotenGenreMasterPage.body[0].children[1]",
+                path: "CocotenGenreMasterPage.body[0].children[2]",
                 name: "NewGenreNameField",
                 text: "新しいジャンル名",
                 triggers: const <String>[
@@ -88,9 +94,9 @@ abstract final class CocotenGenreMasterPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Button_gd3egqyr",
+                key: "Button_whdu4i3o",
                 type: "Button",
-                path: "CocotenGenreMasterPage.body[0].children[2]",
+                path: "CocotenGenreMasterPage.body[0].children[3]",
                 name: "AdminAddGenreButton",
                 text: "追加",
                 triggers: const <String>[
@@ -98,37 +104,110 @@ abstract final class CocotenGenreMasterPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Divider_aw1jprkj",
+                key: "Divider_zlyjlg3d",
                 type: "Divider",
-                path: "CocotenGenreMasterPage.body[0].children[3]",
+                path: "CocotenGenreMasterPage.body[0].children[4]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
-                key: "ListView_7gs0zn8q",
+                key: "Container_bh8w5vlc",
+                type: "Container",
+                path: "CocotenGenreMasterPage.body[0].children[5]",
+                name: "Container",
+                children: <ffai.ProjectWidgetHandle>[
+                  ffai.ProjectWidgetHandle(
+                    key: "Row_egq1dude",
+                    type: "Row",
+                    path: "CocotenGenreMasterPage.body[0].children[5].children[0]",
+                    name: "Row",
+                    children: <ffai.ProjectWidgetHandle>[
+                      ffai.ProjectWidgetHandle(
+                        key: "Container_ub16r7qj",
+                        type: "Container",
+                        path: "CocotenGenreMasterPage.body[0].children[5].children[0].children[0]",
+                        name: "Container",
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Row_uw6nn1c0",
+                        type: "Row",
+                        path: "CocotenGenreMasterPage.body[0].children[5].children[0].children[1]",
+                        name: "Row",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Icon_fn3o8r0h",
+                            type: "Icon",
+                            path: "CocotenGenreMasterPage.body[0].children[5].children[0].children[1].children[0]",
+                            name: "Icon",
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Text_pwlvdk3v",
+                            type: "Text",
+                            path: "CocotenGenreMasterPage.body[0].children[5].children[0].children[1].children[1]",
+                            name: "Text",
+                            text: "既存ジャンル",
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "ListView_auzoz9p7",
                 type: "ListView",
-                path: "CocotenGenreMasterPage.body[0].children[4]",
+                path: "CocotenGenreMasterPage.body[0].children[6]",
                 name: "GenreMasterListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Row_xkbr9lav",
-                    type: "Row",
-                    path: "CocotenGenreMasterPage.body[0].children[4].children[0]",
-                    name: "GenreMasterRow",
+                    key: "Card_br3wk4fo",
+                    type: "Card",
+                    path: "CocotenGenreMasterPage.body[0].children[6].children[0]",
+                    name: "Card",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Text_86ltt4l2",
-                        type: "Text",
-                        path: "CocotenGenreMasterPage.body[0].children[4].children[0].children[0]",
-                        name: "Text",
-                      ),
-                      ffai.ProjectWidgetHandle(
-                        key: "Button_3oa5jb6f",
-                        type: "Button",
-                        path: "CocotenGenreMasterPage.body[0].children[4].children[0].children[1]",
-                        name: "AdminRemoveGenreButton",
-                        text: "削除",
-                        triggers: const <String>[
-                          "ON_TAP",
+                        key: "Container_6jii8llb",
+                        type: "Container",
+                        path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0]",
+                        name: "Container",
+                        children: <ffai.ProjectWidgetHandle>[
+                          ffai.ProjectWidgetHandle(
+                            key: "Row_ws8wj4dm",
+                            type: "Row",
+                            path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0].children[0]",
+                            name: "GenreMasterRow",
+                            children: <ffai.ProjectWidgetHandle>[
+                              ffai.ProjectWidgetHandle(
+                                key: "Row_dmgv328g",
+                                type: "Row",
+                                path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0].children[0].children[0]",
+                                name: "Row",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Icon_39bix2tf",
+                                    type: "Icon",
+                                    path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0].children[0].children[0].children[0]",
+                                    name: "Icon",
+                                  ),
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Text_c6de5n1t",
+                                    type: "Text",
+                                    path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0].children[0].children[0].children[1]",
+                                    name: "Text",
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Button_83mp03oj",
+                                type: "Button",
+                                path: "CocotenGenreMasterPage.body[0].children[6].children[0].children[0].children[0].children[1]",
+                                name: "AdminRemoveGenreButton",
+                                text: "削除",
+                                triggers: const <String>[
+                                  "ON_TAP",
+                                ],
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ],

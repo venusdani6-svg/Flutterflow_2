@@ -715,12 +715,88 @@ async function handleAccountUpdated(account: any): Promise<void> {
   }
 }
 
+/**
+ * FIX (confirmed live bug, found during final precision audit): both of
+ * these handlers used to be pure log-only no-ops. `adminApprovePayout`
+ * (admin.ts) flips `payout_requests.status` to "approved" the instant it
+ * calls `stripe.payouts.create()` — before Stripe has actually moved any
+ * money — and nothing anywhere ever revisited that status afterward. A
+ * payout that later bounced (closed bank account, Stripe Connect
+ * restriction newly applied, etc.) left the admin's withdrawal queue
+ * permanently showing "approved" with no visibility that the cast never
+ * actually got paid. Now finds the originating `payout_requests` doc via
+ * `stripe_payout_id` (persisted at creation time, admin.ts's own fix) and
+ * reacts to the real outcome. `payout.paid` intentionally does NOT flip
+ * status away from "approved" — that's still the correct terminal label
+ * for "admin approved, money sent"; it just stamps a completion timestamp
+ * so the real Stripe-confirmed landing time is visible in the raw doc,
+ * without requiring any DSL/badge-vocabulary change on the admin panel
+ * side. `payout.failed` moves status to "on_hold" (an existing, already
+ * DSL-badged status meaning "needs admin attention") rather than inventing
+ * a new status value that would need a frontend change too — this is
+ * exactly the situation "needs admin attention" already means.
+ */
 async function handlePayoutPaid(payout: any): Promise<void> {
   console.log(`Payout paid: ${payout.id}, amount: ${payout.amount}`);
+  const matches = await db
+    .collection("payout_requests")
+    .where("stripe_payout_id", "==", payout.id)
+    .limit(1)
+    .get();
+  if (matches.empty) {
+    console.log(`No payout_requests doc found for stripe_payout_id ${payout.id} (payout.paid) — nothing to update.`);
+    return;
+  }
+  await matches.docs[0].ref.update({
+    payout_completed_at: Timestamp.now(),
+    updated_at: Timestamp.now(),
+  });
 }
 
 async function handlePayoutFailed(payout: any): Promise<void> {
-  console.error(`Payout FAILED: ${payout.id}`);
+  console.error(`Payout FAILED: ${payout.id}, reason: ${payout.failure_message || payout.failure_code || "unknown"}`);
+  const matches = await db
+    .collection("payout_requests")
+    .where("stripe_payout_id", "==", payout.id)
+    .limit(1)
+    .get();
+  if (matches.empty) {
+    console.error(`No payout_requests doc found for stripe_payout_id ${payout.id} (payout.failed) — cannot flag for admin review.`);
+    return;
+  }
+  const reqDoc = matches.docs[0];
+  const reqData = reqDoc.data();
+  await reqDoc.ref.update({
+    status: "on_hold",
+    payout_failure_reason: payout.failure_message || payout.failure_code || "Stripe側で出金が失敗しました。",
+    updated_at: Timestamp.now(),
+  });
+
+  if (reqData.user_id) {
+    await db.collection("users").doc(reqData.user_id).collection("notifications").add({
+      type: "stripe",
+      title: "出金処理に失敗しました",
+      body: "出金処理中に問題が発生しました。サポートまでお問い合わせください。",
+      data: { stripe_payout_id: payout.id },
+      read: false,
+      created_at: Timestamp.now(),
+    });
+  }
+
+  const admins = await db.collection("users").where("role", "==", "admin").get();
+  const batch = db.batch();
+  admins.forEach((adminDoc) => {
+    const ref = db.collection("users").doc(adminDoc.id).collection("notifications").doc();
+    batch.set(ref, {
+      type: "stripe",
+      title: "【要対応】出金失敗",
+      body: `出金 (payout_requests/${reqDoc.id}) がStripe側で失敗しました。確認してください。`,
+      data: { stripe_payout_id: payout.id, payout_request_id: reqDoc.id },
+      read: false,
+      created_at: Timestamp.now(),
+    });
+  });
+  await batch.commit();
 }
 
 async function mirrorStripeNotification(event: any): Promise<void> {

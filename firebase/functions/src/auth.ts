@@ -7,6 +7,33 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db, auth, stripe, FieldValue, Timestamp, getSystemConfig, isAllowedKycDocUrl } from "./config";
 
 /**
+ * FIX (confirmed live bug, found during final precision audit): §3.1.11's
+ * hard functional lock ("while approval_status != approved, block search/
+ * browse/favorites/all request-sending/chat/all payment actions except card
+ * registration") was enforced server-side for reservation creation
+ * (`createReservation`, reservations.ts) but NOT for search/browse/
+ * favorites — `getDiscoveryCasts`/`addFavorite`/`removeFavorite`/
+ * `isCastFavorited`/`getFavoriteCasts` below only ever required
+ * `request.auth`, nothing about the CALLER's own approval state. A
+ * brand-new signup with `approval_status: "pending"` (the default `onUserCreated`
+ * writes) could call any of these directly — or through the normal UI,
+ * which has no client-side gate on this either — and get a full,
+ * server-filtered list of nearby approved casts plus working favorites,
+ * completely bypassing the review-pending block this requirement exists to
+ * enforce. Shared helper so the same check can't drift across the 5 call
+ * sites it's now applied to.
+ */
+export async function requireApprovedUser(uid: string): Promise<void> {
+  const userDoc = await db.collection("users").doc(uid).get();
+  if (userDoc.data()?.approval_status !== "approved") {
+    throw new HttpsError(
+      "permission-denied",
+      "審査完了までこの機能はご利用いただけません。"
+    );
+  }
+}
+
+/**
  * Trigger: When a new Firebase Auth user is created
  * Creates the initial Firestore user document
  * Note: Using v1 auth trigger as v2 beforeUserCreated requires Identity Platform (GCIP)
@@ -749,6 +776,7 @@ export const addFavorite = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "認証が必要です。");
   }
+  await requireApprovedUser(request.auth.uid);
   const { cast_id } = request.data;
   if (typeof cast_id !== "string" || !cast_id) {
     throw new HttpsError("invalid-argument", "キャストIDが必要です。");
@@ -780,6 +808,7 @@ export const removeFavorite = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "認証が必要です。");
   }
+  await requireApprovedUser(request.auth.uid);
   const { cast_id } = request.data;
   if (typeof cast_id !== "string" || !cast_id) {
     throw new HttpsError("invalid-argument", "キャストIDが必要です。");
@@ -806,6 +835,7 @@ export const isCastFavorited = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "認証が必要です。");
   }
+  await requireApprovedUser(request.auth.uid);
   const { cast_id } = request.data;
   if (typeof cast_id !== "string" || !cast_id) {
     throw new HttpsError("invalid-argument", "キャストIDが必要です。");
@@ -846,6 +876,7 @@ export const getFavoriteCasts = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "認証が必要です。");
   }
+  await requireApprovedUser(request.auth.uid);
 
   const favSnap = await db
     .collection("users")
@@ -1170,6 +1201,16 @@ export const getDiscoveryCasts = onCall(async (request) => {
   // (a cast who has blocked THIS guest still appearing is a separate,
   // undecided question - not silently assumed either way, left open).
   const viewerDoc = await db.collection("users").doc(uid).get();
+  // FIX (confirmed live bug, found during final precision audit): see
+  // `requireApprovedUser`'s own comment above (this file) — this was the
+  // main discovery/search entry point and had no approval_status check at
+  // all. Reuses this already-fetched doc rather than a second read.
+  if (viewerDoc.data()?.approval_status !== "approved") {
+    throw new HttpsError(
+      "permission-denied",
+      "審査完了までこの機能はご利用いただけません。"
+    );
+  }
   const blockedByViewer: string[] = viewerDoc.exists
     ? viewerDoc.data()?.blocked_users || []
     : [];

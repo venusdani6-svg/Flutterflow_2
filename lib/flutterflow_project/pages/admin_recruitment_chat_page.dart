@@ -43,6 +43,14 @@ abstract final class AdminRecruitmentChatPageWidgets {
       triggers: const <String>[
         "ON_INIT_STATE",
       ],
+      children: <ffai.ProjectWidgetHandle>[
+        ffai.ProjectWidgetHandle(
+          key: "Container_gdw8jhut",
+          type: "Container",
+          path: "AdminRecruitmentChatPage.children[0]",
+          name: "AdminRecruitmentChatAccentBar",
+        ),
+      ],
       slots: <String, List<ffai.ProjectWidgetHandle>>{
         "appBar": <ffai.ProjectWidgetHandle>[
           ffai.ProjectWidgetHandle(

@@ -65,9 +65,15 @@ abstract final class WithdrawalQueuePageWidgets {
             name: "AdminPayoutRequestsWithExportColumn",
             children: <ffai.ProjectWidgetHandle>[
               ffai.ProjectWidgetHandle(
-                key: "Button_1pz771bc",
-                type: "Button",
+                key: "Container_yermxaez",
+                type: "Container",
                 path: "WithdrawalQueuePage.body[0].children[0]",
+                name: "WithdrawalQueueAccentBar",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Button_prpgqh3u",
+                type: "Button",
+                path: "WithdrawalQueuePage.body[0].children[1]",
                 name: "AdminExportWithdrawalQueueCsvButton",
                 text: "CSVをコピー（読み込み済みの行のみ）",
                 triggers: const <String>[
@@ -75,51 +81,72 @@ abstract final class WithdrawalQueuePageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Divider_7p10oj66",
+                key: "Divider_cbv3d47r",
                 type: "Divider",
-                path: "WithdrawalQueuePage.body[0].children[1]",
+                path: "WithdrawalQueuePage.body[0].children[2]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
-                key: "ListView_sgqej2z7",
+                key: "ListView_yqcna6ju",
                 type: "ListView",
-                path: "WithdrawalQueuePage.body[0].children[2]",
+                path: "WithdrawalQueuePage.body[0].children[3]",
                 name: "AdminPayoutRequestsListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Card_qrkop0t7",
+                    key: "Card_l8k4r7tw",
                     type: "Card",
-                    path: "WithdrawalQueuePage.body[0].children[2].children[0]",
+                    path: "WithdrawalQueuePage.body[0].children[3].children[0]",
                     name: "Card",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Container_0d9dr8oq",
+                        key: "Container_236lnsrn",
                         type: "Container",
-                        path: "WithdrawalQueuePage.body[0].children[2].children[0].children[0]",
+                        path: "WithdrawalQueuePage.body[0].children[3].children[0].children[0]",
                         name: "Container",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Column_cz3syijp",
+                            key: "Column_wkjm3i4e",
                             type: "Column",
-                            path: "WithdrawalQueuePage.body[0].children[2].children[0].children[0].children[0]",
+                            path: "WithdrawalQueuePage.body[0].children[3].children[0].children[0].children[0]",
                             name: "Column",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "Text_t43uxx6v",
-                                type: "Text",
-                                path: "WithdrawalQueuePage.body[0].children[2].children[0].children[0].children[0].children[0]",
-                                name: "Text",
-                              ),
-                              ffai.ProjectWidgetHandle(
-                                key: "Row_3vtftg1x",
+                                key: "Row_9u1pkqlp",
                                 type: "Row",
-                                path: "WithdrawalQueuePage.body[0].children[2].children[0].children[0].children[0].children[1]",
+                                path: "WithdrawalQueuePage.body[0].children[3].children[0].children[0].children[0].children[0]",
                                 name: "Row",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Button_628hs7wx",
+                                    key: "Icon_hncuodr3",
+                                    type: "Icon",
+                                    path: "WithdrawalQueuePage.body[0].children[3].children[0].children[0].children[0].children[0].children[0]",
+                                    name: "Icon",
+                                  ),
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Container_sad02hgl",
+                                    type: "Container",
+                                    path: "WithdrawalQueuePage.body[0].children[3].children[0].children[0].children[0].children[0].children[1]",
+                                    name: "WithdrawalStatusBadge",
+                                    componentName: "WithdrawalStatusBadge",
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_qt38z60v",
+                                type: "Text",
+                                path: "WithdrawalQueuePage.body[0].children[3].children[0].children[0].children[0].children[1]",
+                                name: "Text",
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Row_8i6si4gn",
+                                type: "Row",
+                                path: "WithdrawalQueuePage.body[0].children[3].children[0].children[0].children[0].children[2]",
+                                name: "Row",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Button_57ljod4n",
                                     type: "Button",
-                                    path: "WithdrawalQueuePage.body[0].children[2].children[0].children[0].children[0].children[1].children[0]",
+                                    path: "WithdrawalQueuePage.body[0].children[3].children[0].children[0].children[0].children[2].children[0]",
                                     name: "AdminApprovePayoutButton",
                                     text: "承認",
                                     triggers: const <String>[
@@ -127,9 +154,9 @@ abstract final class WithdrawalQueuePageWidgets {
                                     ],
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Button_fqh0yxp7",
+                                    key: "Button_xya90fbg",
                                     type: "Button",
-                                    path: "WithdrawalQueuePage.body[0].children[2].children[0].children[0].children[0].children[1].children[1]",
+                                    path: "WithdrawalQueuePage.body[0].children[3].children[0].children[0].children[0].children[2].children[1]",
                                     name: "AdminHoldPayoutButton",
                                     text: "保留",
                                     triggers: const <String>[
@@ -137,9 +164,9 @@ abstract final class WithdrawalQueuePageWidgets {
                                     ],
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Button_q9ypqls7",
+                                    key: "Button_a2cbzco7",
                                     type: "Button",
-                                    path: "WithdrawalQueuePage.body[0].children[2].children[0].children[0].children[0].children[1].children[2]",
+                                    path: "WithdrawalQueuePage.body[0].children[3].children[0].children[0].children[0].children[2].children[2]",
                                     name: "AdminRejectPayoutButton",
                                     text: "却下",
                                     triggers: const <String>[

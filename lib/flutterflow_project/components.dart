@@ -5,10 +5,13 @@ library;
 import 'package:flutterflow_ai/flutterflow_ai.dart' as ffai;
 import 'components/activity_prefecture_picker_sheet.dart' show ActivityPrefecturePickerSheetComponentHandle;
 import 'components/affiliate_qr_code_bottom_sheet.dart' show AffiliateQrCodeBottomSheetComponentHandle;
+import 'components/approval_status_badge.dart' show ApprovalStatusBadgeComponentHandle;
 import 'components/buttom_navi_comp.dart' show ButtomNaviCompComponentHandle;
 import 'components/prefecture_picker_sheet.dart' show PrefecturePickerSheetComponentHandle;
 import 'components/registration_popup_comp.dart' show RegistrationPopupCompComponentHandle;
+import 'components/reservation_status_badge.dart' show ReservationStatusBadgeComponentHandle;
 import 'components/reset_password_bottom_sheet.dart' show ResetPasswordBottomSheetComponentHandle;
+import 'components/withdrawal_status_badge.dart' show WithdrawalStatusBadgeComponentHandle;
 import 'components/work_filter_select_comp.dart' show WorkFilterSelectCompComponentHandle;
 import 'components/nottification_filter_dialog_comp.dart' show NottificationFilterDialogCompComponentHandle;
 import 'components/search_cast_dialog_comp.dart' show SearchCastDialogCompComponentHandle;
@@ -17,10 +20,13 @@ import 'components/search_shop_dialog_comp.dart' show SearchShopDialogCompCompon
 abstract final class Components {
   static final activityPrefecturePickerSheet = ActivityPrefecturePickerSheetComponentHandle();
   static final affiliateQrCodeBottomSheet = AffiliateQrCodeBottomSheetComponentHandle();
+  static final approvalStatusBadge = ApprovalStatusBadgeComponentHandle();
   static final buttomNaviComp = ButtomNaviCompComponentHandle();
   static final prefecturePickerSheet = PrefecturePickerSheetComponentHandle();
   static final registrationPopupComp = RegistrationPopupCompComponentHandle();
+  static final reservationStatusBadge = ReservationStatusBadgeComponentHandle();
   static final resetPasswordBottomSheet = ResetPasswordBottomSheetComponentHandle();
+  static final withdrawalStatusBadge = WithdrawalStatusBadgeComponentHandle();
   static final workFilterSelectComp = WorkFilterSelectCompComponentHandle();
   static final nottificationFilterDialogComp = NottificationFilterDialogCompComponentHandle();
   static final searchCastDialogComp = SearchCastDialogCompComponentHandle();
@@ -28,10 +34,13 @@ abstract final class Components {
   static final all = <ffai.ProjectComponentHandle>[
     activityPrefecturePickerSheet,
     affiliateQrCodeBottomSheet,
+    approvalStatusBadge,
     buttomNaviComp,
     prefecturePickerSheet,
     registrationPopupComp,
+    reservationStatusBadge,
     resetPasswordBottomSheet,
+    withdrawalStatusBadge,
     workFilterSelectComp,
     nottificationFilterDialogComp,
     searchCastDialogComp,

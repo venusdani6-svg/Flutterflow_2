@@ -37,6 +37,12 @@ final class ExtensionPaymentState {
         key: "luseo",
         typeName: "Integer",
       );
+  ffai.ProjectStateFieldHandle get isSubmittingExtension =>
+      const ffai.ProjectStateFieldHandle(
+        name: "isSubmittingExtension",
+        key: "e0odois0",
+        typeName: "Boolean",
+      );
   ffai.ProjectStateFieldHandle get priceResult =>
       const ffai.ProjectStateFieldHandle(
         name: "priceResult",
@@ -404,6 +410,13 @@ abstract final class ExtensionPaymentWidgets {
                         triggers: const <String>[
                           "ON_TAP",
                         ],
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Button_zgsdn0h2",
+                        type: "Button",
+                        path: "ExtensionPayment.body[0].children[0].children[2].children[1]",
+                        name: "ExtensionPaymentSubmittingButton",
+                        text: "処理中...",
                       ),
                     ],
                   ),

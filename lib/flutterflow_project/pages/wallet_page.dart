@@ -31,6 +31,12 @@ final class WalletPageState {
         key: "3a0tth8j",
         typeName: "String",
       );
+  ffai.ProjectStateFieldHandle get isSubmittingPayout =>
+      const ffai.ProjectStateFieldHandle(
+        name: "isSubmittingPayout",
+        key: "sj01st2n",
+        typeName: "Boolean",
+      );
   ffai.ProjectStateFieldHandle get ledgerHistoryList =>
       const ffai.ProjectStateFieldHandle(
         name: "ledgerHistoryList",
@@ -131,35 +137,42 @@ abstract final class WalletPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
+                key: "Button_jmb9i28y",
+                type: "Button",
+                path: "WalletPage.body[0].children[5]",
+                name: "WalletPayoutSubmittingButton",
+                text: "処理中...",
+              ),
+              ffai.ProjectWidgetHandle(
                 key: "Text_vyp0g65e",
                 type: "Text",
-                path: "WalletPage.body[0].children[5]",
+                path: "WalletPage.body[0].children[6]",
                 name: "Text",
                 text: "論理負債があるか、出金可能な残高がないため、現在出金申請できません。",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Container_l581mue0",
                 type: "Container",
-                path: "WalletPage.body[0].children[6]",
+                path: "WalletPage.body[0].children[7]",
                 name: "NoStripeAccountGuidance",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
                     key: "Column_e4kc10ct",
                     type: "Column",
-                    path: "WalletPage.body[0].children[6].children[0]",
+                    path: "WalletPage.body[0].children[7].children[0]",
                     name: "Column",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Text_gm9d5fpb",
                         type: "Text",
-                        path: "WalletPage.body[0].children[6].children[0].children[0]",
+                        path: "WalletPage.body[0].children[7].children[0].children[0]",
                         name: "Text",
                         text: "Stripeアカウントが未設定です。報酬を受け取るには、まず口座連携を完了してください。",
                       ),
                       ffai.ProjectWidgetHandle(
                         key: "Button_61kbget9",
                         type: "Button",
-                        path: "WalletPage.body[0].children[6].children[0].children[1]",
+                        path: "WalletPage.body[0].children[7].children[0].children[1]",
                         name: "Button",
                         text: "口座連携を設定する",
                         triggers: const <String>[
@@ -173,50 +186,50 @@ abstract final class WalletPageWidgets {
               ffai.ProjectWidgetHandle(
                 key: "Divider_mcac40x9",
                 type: "Divider",
-                path: "WalletPage.body[0].children[7]",
+                path: "WalletPage.body[0].children[8]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Text_cd5oohl9",
                 type: "Text",
-                path: "WalletPage.body[0].children[8]",
+                path: "WalletPage.body[0].children[9]",
                 name: "Text",
                 text: "取引履歴",
               ),
               ffai.ProjectWidgetHandle(
                 key: "ListView_g0qjiznm",
                 type: "ListView",
-                path: "WalletPage.body[0].children[9]",
+                path: "WalletPage.body[0].children[10]",
                 name: "WalletHistoryListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
                     key: "Column_uf37exhb",
                     type: "Column",
-                    path: "WalletPage.body[0].children[9].children[0]",
+                    path: "WalletPage.body[0].children[10].children[0]",
                     name: "Column",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Row_lrkcrhyt",
                         type: "Row",
-                        path: "WalletPage.body[0].children[9].children[0].children[0]",
+                        path: "WalletPage.body[0].children[10].children[0].children[0]",
                         name: "Row",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
                             key: "Text_o3rbp5e8",
                             type: "Text",
-                            path: "WalletPage.body[0].children[9].children[0].children[0].children[0]",
+                            path: "WalletPage.body[0].children[10].children[0].children[0].children[0]",
                             name: "Text",
                           ),
                           ffai.ProjectWidgetHandle(
                             key: "Text_d1s6fsoq",
                             type: "Text",
-                            path: "WalletPage.body[0].children[9].children[0].children[0].children[1]",
+                            path: "WalletPage.body[0].children[10].children[0].children[0].children[1]",
                             name: "Text",
                           ),
                           ffai.ProjectWidgetHandle(
                             key: "Text_c0bvt7jx",
                             type: "Text",
-                            path: "WalletPage.body[0].children[9].children[0].children[0].children[2]",
+                            path: "WalletPage.body[0].children[10].children[0].children[0].children[2]",
                             name: "Text",
                           ),
                         ],
@@ -224,7 +237,7 @@ abstract final class WalletPageWidgets {
                       ffai.ProjectWidgetHandle(
                         key: "Text_n70h09k1",
                         type: "Text",
-                        path: "WalletPage.body[0].children[9].children[0].children[1]",
+                        path: "WalletPage.body[0].children[10].children[0].children[1]",
                         name: "Text",
                       ),
                     ],
@@ -234,32 +247,32 @@ abstract final class WalletPageWidgets {
               ffai.ProjectWidgetHandle(
                 key: "Column_kalwkfi1",
                 type: "Column",
-                path: "WalletPage.body[0].children[10]",
+                path: "WalletPage.body[0].children[11]",
                 name: "DebtHistorySection",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
                     key: "Divider_a5jze88s",
                     type: "Divider",
-                    path: "WalletPage.body[0].children[10].children[0]",
+                    path: "WalletPage.body[0].children[11].children[0]",
                     name: "Divider",
                   ),
                   ffai.ProjectWidgetHandle(
                     key: "Text_todysbss",
                     type: "Text",
-                    path: "WalletPage.body[0].children[10].children[1]",
+                    path: "WalletPage.body[0].children[11].children[1]",
                     name: "Text",
                     text: "負債履歴",
                   ),
                   ffai.ProjectWidgetHandle(
                     key: "ListView_auzpz59h",
                     type: "ListView",
-                    path: "WalletPage.body[0].children[10].children[2]",
+                    path: "WalletPage.body[0].children[11].children[2]",
                     name: "DebtHistoryListView",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Text_mu6m87tc",
                         type: "Text",
-                        path: "WalletPage.body[0].children[10].children[2].children[0]",
+                        path: "WalletPage.body[0].children[11].children[2].children[0]",
                         name: "Text",
                       ),
                     ],

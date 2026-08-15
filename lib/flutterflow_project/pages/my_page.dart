@@ -25,6 +25,12 @@ final class MyPageState {
         key: "oz6w5xfz",
         typeName: "Boolean",
       );
+  ffai.ProjectStateFieldHandle get myProfileData =>
+      const ffai.ProjectStateFieldHandle(
+        name: "myProfileData",
+        key: "05senp7k",
+        typeName: "String",
+      );
   ffai.ProjectStateFieldHandle get myReviewsList =>
       const ffai.ProjectStateFieldHandle(
         name: "myReviewsList",
@@ -217,7 +223,6 @@ abstract final class MyPageWidgets {
                                                         key: "Text_75zd5jmn",
                                                         type: "Text",
                                                         path: "MyPage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0].children[0]",
-                                                        text: "ゆずき",
                                                       ),
                                                       ffai.ProjectWidgetHandle(
                                                         key: "Row_zy10z4bi",
@@ -414,7 +419,6 @@ abstract final class MyPageWidgets {
                                                 key: "Text_osuru1j7",
                                                 type: "Text",
                                                 path: "MyPage.body[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[1].children[0]",
-                                                text: "ここに紹介文の一部の125文字表示できる",
                                               ),
                                             ],
                                           ),
@@ -1303,13 +1307,11 @@ abstract final class MyPageWidgets {
                                     key: "Text_ramvccgm",
                                     type: "Text",
                                     path: "MyPage.drawer[0].children[0].children[0].children[0].children[0].children[1].children[0]",
-                                    text: "ゆずき",
                                   ),
                                   ffai.ProjectWidgetHandle(
                                     key: "Text_4y4ian1n",
                                     type: "Text",
                                     path: "MyPage.drawer[0].children[0].children[0].children[0].children[0].children[1].children[1]",
-                                    text: "Email",
                                   ),
                                 ],
                               ),

@@ -17,6 +17,30 @@
  */
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db, Timestamp, FieldValue, sendPushNotification } from "./config";
+import { MAX_CAST_IDS_PER_RESERVATION } from "./reservations";
+
+/**
+ * FIX (confirmed live bug, found during audit): every list/detail endpoint
+ * below spreads a work_posts doc's raw fields straight into its response
+ * (`{ id: doc.id, ...doc.data() }`), which includes `applicants` — the RAW
+ * array of applicant UIDs. `getWorkPostDetail`'s own doc comment states
+ * "applicants are otherwise not exposed to other browsers, same visibility
+ * rule adminGetWorkPosts already applies at the admin layer" and only ever
+ * gated the NICKNAME-resolved `applicants_resolved` field behind
+ * `isPoster` — the raw `applicants` UID array leaked through regardless,
+ * to any authenticated caller browsing `fetchWorkPosts`, viewing any post's
+ * detail (poster or not), or checking their own `fetchMyWorkPosts.applied`
+ * list for a post they merely applied to (not authored). This let any cast
+ * harvest the UIDs of every other applicant on a post — real Firebase UIDs
+ * that other endpoints (`addFavorite`, `blockUser`, `reportUser`) accept
+ * directly, despite no legitimate discovery path ever exposing them
+ * otherwise. Strips `applicants` from a row before it's returned to a
+ * caller who isn't that specific post's own poster.
+ */
+function omitApplicants(data: FirebaseFirestore.DocumentData): FirebaseFirestore.DocumentData {
+  const { applicants, ...rest } = data;
+  return rest;
+}
 
 /**
  * Callable: apply to an open work post
@@ -178,17 +202,67 @@ export const selectWorkApplicant = onCall(async (request) => {
     // `if (resSnap.exists)` guard) must happen here, before either
     // tx.update() below, not interleaved with them.
     let resRef: FirebaseFirestore.DocumentReference | null = null;
-    if ((data.type === "security" || data.type === "transport") && data.res_id) {
+    let resSnapData: FirebaseFirestore.DocumentData | null = null;
+    if ((data.type === "security" || data.type === "transport" || data.type === "partner_recruit") && data.res_id) {
       const candidateRef = db.collection("reservations").doc(data.res_id);
       const resSnap = await tx.get(candidateRef);
       if (resSnap.exists) {
         resRef = candidateRef;
+        resSnapData = resSnap.data()!;
+      }
+    }
+
+    // FIX (confirmed live bug, found during final precision audit): a
+    // `partner_recruit` post's selected applicant used to get a "you're
+    // selected" notification and a coordination chat room (below) but was
+    // NEVER added to the underlying reservation's `cast_ids` — confirmed by
+    // grepping every write to `cast_ids` anywhere in this backend; the only
+    // one is `createReservation`'s initial write. A recruited cast therefore
+    // could never actually read the reservation (firestore.rules gates read
+    // on guest_id/cast_ids/staff_ids membership), never got paid (
+    // `recordCastRewardsAndProcessOthers` iterates `cast_ids` to distribute
+    // cast reward), and couldn't participate in any lifecycle action gated
+    // on `cast_ids.includes(uid)` (meetup confirm, completion report,
+    // review) — despite the chat room and notification both implying they'd
+    // successfully joined. Fixed to add the recruited cast to `cast_ids`,
+    // the same `arrayUnion` pattern already used for `staff_ids` below,
+    // bounded by the same `MAX_CAST_IDS_PER_RESERVATION` safety cap
+    // `createReservation` itself enforces at creation time (defense in
+    // depth — in practice a post's status flips to "filled" after exactly
+    // one selection, so this can't be hit by this function alone, but
+    // guards against any future path that might call this repeatedly).
+    if (resRef && data.type === "partner_recruit") {
+      const existingCastIds: string[] = resSnapData?.cast_ids || [];
+      if (!existingCastIds.includes(applicant_id) && existingCastIds.length >= MAX_CAST_IDS_PER_RESERVATION) {
+        throw new HttpsError(
+          "failed-precondition",
+          "この予約はすでに参加キャスト数の上限に達しています。"
+        );
       }
     }
 
     tx.update(postRef, { status: "filled", selected_id: applicant_id });
     if (resRef) {
-      tx.update(resRef, { staff_ids: FieldValue.arrayUnion(applicant_id) });
+      if (data.type === "partner_recruit") {
+        tx.update(resRef, { cast_ids: FieldValue.arrayUnion(applicant_id) });
+      } else {
+        // FIX (confirmed live bug, found during audit): `security_staff_fee`/
+        // `transport_staff_fee` are independently admin-configurable and not
+        // guaranteed equal, but `recordCastRewardsAndProcessOthers`
+        // (stripe-payments.ts) used to pay every staff_id on a reservation an
+        // EVEN split of the aggregate `staff_fee` — misallocating pay between
+        // a security and a transport staffer whenever those two config values
+        // differ. This work_post's own `fee` (the exact flat role-fee it was
+        // created with — reservations.ts/admin.ts) is the authoritative
+        // amount THIS specific hire should be paid; recorded into
+        // `staff_fee_map` (dot-path update, safe even if the field doesn't
+        // exist yet) so the payout step can pay the right amount to the
+        // right person instead of guessing via an even split.
+        tx.update(resRef, {
+          staff_ids: FieldValue.arrayUnion(applicant_id),
+          [`staff_fee_map.${applicant_id}`]: data.fee || 0,
+        });
+      }
     }
 
     return data;
@@ -284,7 +358,7 @@ export const fetchWorkPosts = onCall(async (request) => {
   return {
     success: true,
     posts: posts.map((p) => ({
-      ...p,
+      ...omitApplicants(p),
       poster_nickname: nicknames[(p as { poster_id?: string }).poster_id || ""] || "",
     })),
   };
@@ -332,7 +406,9 @@ export const getWorkPostDetail = onCall(async (request) => {
 
   return {
     success: true,
-    post: { id: postSnap.id, ...postData },
+    post: isPoster
+      ? { id: postSnap.id, ...postData }
+      : { id: postSnap.id, ...omitApplicants(postData) },
     poster_nickname: posterNickname,
     is_poster: isPoster,
     has_applied: applicants.includes(uid),
@@ -362,7 +438,12 @@ export const fetchMyWorkPosts = onCall(async (request) => {
 
   return {
     success: true,
+    // `posted` rows are always the caller's own posts (poster_id == uid by
+    // construction of the query below), so the full row including
+    // `applicants` is fine here — only `applied` (posts the caller merely
+    // applied to, not authored) needs the same stripping as fetchWorkPosts/
+    // getWorkPostDetail's non-poster branch.
     posted: postedSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-    applied: appliedSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+    applied: appliedSnap.docs.map((doc) => ({ id: doc.id, ...omitApplicants(doc.data()) })),
   };
 });

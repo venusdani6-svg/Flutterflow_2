@@ -25,6 +25,12 @@ final class PaymentConfirmParams {
 
 final class PaymentConfirmState {
   const PaymentConfirmState();
+  ffai.ProjectStateFieldHandle get isSubmittingPayment =>
+      const ffai.ProjectStateFieldHandle(
+        name: "isSubmittingPayment",
+        key: "sg8ko4va",
+        typeName: "Boolean",
+      );
   ffai.ProjectStateFieldHandle get paymentConfirmData =>
       const ffai.ProjectStateFieldHandle(
         name: "paymentConfirmData",
@@ -495,6 +501,13 @@ abstract final class PaymentConfirmWidgets {
                         triggers: const <String>[
                           "ON_TAP",
                         ],
+                      ),
+                      ffai.ProjectWidgetHandle(
+                        key: "Button_542xmz14",
+                        type: "Button",
+                        path: "PaymentConfirm.body[0].children[0].children[2].children[1]",
+                        name: "PaymentConfirmSubmittingButton",
+                        text: "処理中...",
                       ),
                     ],
                   ),

@@ -65,9 +65,15 @@ abstract final class AuditLogPageWidgets {
             name: "AuditLogWithExportColumn",
             children: <ffai.ProjectWidgetHandle>[
               ffai.ProjectWidgetHandle(
-                key: "Button_2wumc88w",
-                type: "Button",
+                key: "Container_tzrejryy",
+                type: "Container",
                 path: "AuditLogPage.body[0].children[0]",
+                name: "AuditLogAccentBar",
+              ),
+              ffai.ProjectWidgetHandle(
+                key: "Button_6u2vgs4i",
+                type: "Button",
+                path: "AuditLogPage.body[0].children[1]",
                 name: "AdminExportAuditLogCsvButton",
                 text: "CSVをコピー（読み込み済みの行のみ）",
                 triggers: const <String>[
@@ -75,34 +81,71 @@ abstract final class AuditLogPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
-                key: "Divider_6w2hmwcc",
+                key: "Divider_kgxa99jt",
                 type: "Divider",
-                path: "AuditLogPage.body[0].children[1]",
+                path: "AuditLogPage.body[0].children[2]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
-                key: "ListView_8mzw9mby",
+                key: "ListView_9sg8a4dr",
                 type: "ListView",
-                path: "AuditLogPage.body[0].children[2]",
+                path: "AuditLogPage.body[0].children[3]",
                 name: "AuditLogListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
-                    key: "Card_47nwfazq",
+                    key: "Card_te78v74c",
                     type: "Card",
-                    path: "AuditLogPage.body[0].children[2].children[0]",
+                    path: "AuditLogPage.body[0].children[3].children[0]",
                     name: "Card",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
-                        key: "Container_8inx41vd",
+                        key: "Container_8h9o0gkc",
                         type: "Container",
-                        path: "AuditLogPage.body[0].children[2].children[0].children[0]",
+                        path: "AuditLogPage.body[0].children[3].children[0].children[0]",
                         name: "Container",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Text_drm5c3t0",
-                            type: "Text",
-                            path: "AuditLogPage.body[0].children[2].children[0].children[0].children[0]",
-                            name: "Text",
+                            key: "Column_m7kzz81s",
+                            type: "Column",
+                            path: "AuditLogPage.body[0].children[3].children[0].children[0].children[0]",
+                            name: "Column",
+                            children: <ffai.ProjectWidgetHandle>[
+                              ffai.ProjectWidgetHandle(
+                                key: "Row_nlpmvf63",
+                                type: "Row",
+                                path: "AuditLogPage.body[0].children[3].children[0].children[0].children[0].children[0]",
+                                name: "Row",
+                                children: <ffai.ProjectWidgetHandle>[
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Icon_uyiurqi3",
+                                    type: "Icon",
+                                    path: "AuditLogPage.body[0].children[3].children[0].children[0].children[0].children[0].children[0]",
+                                    name: "Icon",
+                                  ),
+                                  ffai.ProjectWidgetHandle(
+                                    key: "Container_vwck930l",
+                                    type: "Container",
+                                    path: "AuditLogPage.body[0].children[3].children[0].children[0].children[0].children[0].children[1]",
+                                    name: "Container",
+                                    children: <ffai.ProjectWidgetHandle>[
+                                      ffai.ProjectWidgetHandle(
+                                        key: "Text_oxh7y544",
+                                        type: "Text",
+                                        path: "AuditLogPage.body[0].children[3].children[0].children[0].children[0].children[0].children[1].children[0]",
+                                        name: "Text",
+                                        text: "重要操作",
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              ffai.ProjectWidgetHandle(
+                                key: "Text_5kfs0a38",
+                                type: "Text",
+                                path: "AuditLogPage.body[0].children[3].children[0].children[0].children[0].children[1]",
+                                name: "Text",
+                              ),
+                            ],
                           ),
                         ],
                       ),

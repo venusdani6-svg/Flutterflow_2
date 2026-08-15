@@ -160,14 +160,6 @@ abstract final class HomePageWidgets {
                             type: "Container",
                             path: "HomePage.body[0].children[0].children[0].children[0].children[0]",
                             name: "HomePromoBanner",
-                            children: <ffai.ProjectWidgetHandle>[
-                              ffai.ProjectWidgetHandle(
-                                key: "Image_wo4qabbb",
-                                type: "Image",
-                                path: "HomePage.body[0].children[0].children[0].children[0].children[0].children[0]",
-                                name: "Image",
-                              ),
-                            ],
                           ),
                         ],
                       ),

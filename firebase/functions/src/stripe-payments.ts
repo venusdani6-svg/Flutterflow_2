@@ -519,12 +519,29 @@ export async function recordCastRewardsAndProcessOthers(
   }
 
   if (staffFee > 0 && resData.staff_ids) {
+    // FIX (confirmed live bug, found during audit): `security_staff_fee`/
+    // `transport_staff_fee` are independently admin-configurable (§5 item
+    // 5) and not guaranteed equal — this used to pay EVERY staff_id an
+    // even split of the aggregate `staffFee` regardless of which role each
+    // one actually filled, so a security staffer and a transport staffer
+    // on the same reservation were paid identically even when their
+    // configured role-fees differ (dormant only because both default to
+    // ¥2,500). `staff_fee_map` (createReservation/selectWorkApplicant/
+    // adminHireWorkPostApplicant, all three real write sites for
+    // `staff_ids`) now records each staff member's OWN flat role-fee at
+    // the moment they're attached to the reservation — use it when
+    // present, falling back to the even split only for reservations
+    // created before this field existed.
+    const staffFeeMap: Record<string, number> = resData.staff_fee_map || {};
     for (const staffId of resData.staff_ids) {
       const staffDoc = await db.collection("users").doc(staffId).get();
       const staffData = staffDoc.data();
       if (!staffData?.stripe_account_id) continue;
 
-      const perStaffFee = Math.floor(staffFee / resData.staff_ids.length);
+      const perStaffFee =
+        typeof staffFeeMap[staffId] === "number"
+          ? staffFeeMap[staffId]
+          : Math.floor(staffFee / resData.staff_ids.length);
 
       // FIX (comprehensive project-wide review round 2): the ledger entry
       // used to be written only AFTER a successful transfer, so a failed
@@ -1044,17 +1061,77 @@ async function recordCancellationCastRewards(
   castRewardPercent: number
 ): Promise<void> {
   const castIds: string[] = resData.cast_ids || [];
-  if (castIds.length === 0 || castRewardPercent <= 0) return;
+  const stripeFee = Math.ceil(chargedAmount * 0.036);
+
+  // FIX (confirmed live bug, found during audit): the "≥1h notice"
+  // guest-cancellation tier passes castRewardPercent=0 (guest charged 50%,
+  // cast gets nothing) — this function used to `return` immediately in
+  // that case with NO ledger entry at all for `chargedAmount`, even though
+  // `cancelPayment` (the only caller) had already run a real
+  // `stripe.paymentIntents.capture()` for it moments earlier. Every other
+  // capture path in this codebase writes a ledger row for what it
+  // captures — see `adminForceCancel`'s own identical fix (admin.ts,
+  // partial-capture path) for the same "every capture needs a ledger row"
+  // rule. Left unfixed, this specific cancellation tier's revenue was
+  // captured for real but invisible to `adminGetLedger`'s ledger view,
+  // with no audit trail. Recorded as a single platform-only entry (no
+  // cast, no transfer — a human didn't choose this amount, the
+  // cancellation-fee matrix did) rather than one row per cast_id, since
+  // no cast receives any share of it.
+  if (castIds.length === 0 || castRewardPercent <= 0) {
+    if (chargedAmount > 0) {
+      const ledgerRef = db.collection("ledger").doc();
+      await ledgerRef.set({
+        ledger_id: ledgerRef.id,
+        res_id: resId,
+        user_id: resData.guest_id || "",
+        type: "cancellation_fee",
+        gross_amount: chargedAmount,
+        cast_reward: 0,
+        staff_fee: 0,
+        stripe_fee: stripeFee,
+        platform_profit: chargedAmount - stripeFee,
+        tax_amount: 0,
+        net_transfer: 0,
+        amount: chargedAmount,
+        stripe_event_id: "",
+        stripe_object_id: "",
+        status: "confirmed",
+        processed: true,
+        created_at: Timestamp.now(),
+      });
+    }
+    return;
+  }
 
   const castRewardPool = Math.round(chargedAmount * castRewardPercent);
-  const stripeFee = Math.ceil(chargedAmount * 0.036);
   const rewardShareEach = Math.floor(castRewardPool / castIds.length);
   if (rewardShareEach <= 0) return;
 
+  // FIX (confirmed live bug, found during audit, same class as the
+  // already-fixed `actualTransportDistributed` gap in
+  // recordCastRewardsAndProcessOthers above): `platformProfit` used to be
+  // computed as `chargedAmount - castRewardPool - stripeFee` — the FULL
+  // theoretical pool, not what was actually paid out. Two ways that
+  // overstates the cast side (understating platform_profit) in the exact
+  // same ledger row written for every cast: (1) `castRewardPool` doesn't
+  // divide evenly by `castIds.length` — e.g. a ¥1,000 pool across 3 casts
+  // pays 3×¥333=¥999, leaving ¥1 the theoretical pool never actually
+  // distributed; (2) any cast without a `stripe_account_id` is skipped
+  // entirely (`continue` below) and receives nothing. Fixed by first
+  // determining which casts actually get paid, then computing
+  // platform_profit from what was REALLY distributed
+  // (`rewardShareEach × payable cast count`), applied identically to every
+  // row exactly like `sharedPlatformProfit` above.
+  const payableCastIds: string[] = [];
   for (const castId of castIds) {
     const castDoc = await db.collection("users").doc(castId).get();
-    if (!castDoc.data()?.stripe_account_id) continue;
+    if (castDoc.data()?.stripe_account_id) payableCastIds.push(castId);
+  }
+  const actualCastRewardDistributed = rewardShareEach * payableCastIds.length;
+  const sharedPlatformProfit = chargedAmount - actualCastRewardDistributed - stripeFee;
 
+  for (const castId of payableCastIds) {
     try {
       await db.runTransaction(async (tx) => {
         const castRef = db.collection("users").doc(castId);
@@ -1064,7 +1141,7 @@ async function recordCancellationCastRewards(
         const debtDeduction = Math.min(currentDebt, rewardShareEach);
         const netTransfer = rewardShareEach - debtDeduction;
         const newDebt = currentDebt - debtDeduction;
-        const platformProfit = chargedAmount - castRewardPool - stripeFee;
+        const platformProfit = sharedPlatformProfit;
         const needsTransfer = netTransfer > 0;
 
         const ledgerRef = db.collection("ledger").doc();
@@ -1307,23 +1384,40 @@ export const cancelPayment = onCall(async (request) => {
       // Same `hasPaymentIntent` guard as above — a reservation with no
       // PaymentIntent was never actually charged by Stripe, so there's no
       // real Stripe fee to pass on to the cast as debt.
+      //
+      // FIX (confirmed live bug, found during audit): the Stripe processing
+      // fee belongs to the ONE shared PaymentIntent on this reservation, not
+      // to each cast individually — but this used to add the FULL
+      // `stripeFeeEstimate` to EVERY cast's `logical_debt` independently
+      // inside the loop below. On a multi-cast reservation, N casts were
+      // each debited the entire fee, so the platform recouped N× the real
+      // Stripe fee in aggregate instead of splitting the one real cost
+      // across them. Split evenly across the casts actually on this
+      // reservation, matching the same equal-split pattern already used for
+      // shared costs elsewhere in this file (`perStaffFee`,
+      // `castTransportShareEach`, `rewardShareEach`).
+      const castIdsForCancelDebt: string[] = resData.cast_ids || [];
       const stripeFeeEstimate = Math.ceil(resData.total_amount * 0.036);
+      const perCastStripeFee =
+        castIdsForCancelDebt.length > 0
+          ? Math.floor(stripeFeeEstimate / castIdsForCancelDebt.length)
+          : 0;
 
-      for (const castId of resData.cast_ids || []) {
+      for (const castId of castIdsForCancelDebt) {
         await db.runTransaction(async (tx) => {
           const castRef = db.collection("users").doc(castId);
           const castDoc = await tx.get(castRef);
           const currentDebt = castDoc.data()?.logical_debt || 0;
 
           tx.update(castRef, {
-            logical_debt: currentDebt + stripeFeeEstimate,
+            logical_debt: currentDebt + perCastStripeFee,
             updated_at: Timestamp.now(),
           });
         });
 
         await db.collection("debt_history").add({
           user_id: castId,
-          amount: stripeFeeEstimate,
+          amount: perCastStripeFee,
           reason: "キャスト都合キャンセルによる決済手数料負担",
           res_id,
           created_at: Timestamp.now(),
@@ -1766,6 +1860,13 @@ export const processTip = onCall(async (request) => {
       );
     }
 
+    // FIX (confirmed live bug, found during audit): neither this
+    // PaymentIntent nor the Transfer below set `transfer_group` — every
+    // other charge/transfer tied to this reservation (the base PaymentIntent,
+    // extension PaymentIntents, staff/cast reward transfers) shares
+    // `resData.transfer_group` so Stripe's own dashboard/reporting can
+    // reconcile everything that belongs to one reservation together. A tip
+    // silently fell outside that group.
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency: "jpy",
@@ -1773,6 +1874,7 @@ export const processTip = onCall(async (request) => {
       payment_method: paymentMethodId,
       off_session: true,
       confirm: true,
+      transfer_group: resData.transfer_group,
       metadata: {
         res_id: res_id || "",
         type: "tip",
@@ -1821,6 +1923,7 @@ export const processTip = onCall(async (request) => {
             amount,
             currency: "jpy",
             destination: castDoc.data()!.stripe_account_id,
+            transfer_group: resData.transfer_group,
             metadata: {
               res_id: res_id || "",
               type: "tip",
@@ -1914,6 +2017,20 @@ export const requestPayout = onCall(async (request) => {
 
   if (!userData) {
     throw new HttpsError("not-found", "ユーザーが見つかりません。");
+  }
+
+  // FIX (confirmed live bug, final precision audit second pass): frozen
+  // accounts (adminToggleFreeze, used for fraud/ToS violations) could still
+  // call this directly — no check here trusted the account's frozen state
+  // at all. Freezing already blocks new bookings/chat elsewhere in this
+  // codebase; leaving payout requests reachable defeats the whole point of
+  // freezing a suspect account. Checked before the debt/balance checks so
+  // a frozen account can never even create a pending request.
+  if (userData.is_frozen) {
+    throw new HttpsError(
+      "permission-denied",
+      "アカウントが凍結されているため出金申請できません。"
+    );
   }
 
   if (userData.logical_debt > 0) {
