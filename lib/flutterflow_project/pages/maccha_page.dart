@@ -160,26 +160,26 @@ abstract final class MacchaPageWidgets {
                         name: "MacchaEmptyState",
                         children: <ffai.ProjectWidgetHandle>[
                           ffai.ProjectWidgetHandle(
-                            key: "Column_0mowjlkf",
+                            key: "Column_f4n9i8qh",
                             type: "Column",
                             path: "MacchaPage.body[0].children[1].children[0].children[0].children[0]",
                             name: "Column",
                             children: <ffai.ProjectWidgetHandle>[
                               ffai.ProjectWidgetHandle(
-                                key: "Image_nkrxt7nk",
+                                key: "Image_m25o3d6k",
                                 type: "Image",
                                 path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[0]",
                                 name: "Image",
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Text_r192j8r6",
+                                key: "Text_b3zedha0",
                                 type: "Text",
                                 path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[1]",
                                 name: "Text",
                                 text: "まだマッチャがありません",
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Text_pgg5j41s",
+                                key: "Text_nbflfya4",
                                 type: "Text",
                                 path: "MacchaPage.body[0].children[1].children[0].children[0].children[0].children[2]",
                                 name: "Text",

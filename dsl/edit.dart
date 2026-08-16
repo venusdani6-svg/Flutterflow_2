@@ -25470,4 +25470,498 @@ Future<bool> registerFcmToken() async {
       ],
     );
   });
+
+  // ==========================================================================
+  // Confirm-before-action pass, Tier 2 batch C. Same discipline: exact
+  // existing chains, gated behind the shared `confirmDialog` action. All 12
+  // targets confirmed flat (each verified against generated_code to sit
+  // BEFORE any itemBuilder in its file, or not item-indexed at all).
+  // Deferred again this batch, confirmed itemBuilder-scoped: ChatOversightPage
+  // 強制クローズ, WorkPostDetailPage 選定する, CocotenManagementPage's
+  // この店舗に反映 (its `callAdminUpdateCocotenShopDetails` call reads
+  // `adminShopsListItemItem`, the itemBuilder loop variable).
+  // ==========================================================================
+
+  app.editPage(ff.Pages.cocotenGenreMasterPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_jm7kxl0p'), // 追加
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ジャンルを追加しますか？',
+            'message': '入力したジャンルを追加します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'addGenreConfirmed',
+        ),
+        If(
+          ActionOutput('addGenreConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminAddCocotenGenre',
+              arguments: {
+                'genres': State(ff.Pages.cocotenGenreMasterPage.state.genresList),
+                'newGenre': State(ff.Pages.cocotenGenreMasterPage.state.newGenreName),
+              },
+              outputAs: 'addGenreResult',
+            ),
+            SetState(ff.Pages.cocotenGenreMasterPage.state.genresList, ActionOutput('addGenreResult')),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.serviceAreaMunicipalitiesPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_fuc1dn8f'), // 追加
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '市区町村を追加しますか？',
+            'message': '入力した市区町村を追加します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'addMunicipalityConfirmed',
+        ),
+        If(
+          ActionOutput('addMunicipalityConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminAddServiceAreaMunicipality',
+              arguments: {
+                'prefecture': State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture),
+                'name': State(ff.Pages.serviceAreaMunicipalitiesPage.state.newMunicipalityName),
+                'lat': State(ff.Pages.serviceAreaMunicipalitiesPage.state.newMunicipalityLat),
+                'lng': State(ff.Pages.serviceAreaMunicipalitiesPage.state.newMunicipalityLng),
+              },
+              outputAs: 'addMunicipalityResult',
+            ),
+            CallCustomAction.named(
+              'fetchAdminServiceAreaMunicipalities',
+              arguments: {'prefecture': State(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalityPrefecture)},
+              outputAs: 'municipalitiesRefetchResult',
+            ),
+            SetState(ff.Pages.serviceAreaMunicipalitiesPage.state.municipalitiesList, ActionOutput('municipalitiesRefetchResult')),
+            If(
+              ActionOutput('addMunicipalityResult'),
+              then: [Snackbar('市区町村を追加しました。')],
+              orElse: [Snackbar('追加に失敗しました。都道府県名・緯度経度を確認してください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.cocotenManagementPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_6bkhjvqb'), // 店舗を追加
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '店舗を追加しますか？',
+            'message': '入力した内容で新規店舗を追加します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'addShopConfirmed',
+        ),
+        If(
+          ActionOutput('addShopConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminUpsertCocotenShop',
+              arguments: {
+                'shopId': '',
+                'name': State(ff.Pages.cocotenManagementPage.state.newShopName),
+                'genre': State(ff.Pages.cocotenManagementPage.state.newShopGenre),
+                'prefecture': State(ff.Pages.cocotenManagementPage.state.newShopPrefecture),
+                'city': State(ff.Pages.cocotenManagementPage.state.newShopCity),
+                'townBlock': State(ff.Pages.cocotenManagementPage.state.newShopTownBlock),
+                'building': State(ff.Pages.cocotenManagementPage.state.newShopBuilding),
+                'active': 'true',
+              },
+              outputAs: 'createShopResult',
+            ),
+            CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult'),
+            SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult')),
+            If(
+              ActionOutput('createShopResult'),
+              then: [Snackbar('店舗を追加しました。')],
+              orElse: [Snackbar('店舗名を確認してください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.smsCode, (page) {
+    page.ensureActions(
+      page.findByKey('Button_ynhflo1r'), // 認証する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'verifyPhoneCodeAndLink',
+          arguments: {
+            'smsCode': WidgetState('SmsCodeField', WidgetStateProperty.text),
+          },
+          outputAs: 'verifyPhoneResult',
+        ),
+        If(
+          ActionOutput('verifyPhoneResult'),
+          then: [
+            CallCustomAction.named(
+              'confirmDialog',
+              arguments: {
+                'title': '認証しますか？',
+                'message': '入力したコードで電話番号を認証します。よろしいですか？',
+                'confirmText': 'はい',
+                'dismissText': 'いいえ',
+              },
+              outputAs: 'phoneVerifyConfirmed',
+            ),
+            If(
+              ActionOutput('phoneVerifyConfirmed'),
+              then: [
+                CallCustomAction.named(
+                  'callSyncVerifiedPhone',
+                  outputAs: 'syncPhoneResult',
+                ),
+                Navigate('AuthComplete'),
+              ],
+            ),
+          ],
+          orElse: [Snackbar('認証コードが正しくありません。')],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.basicInfoRegistration, (page) {
+    page.ensureActions(
+      page.findByKey('Button_npmkhs0n'), // 登録する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'checkBasicInfoFieldsComplete',
+          arguments: {
+            'accountType': State('accountType'),
+            'gender': State('gender'),
+            'birthDate': State('birthDate'),
+            'prefecture': AppState(ff.AppState.pickedPrefectureValue),
+            'city': State('city'),
+            'agreedTos': State('agreedTos'),
+            'agreedBusinessCommission': State('agreedBusinessCommission'),
+            'agreedPersonalData': State('agreedPersonalData'),
+            'agreedPrivacyPolicy': State('agreedPrivacyPolicy'),
+          },
+          outputAs: 'basicInfoValidResult',
+        ),
+        If(
+          ActionOutput('basicInfoValidResult'),
+          then: [
+            CallCustomAction.named(
+              'confirmDialog',
+              arguments: {
+                'title': '登録しますか？',
+                'message': '入力した内容で登録します。よろしいですか？',
+                'confirmText': 'はい',
+                'dismissText': 'いいえ',
+              },
+              outputAs: 'basicInfoSubmitConfirmed',
+            ),
+            If(
+              ActionOutput('basicInfoSubmitConfirmed'),
+              then: [
+                CallCustomAction.named(
+                  'callCompleteOnboarding',
+                  arguments: {
+                    'accountType': State('accountType'),
+                    'gender': State('gender'),
+                    'birthDate': State('birthDate'),
+                    'prefecture': AppState(ff.AppState.pickedPrefectureValue),
+                    'city': State('city'),
+                    'activityPrefecture': AppState(ff.AppState.pickedActivityPrefectureValue),
+                    'activityCity': State('activityCity'),
+                    'staffType': State('staffType'),
+                    'referralCode': State('referralCode'),
+                    'agreedTos': State('agreedTos'),
+                    'agreedBusinessCommission': State('agreedBusinessCommission'),
+                    'agreedPersonalData': State('agreedPersonalData'),
+                    'agreedPrivacyPolicy': State('agreedPrivacyPolicy'),
+                  },
+                  outputAs: 'completeOnboardingResult',
+                ),
+                If(
+                  ActionOutput('completeOnboardingResult'),
+                  then: [Navigate('Kyc', replaceRoute: true)],
+                  orElse: [Snackbar('登録に失敗しました。もう一度お試しください。')],
+                ),
+              ],
+            ),
+          ],
+          orElse: [Snackbar('必須項目の入力（生年月日はYYYY-MM-DD形式）と4項目すべてへの同意が必要です。')],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.serviceAreaPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_8akzo6do'), // AdminSaveServiceAreasButton (保存する)
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '対象都道府県を保存しますか？',
+            'message': 'この変更を保存します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'saveServiceAreasConfirmed',
+        ),
+        If(
+          ActionOutput('saveServiceAreasConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminUpdateServiceAreas',
+              arguments: {
+                'tokyo': State(ff.Pages.serviceAreaPage.state.saTokyo),
+                'kanagawa': State(ff.Pages.serviceAreaPage.state.saKanagawa),
+                'chiba': State(ff.Pages.serviceAreaPage.state.saChiba),
+                'aichi': State(ff.Pages.serviceAreaPage.state.saAichi),
+                'kyoto': State(ff.Pages.serviceAreaPage.state.saKyoto),
+                'osaka': State(ff.Pages.serviceAreaPage.state.saOsaka),
+                'hyogo': State(ff.Pages.serviceAreaPage.state.saHyogo),
+                'okayama': State(ff.Pages.serviceAreaPage.state.saOkayama),
+                'hiroshima': State(ff.Pages.serviceAreaPage.state.saHiroshima),
+                'fukuoka': State(ff.Pages.serviceAreaPage.state.saFukuoka),
+              },
+              outputAs: 'saveServiceAreasResult',
+            ),
+            If(
+              ActionOutput('saveServiceAreasResult'),
+              then: [Snackbar('設定を保存しました。')],
+              orElse: [Snackbar('保存に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.workPostManagementPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_9m9t6bz4'), // 投稿を作成する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '投稿を作成しますか？',
+            'message': 'この内容でワーク投稿を作成します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'createWorkPostConfirmed',
+        ),
+        If(
+          ActionOutput('createWorkPostConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminCreateWorkPost',
+              arguments: {
+                'workType': State(ff.Pages.workPostManagementPage.state.newWorkPostType),
+                'description': State(ff.Pages.workPostManagementPage.state.newWorkPostDescription),
+                'fee': State(ff.Pages.workPostManagementPage.state.newWorkPostFee),
+              },
+              outputAs: 'createWorkPostResult',
+            ),
+            CallCustomAction.named('fetchAdminWorkPosts', outputAs: 'adminWorkPostsRefetchResult'),
+            SetState(ff.Pages.workPostManagementPage.state.adminWorkPostsList, ActionOutput('adminWorkPostsRefetchResult')),
+            If(
+              ActionOutput('createWorkPostResult'),
+              then: [Snackbar('投稿を作成しました。')],
+              orElse: [Snackbar('作成に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.bannerManagementPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_3nfxyk7d'), // バナーを追加
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'バナーを追加しますか？',
+            'message': 'この内容で新規バナーを追加します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'addBannerConfirmed',
+        ),
+        If(
+          ActionOutput('addBannerConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminUpsertBanner',
+              arguments: {
+                'bannerId': '',
+                'title': State(ff.Pages.bannerManagementPage.state.newBannerTitle),
+                'imageUrl': State(ff.Pages.bannerManagementPage.state.newBannerImageUrl),
+                'linkUrl': State(ff.Pages.bannerManagementPage.state.newBannerLinkUrl),
+                'page': State(ff.Pages.bannerManagementPage.state.newBannerPage),
+                'displayOrder': State(ff.Pages.bannerManagementPage.state.newBannerDisplayOrder),
+                'active': 'true',
+              },
+              outputAs: 'createBannerResult',
+            ),
+            CallCustomAction.named('fetchAllBanners', outputAs: 'bannersRefetchResult'),
+            SetState(ff.Pages.bannerManagementPage.state.bannersList, ActionOutput('bannersRefetchResult')),
+            If(
+              ActionOutput('createBannerResult'),
+              then: [Snackbar('バナーを追加しました。')],
+              orElse: [Snackbar('タイトル・画像URLを確認してください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.workPostDetailPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_jaw63ext'), // 応募する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '応募しますか？',
+            'message': 'このワークに応募します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'applyConfirmed',
+        ),
+        If(
+          ActionOutput('applyConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callApplyToWorkPost',
+              arguments: {'postId': PageParam('postId')},
+              outputAs: 'applyResult',
+            ),
+            If(
+              ActionOutput('applyResult'),
+              then: [Snackbar('応募しました。')],
+              orElse: [Snackbar('応募に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.emailVerification, (page) {
+    page.ensureActions(
+      page.findByKey('Button_1cqh1sb0'), // 次へ
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'checkEmailVerified',
+          outputAs: 'emailVerifiedResult',
+        ),
+        If(
+          ActionOutput('emailVerifiedResult'),
+          then: [Navigate('PhoneVarification')],
+          orElse: [Snackbar('まだ認証が完了していません。メール内のリンクをご確認ください。')],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.userContentModerationPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_7iimxnuv'), // 自己紹介文を保存
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '自己紹介文を保存しますか？',
+            'message': 'この内容でユーザーの自己紹介文を上書きします。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'saveSelfIntroConfirmed',
+        ),
+        If(
+          ActionOutput('saveSelfIntroConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminUpdateSelfIntro',
+              arguments: {
+                'userId': PageParam('userId'),
+                'selfIntro': State(ff.Pages.userContentModerationPage.state.moderationNewSelfIntro),
+              },
+              outputAs: 'saveSelfIntroResult',
+            ),
+            If(
+              ActionOutput('saveSelfIntroResult'),
+              then: [Snackbar('自己紹介文を更新しました。')],
+              orElse: [Snackbar('更新に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Button_apy05z65'), // プロフィール画像を削除する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'プロフィール画像を削除しますか？',
+            'message': 'このユーザーのプロフィール画像を削除します。よろしいですか？',
+            'confirmText': '削除する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'clearPhotoConfirmed',
+        ),
+        If(
+          ActionOutput('clearPhotoConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminClearPhoto',
+              arguments: {'userId': PageParam('userId')},
+              outputAs: 'clearPhotoResult',
+            ),
+            If(
+              ActionOutput('clearPhotoResult'),
+              then: [Snackbar('プロフィール画像を削除しました。')],
+              orElse: [Snackbar('削除に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
 }
