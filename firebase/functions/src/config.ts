@@ -62,6 +62,19 @@ export const SYSTEM_DEFAULTS = {
   // staff roles (users.staff_type already distinguishes security/transport).
   security_staff_fee: 2500,
   transport_staff_fee: 2500,
+  // FIX (comprehensive project-wide review): previously hardcoded as a
+  // literal `2500`/`3000` independently inside BOTH `createExtensionPayment`
+  // below (the authoritative server-side charge) AND `calculateExtensionPrice`
+  // (dsl/edit.dart, the client-side estimate shown before charging) — two
+  // copies of the same number with no shared source, same class of bug
+  // `transport_fee_amount` already fixed. `createExtensionPayment` now reads
+  // these; `calculateExtensionPrice` is a synchronous native custom function
+  // wired to an existing editor-authored (non-DSL) call site expecting a
+  // plain sync return, so it intentionally still hardcodes the same values
+  // as a documented, low-risk display-only approximation — the server is
+  // what actually charges the card.
+  extension_rate_per_30min: 2500,
+  extension_rate_per_30min_night: 3000,
   default_affiliate_rate: 0.05,
   affiliate_min_days: 3,
   affiliate_payment_day: 5,

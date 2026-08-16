@@ -31,6 +31,12 @@ final class ReservationDetailParams {
 
 final class ReservationDetailState {
   const ReservationDetailState();
+  ffai.ProjectStateFieldHandle get isSubmittingTip =>
+      const ffai.ProjectStateFieldHandle(
+        name: "isSubmittingTip",
+        key: "7ub2hfti",
+        typeName: "Boolean",
+      );
   ffai.ProjectStateFieldHandle get resDetailData =>
       const ffai.ProjectStateFieldHandle(
         name: "resDetailData",
@@ -857,6 +863,13 @@ abstract final class ReservationDetailWidgets {
                             triggers: const <String>[
                               "ON_TAP",
                             ],
+                          ),
+                          ffai.ProjectWidgetHandle(
+                            key: "Button_59k1m8cw",
+                            type: "Button",
+                            path: "ReservationDetail.body[0].children[0].children[11].children[0].children[3]",
+                            name: "TipSubmittingButton",
+                            text: "処理中...",
                           ),
                         ],
                       ),

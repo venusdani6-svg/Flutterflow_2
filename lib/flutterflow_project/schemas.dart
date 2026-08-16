@@ -3138,6 +3138,13 @@ final class UsersFields extends MapBase<String, ffai.DslType> {
 }
 
 final class WorkPostsFields extends MapBase<String, ffai.DslType> {
+  final allowedUids = ffai.ProjectCollectionFieldHandle(
+    name: "allowed_uids",
+    key: "0m87bbr2",
+    typeName: "List<String>",
+    type: ffai.listOf(ffai.string),
+    description: "network_only時に閲覧・応募可能なUID一覧。",
+  );
   final applicants = ffai.ProjectCollectionFieldHandle(
     name: "applicants",
     key: "",
@@ -3180,6 +3187,13 @@ final class WorkPostsFields extends MapBase<String, ffai.DslType> {
     type: ffai.string,
     description: "",
   );
+  final networkOnly = ffai.ProjectCollectionFieldHandle(
+    name: "network_only",
+    key: "u2xgfdrh",
+    typeName: "Boolean",
+    type: ffai.bool_,
+    description: "身内ネットワーク限定投稿かどうか。",
+  );
   final posterId = ffai.ProjectCollectionFieldHandle(
     name: "poster_id",
     key: "",
@@ -3218,12 +3232,14 @@ final class WorkPostsFields extends MapBase<String, ffai.DslType> {
 
   @override
   Iterable<String> get keys => const <String>[
+    "allowed_uids",
     "applicants",
     "created_at",
     "date",
     "description",
     "fee",
     "location",
+    "network_only",
     "poster_id",
     "res_id",
     "selected_id",
@@ -3233,12 +3249,14 @@ final class WorkPostsFields extends MapBase<String, ffai.DslType> {
 
   @override
   ffai.DslType? operator [](Object? key) => switch (key) {
+    "allowed_uids" => allowedUids,
     "applicants" => applicants,
     "created_at" => createdAt,
     "date" => date,
     "description" => description,
     "fee" => fee,
     "location" => location,
+    "network_only" => networkOnly,
     "poster_id" => posterId,
     "res_id" => resId,
     "selected_id" => selectedId,
@@ -3532,6 +3550,7 @@ abstract final class CustomCode {
     "fetchOwnKycStatus",
     "fetchPaymentConfirmDetails",
     "fetchPendingReports",
+    "fetchRegisteredCard",
     "fetchReportChatLog",
     "fetchReservationDetailData",
     "fetchReservationSummary",

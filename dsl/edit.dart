@@ -4703,6 +4703,49 @@ Future<String?> registerCardWithStripe() async {
 ''',
   );
 
+  // FIX (comprehensive project-wide review, user-decided "hide it until real
+  // data exists"): the "登録済みカード" (registered card) summary below
+  // (Text_mr0f0m4b/Text_6jkosz9c, the "08 / 32"/"※※※※-※※※※-※※※※-※※※※"
+  // placeholders `registerCardWithStripe`'s own comment above already
+  // flagged as static) was shown to EVERY guest unconditionally, including
+  // one who has never registered a card at all — genuinely misleading, not
+  // just a cosmetic gap. `getRegisteredCard` (stripe-payments.ts, new this
+  // pass) is the "listPaymentMethods-style callable" that comment said
+  // didn't exist yet; this action calls it and returns just the boolean.
+  // Deliberately does NOT thread the real last4/expiry back into
+  // Text_mr0f0m4b/Text_6jkosz9c — doing so needs `ensureReplaced` (the only
+  // way to bind a dynamic value into an EXISTING widget's text; `page.update`'s
+  // `patch.text()` only accepts a literal `String`, confirmed against the
+  // SDK's own `EditWidgetPatch` signature), and this same file's own FROZEN
+  // block just below (PaymentConfirm's other 5 dynamic-text replacements)
+  // already documents `ensureReplaced` as "no dedup guard... risks
+  // reassigning fresh keys... on every future unrelated push" — not safe to
+  // leave live. Gating real/fake VISIBILITY (this fix's actual goal) needs
+  // none of that risk - `bindVisible` is a plain idempotent property patch.
+  // The placeholder digits staying generic when a real card exists is a
+  // disclosed, deliberate remaining gap, not a silent one.
+  app.customAction(
+    'fetchRegisteredCard',
+    returns: bool_,
+    description: 'getRegisteredCard Cloud Functionを呼び出し、実際に登録済みカードがあるか確認する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> fetchRegisteredCard() async {
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('getRegisteredCard');
+    final result = await callable.call();
+    final data = result.data;
+    if (data is! Map) return false;
+    return data['has_card'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
   app.editPageParams(ff.Pages.paymentConfirm, (params) {
     params.ensureParam('resId', string.withDefault(''));
   });
@@ -4721,12 +4764,26 @@ Future<String?> registerCardWithStripe() async {
   // cannot be re-entered until the in-flight attempt resolves.
   app.editPageState(ff.Pages.paymentConfirm, (state) {
     state.ensureField('isSubmittingPayment', bool_.withDefault(false));
+    state.ensureField('hasRegisteredCard', bool_.withDefault(false));
   });
 
   app.editPage(ff.Pages.paymentConfirm, (page) {
     page.bindVisible(
       page.findByKey('Button_0qmju6dw'), // 予約を確定する
       Not(State('isSubmittingPayment')),
+    );
+
+    // Row_8ekwy1z4 = "カードを登録する" prompt row; Row_8vnuhmc3 = the
+    // 登録済みカード summary + "変更する" row. Mutually exclusive: show the
+    // registration prompt only when there's genuinely no card on file yet,
+    // show the summary+change-card option only when there really is one.
+    page.bindVisible(
+      page.findByKey('Row_8ekwy1z4'), // カードを登録する
+      Not(State('hasRegisteredCard')),
+    );
+    page.bindVisible(
+      page.findByKey('Row_8vnuhmc3'), // 登録済みカード summary + 変更する
+      State('hasRegisteredCard'),
     );
 
     page.ensureInsertedAfter(
@@ -7584,6 +7641,22 @@ Future<bool> callUpdateProfilePhoto(String? photoUrl) async {
   // (§24's follow-up sweep), which was correctly left alone since fixing
   // it would mean inventing new product wording, not correcting an
   // already-confirmed mismatch against an existing source of truth.
+  //
+  // FOLLOW-UP (comprehensive project-wide review): the `2500`/`3000` rate
+  // literals below are now ALSO the admin-configurable
+  // `extension_rate_per_30min`/`extension_rate_per_30min_night` fields in
+  // `system_config/settings` (config.ts) — `createExtensionPayment`
+  // (stripe-payments.ts), the function that actually charges the card,
+  // reads them from there. This function stays hardcoded on purpose: it's
+  // a plain synchronous native function wired to an existing
+  // editor-authored (non-DSL) dropdown `onChanged` call site
+  // (`extension_payment_widget.dart`) that assigns its return value
+  // directly, with no `await` — turning it into an async Firestore read
+  // would silently break that call site. It remains a display-only
+  // pre-charge estimate; the server value above is what's actually
+  // charged, so an admin changing the rate is reflected correctly in
+  // billing even though the on-screen estimate would need this literal
+  // updated to match (documented gap, not a silent one).
   // ==========================================================================
   app.raw((project) {
     updateCustomFunction(
@@ -12754,6 +12827,13 @@ return '深夜タクシー代 ¥$fee を含む合計金額に同意します';
           outputAs: 'paymentDetailsResult',
         ),
         SetState('paymentConfirmData', ActionOutput('paymentDetailsResult')),
+        // Extends this SAME chain (comprehensive project-wide review, fix
+        // D1) rather than a second `page.ensureActions(page.root, ON_INIT_STATE,
+        // ...)` call — only the LAST such call on a given trigger actually
+        // compiles live, an already-diagnosed bug class this session hunted
+        // down project-wide (PROJECT_KNOWLEDGE.md).
+        CallCustomAction.named('fetchRegisteredCard', outputAs: 'hasRegisteredCardResult'),
+        SetState('hasRegisteredCard', ActionOutput('hasRegisteredCardResult')),
       ],
     );
 
@@ -18233,6 +18313,28 @@ return parts.length > 4 && parts[4] == 'true';
     // UI state, matching a permission-prompt side effect, not a visible
     // page value. Extended once more (comprehensive-review-round-5) to also
     // fetch the real profile data the drawer/body card bindings below need.
+    //
+    // CRITICAL FIX (comprehensive project-wide review, 2026-08-17): this
+    // block's own comment claims to reproduce the chain "already
+    // established at dsl/edit.dart:8938" — but that line number pointed at
+    // the FIRST historical version of this trigger (navIndex + reviews
+    // only), not the SECOND, which had ALREADY added the cast work-
+    // calendar's initial-day schedule fetch
+    // (`scheduleSelectedDate`/`callGetMySchedule`/`scheduleDaySlots`,
+    // dsl/edit.dart:15440-15468) before this block was ever written. Since
+    // `ensureActions` replaces the WHOLE chain for a trigger (never
+    // merges), this block silently DROPPED the schedule fetch the moment
+    // it landed — confirmed via `generated_code/lib/mypage/my_page/my_page_widget.dart`'s
+    // real `initState()`: zero schedule-fetch calls present. Net effect:
+    // `scheduleDaySlots` (no `.withDefault(...)`, dsl/edit.dart:15437) has
+    // rendered empty on every fresh MyPage visit since this block first
+    // shipped — the cast's own work-calendar showed a blank/default grid
+    // on first paint until they manually tapped a week/day selector
+    // (every tap handler independently re-fetches correctly, so the
+    // FEATURE itself was never broken, only its initial-load state).
+    // Restored below — reproduces this block's own 6 actions unchanged,
+    // re-inserts the exact 3 schedule-init actions from the superseded
+    // second block, verbatim.
     page.ensureActions(
       page.root,
       triggerType: FFActionTriggerType.ON_INIT_STATE,
@@ -18244,6 +18346,16 @@ return parts.length > 4 && parts[4] == 'true';
           outputAs: 'myReviewsResult',
         ),
         SetState('myReviewsList', ActionOutput('myReviewsResult')),
+        SetState(
+          'scheduleSelectedDate',
+          CustomFunction(weekDayDateFn, args: {'weekIndex': 0, 'dayIndex': 0}),
+        ),
+        CallCustomAction(
+          callGetMySchedule,
+          args: {'date': State('scheduleSelectedDate')},
+          outputAs: 'scheduleInitResult',
+        ),
+        SetState('scheduleDaySlots', ActionOutput('scheduleInitResult')),
         CallCustomAction.named('checkIsAdminRole', outputAs: 'isAdminResult'),
         SetState('isAdminUser', ActionOutput('isAdminResult')),
         CallCustomAction.named('registerFcmToken', outputAs: 'fcmTokenResult'),
@@ -25688,6 +25800,43 @@ Future<bool> registerFcmToken() async {
     // requires an explicit `ensureRemoved` of the stale instance's own
     // live key, not just changing the insertion call.
     page.ensureRemoved(page.findByKey('Row_b9p5yqne')); // stale duplicate TaxiFeeConsentRow
+
+    // CRITICAL FIX (comprehensive project-wide review, 2026-08-17): a
+    // SECOND, independent duplicate-widget bug on this exact page, of the
+    // exact same underlying class as the one just above (an orphaned
+    // widget whose DSL construction text is no longer anywhere in this
+    // script, but whose already-pushed instance is still live server-side
+    // and keeps rendering) — found this time via a dedicated audit fork
+    // reading `generated_code/lib/payment/payment_confirm/payment_confirm_widget.dart`
+    // directly, not by chance. `grep -c "'スタッフ費用'"` on that file returns
+    // 2, both live, both gated by the identical `paymentConfirmHasStaffFee`
+    // visibility check — a guest with a nonzero staff fee sees the
+    // "スタッフ費用" line TWICE in the price breakdown immediately before
+    // paying, on the single highest-stakes page in this app. Confirmed via
+    // the typed SDK (`lib/flutterflow_project/pages/payment_confirm.dart`):
+    // `Row_s37rbhak` (children[7], `name: 'PaymentConfirmStaffFeeRow'`,
+    // positioned directly after タクシー代/`Row_aubivfcq`) and `Row_1hbd1e85`
+    // (children[9], same name, positioned after `TaxiFeeConsentRow`/
+    // `Row_8us8jcnh`) are BOTH live — `Row_1hbd1e85` is the one this
+    // session's own taxi-fee-consent work (above) anchors its
+    // `ensureInsertedBefore` insertion to, so it must be KEPT, not removed.
+    // `Row_s37rbhak` has zero references anywhere in this script's current
+    // text (confirmed via whole-file grep) — the same "construction text
+    // deleted after landing, compiled instance stays live" pattern already
+    // documented for other artifacts in this project. Removing it also
+    // fixes a SECOND, related issue for free: the taxi-fee consent
+    // checkbox was sitting BETWEEN the two duplicate staff-fee rows
+    // (children[8], sandwiched), not directly after タクシー代 as originally
+    // intended (§120's own positioning fix was based on the wrong premise
+    // that `Row_1hbd1e85` was the ONLY staff-fee row immediately following
+    // taxi fee — it wasn't, at the time, though the bug predates that
+    // session's own work and wasn't introduced by it). Removing
+    // `Row_s37rbhak` (not `Row_1hbd1e85`) shifts the checkbox up to sit
+    // correctly between タクシー代 and the single surviving スタッフ費用 row,
+    // with zero repositioning risk — no `ensureInsertedAfter`/`Before`
+    // call touched at all, just a targeted removal of the correct
+    // duplicate.
+    page.ensureRemoved(page.findByKey('Row_s37rbhak')); // orphaned duplicate PaymentConfirmStaffFeeRow
   });
 
   app.editPage(ff.Pages.extensionPayment, (page) {
@@ -25913,7 +26062,40 @@ Future<bool> registerFcmToken() async {
     );
   });
 
+  // CRITICAL FIX (comprehensive project-wide review, 2026-08-17): a real
+  // Stripe charge (`callProcessTip`) with ZERO double-submit protection —
+  // confirmed via generated_code that neither this widget file nor its
+  // model declares any `isSubmitting`/`isLoading` field at all. Every
+  // OTHER real-money button already audited this session
+  // (PaymentConfirm's submit, ExtensionPayment's submit, WalletPage's
+  // payout request) correctly implements the established
+  // `isSubmittingX` state-field + disabled-button-swap pattern; this one
+  // was missed. A fast double-tap (or a slow-network double-tap) can fire
+  // `callProcessTip` twice before either resolves, each a separate Stripe
+  // charge. Fixed using the exact same proven pattern as PaymentConfirm.
+  app.editPageState(ff.Pages.reservationDetail, (state) {
+    state.ensureField('isSubmittingTip', bool_.withDefault(false));
+  });
+
   app.editPage(ff.Pages.reservationDetail, (page) {
+    page.bindVisible(
+      page.findByKey('Button_qaw6isi5'), // 送る（チップ）
+      Not(State('isSubmittingTip')),
+    );
+    page.ensureInsertedAfter(
+      page.findByKey('Button_qaw6isi5'),
+      Button(
+        '処理中...',
+        name: 'TipSubmittingButton',
+        width: 250,
+        height: 40,
+        borderRadius: 8,
+        color: Colors.alternate,
+        textColor: Colors.secondaryText,
+        disabled: true,
+        visible: State('isSubmittingTip'),
+      ),
+    );
     page.ensureActions(
       page.findByKey('Button_qaw6isi5'), // 送る（チップ）
       triggerType: FFActionTriggerType.ON_TAP,
@@ -25934,6 +26116,7 @@ Future<bool> registerFcmToken() async {
             If(
               ActionOutput('tipConfirmed'),
               then: [
+                SetState('isSubmittingTip', true),
                 CallCustomAction.named(
                   'callProcessTip',
                   arguments: {
@@ -25947,9 +26130,13 @@ Future<bool> registerFcmToken() async {
                   ActionOutput('tipResult'),
                   then: [
                     SetState(ff.Pages.reservationDetail.state.tipAmount, ''),
+                    SetState('isSubmittingTip', false),
                     Snackbar('チップを送りました。'),
                   ],
-                  orElse: [Snackbar('チップの送信に失敗しました。')],
+                  orElse: [
+                    SetState('isSubmittingTip', false),
+                    Snackbar('チップの送信に失敗しました。'),
+                  ],
                 ),
               ],
             ),
@@ -26221,7 +26408,39 @@ Future<bool> registerFcmToken() async {
     );
   });
 
+  // CRITICAL FIX (comprehensive project-wide review, 2026-08-17): no
+  // double-submit guard at all — confirmed via generated_code (neither
+  // `kyc_widget.dart` nor `kyc_model.dart` declares any
+  // `isSubmitting`/`isLoading` field). Lower stakes than the tip-button
+  // fix above (no direct money movement — `submitKYC` writes a status
+  // field + already-uploaded Storage URLs), but a fast double-tap could
+  // still fire two concurrent submissions, and there was no visible
+  // feedback during the async window at all (button just sat there,
+  // reading as unresponsive on a slow connection). Same established
+  // pattern as every other real-action button this session has fixed.
+  app.editPageState(ff.Pages.kyc, (state) {
+    state.ensureField('isSubmittingKyc', bool_.withDefault(false));
+  });
+
   app.editPage(ff.Pages.kyc, (page) {
+    page.bindVisible(
+      page.findByKey('Button_zarp9j5y'), // 提出する
+      Not(State('isSubmittingKyc')),
+    );
+    page.ensureInsertedAfter(
+      page.findByKey('Button_zarp9j5y'),
+      Button(
+        '処理中...',
+        name: 'KycSubmittingButton',
+        width: 250,
+        height: 40,
+        borderRadius: 8,
+        color: Colors.alternate,
+        textColor: Colors.secondaryText,
+        disabled: true,
+        visible: State('isSubmittingKyc'),
+      ),
+    );
     page.ensureActions(
       page.findByKey('Button_zarp9j5y'), // 提出する
       triggerType: FFActionTriggerType.ON_TAP,
@@ -26250,6 +26469,7 @@ Future<bool> registerFcmToken() async {
             If(
               ActionOutput('kycSubmitConfirmed'),
               then: [
+                SetState('isSubmittingKyc', true),
                 CallCustomAction.named(
                   'callSubmitKyc',
                   arguments: {
@@ -26260,8 +26480,14 @@ Future<bool> registerFcmToken() async {
                 ),
                 If(
                   ActionOutput('submitKycResult'),
-                  then: [Navigate(ff.Pages.reviewPending, replaceRoute: true)],
-                  orElse: [Snackbar('提出に失敗しました。もう一度お試しください。')],
+                  then: [
+                    SetState('isSubmittingKyc', false),
+                    Navigate(ff.Pages.reviewPending, replaceRoute: true),
+                  ],
+                  orElse: [
+                    SetState('isSubmittingKyc', false),
+                    Snackbar('提出に失敗しました。もう一度お試しください。'),
+                  ],
                 ),
               ],
             ),
@@ -28908,4 +29134,24 @@ Future<bool> openSearchCastDialog(BuildContext context) async {
   // for the LoginPage password-rule gap (§107): a direct edit in
   // FlutterFlow Studio, not through this SDK's authoring surface.
   // ==========================================================================
+
+  // ==========================================================================
+  // Comprehensive project-wide review — schema drift close-out.
+  // `work_posts.network_only` (bool) / `allowed_uids` (string[]) have been
+  // read and written by the backend for some time (reservations.ts's
+  // affiliate-network work-post creation; work-posts.ts's own visibility
+  // gating in `fetchWorkPosts`/`applyToWorkPost`) but were never declared
+  // in this project's typed schema — `lib/flutterflow_project/schemas.dart`
+  // had no `WorkPostsFields.networkOnly`/`.allowedUids` handle. Currently
+  // harmless (nothing in this DSL does a typed `FirestoreQuery` read of
+  // `work_posts` that would need these fields), but left undeclared it's
+  // a silent trap for the next person who tries to bind a widget to either
+  // field via the typed SDK and can't find it. `_addField` is idempotent —
+  // no-ops if the field is already declared.
+  // ==========================================================================
+
+  app.raw((project) {
+    _addField(project, 'work_posts', 'network_only', _bool_, description: '身内ネットワーク限定投稿かどうか。');
+    _addField(project, 'work_posts', 'allowed_uids', _listOf(_string), description: 'network_only時に閲覧・応募可能なUID一覧。');
+  });
 }

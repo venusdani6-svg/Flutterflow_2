@@ -25,6 +25,12 @@ final class PaymentConfirmParams {
 
 final class PaymentConfirmState {
   const PaymentConfirmState();
+  ffai.ProjectStateFieldHandle get hasRegisteredCard =>
+      const ffai.ProjectStateFieldHandle(
+        name: "hasRegisteredCard",
+        key: "169whkrs",
+        typeName: "Boolean",
+      );
   ffai.ProjectStateFieldHandle get isSubmittingPayment =>
       const ffai.ProjectStateFieldHandle(
         name: "isSubmittingPayment",
@@ -271,32 +277,32 @@ abstract final class PaymentConfirmWidgets {
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Row_s37rbhak",
+                                key: "Row_p7cyfkm2",
                                 type: "Row",
                                 path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7]",
                                 name: "PaymentConfirmStaffFeeRow",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Text_de43cbxp",
+                                    key: "Text_4ackeam3",
                                     type: "Text",
                                     path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7].children[0]",
                                     name: "Text",
                                     text: "スタッフ費用",
                                   ),
                                   ffai.ProjectWidgetHandle(
-                                    key: "Row_vwhvif70",
+                                    key: "Row_v7gn25in",
                                     type: "Row",
                                     path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7].children[1]",
                                     name: "Row",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_cfesp7xy",
+                                        key: "Text_rzc3i2so",
                                         type: "Text",
                                         path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7].children[1].children[0]",
                                         name: "PaymentConfirmStaffFeeValue",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_31h8m64r",
+                                        key: "Text_y32y58ba",
                                         type: "Text",
                                         path: "PaymentConfirm.body[0].children[0].children[0].children[0].children[0].children[7].children[1].children[1]",
                                         name: "Text",

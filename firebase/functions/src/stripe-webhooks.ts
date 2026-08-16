@@ -3,7 +3,7 @@
  * stripe_event_id + event_type で二重処理を完全に防止
  */
 import { onRequest } from "firebase-functions/v2/https";
-import { db, stripe, FieldValue, Timestamp, stripeWebhookSecret } from "./config";
+import { db, stripe, FieldValue, Timestamp, stripeWebhookSecret, sendPushNotification } from "./config";
 import { recordCastRewardsAndProcessOthers } from "./stripe-payments";
 import { buildReservationSlotRefs, releaseReservationSlots } from "./schedule";
 
@@ -119,12 +119,22 @@ export const stripeWebhook = onRequest(async (req, res) => {
     ttl: Timestamp.fromDate(ttlDate),
   });
 
-  // Mirror to user notifications
-  try {
-    await mirrorStripeNotification(event);
-  } catch (err) {
-    console.error("Notification mirroring failed:", err);
-  }
+  // FIX (comprehensive project-wide review, 2026-08-17): removed the
+  // unconditional `mirrorStripeNotification(event)` call that used to run
+  // here for EVERY event, before dispatch. Every event type actually
+  // handled below already writes its OWN purpose-built, localized
+  // notification (see each `handle*` function) — this ran in ADDITION to
+  // that, meaning a guest whose payment succeeded got TWO notifications:
+  // the real one ("決済が完了しました" with a clean amount) and this one
+  // (literally "Stripe: payment_intent.succeeded" with a truncated raw
+  // JSON dump as the body — a leftover debug/dev-visibility mechanism
+  // never gated out once the real per-event notifications were built, not
+  // an intentional design). Worse, `data.raw` embedded the full raw Stripe
+  // object (customer IDs, internal metadata) into a USER-visible
+  // notification document. Any event type NOT specifically handled below
+  // (the `default:` case) is already fully captured, unconditionally, in
+  // `stripe_logs` just above — admin-visible, no separate user-facing
+  // fallback needed for those either.
 
   // Event-specific handling
   try {
@@ -193,20 +203,36 @@ async function handlePaymentIntentSucceeded(paymentIntent: any): Promise<void> {
     // misleading for a `type: "cancellation"` capture, which is a
     // cancellation FEE charge, not a normal service payment.
     const isCancellationCapture = paymentIntent.metadata?.type === "cancellation";
+    const paymentSucceededTitle = isCancellationCapture ? "キャンセル料が確定しました" : "決済が完了しました";
+    const paymentSucceededBody = isCancellationCapture
+      ? `キャンセル料 ¥${paymentIntent.amount_received.toLocaleString()} が確定しました。`
+      : `¥${paymentIntent.amount_received.toLocaleString()} の決済が確定しました。`;
     await db
       .collection("users")
       .doc(resData.guest_id)
       .collection("notifications")
       .add({
         type: "stripe",
-        title: isCancellationCapture ? "キャンセル料が確定しました" : "決済が完了しました",
-        body: isCancellationCapture
-          ? `キャンセル料 ¥${paymentIntent.amount_received.toLocaleString()} が確定しました。`
-          : `¥${paymentIntent.amount_received.toLocaleString()} の決済が確定しました。`,
+        title: paymentSucceededTitle,
+        body: paymentSucceededBody,
         data: { res_id: resId, amount: paymentIntent.amount_received },
         read: false,
         created_at: Timestamp.now(),
       });
+    // FIX (comprehensive project-wide review, 2026-08-17): every
+    // notification write in this file used to be in-app only — every
+    // OTHER money-adjacent notification path in this codebase
+    // (reservations.ts/work-posts.ts/admin.ts) also pushes to the
+    // device via `sendPushNotification`, this file never did. Real gap:
+    // these are exactly the events a guest/cast most needs to see in
+    // real time. `sendPushNotification` itself already enforces the
+    // `notify_*` category preference (PROJECT_KNOWLEDGE.md §126) keyed
+    // off `data.type` — passing the SAME `type: "stripe"` this
+    // notification doc already carries.
+    await sendPushNotification(resData.guest_id, paymentSucceededTitle, paymentSucceededBody, {
+      res_id: resId,
+      type: "stripe",
+    });
 
     // FIX (IMPLEMENTATION_PLAN.md §6 defect #7): the reservation-status
     // transition, pair_history (30-min-rule) update, and cast-reward
@@ -294,6 +320,14 @@ async function handlePaymentIntentFailed(paymentIntent: any): Promise<void> {
       read: false,
       created_at: Timestamp.now(),
     });
+  // FIX (comprehensive project-wide review, 2026-08-17): see the identical
+  // fix note on `handlePaymentIntentSucceeded` above — a declined card is
+  // exactly the kind of event a guest needs to see immediately, not just
+  // the next time they happen to open the app.
+  await sendPushNotification(resData.guest_id, "決済に失敗しました", "お支払いに問題が発生しました。支払い方法をご確認ください。", {
+    res_id: resId,
+    type: "stripe",
+  });
 }
 
 async function handlePaymentIntentCanceled(paymentIntent: any): Promise<void> {
@@ -438,6 +472,21 @@ async function handleAmountCapturableUpdated(paymentIntent: any): Promise<void> 
       });
     });
     await batch.commit();
+    // FIX (comprehensive project-wide review, 2026-08-17): same push gap
+    // as every other notification write in this file — a stuck
+    // PaymentIntent needing manual admin intervention is exactly the
+    // kind of alert that should push, not wait for an admin to happen to
+    // check their notification list.
+    await Promise.all(
+      admins.docs.map((adminDoc) =>
+        sendPushNotification(
+          adminDoc.id,
+          "決済保留の解放に失敗しました",
+          `予約 ${resId} は満室のためキャンセルされましたが、PaymentIntent ${paymentIntent.id} の解放に失敗しました。手動確認が必要です。`,
+          { res_id: resId, payment_intent_id: paymentIntent.id, type: "admin" }
+        )
+      )
+    );
   }
 
   await db
@@ -452,6 +501,15 @@ async function handleAmountCapturableUpdated(paymentIntent: any): Promise<void> 
       read: false,
       created_at: Timestamp.now(),
     });
+  // FIX (comprehensive project-wide review, 2026-08-17): same push gap as
+  // the payment-succeeded/failed fixes above — a guest whose booking just
+  // got bumped by a slot conflict needs to know immediately.
+  await sendPushNotification(
+    outcome.guestId,
+    "ご予約を確定できませんでした",
+    "選択した時間帯は他のご予約で埋まってしまいました。お手数ですが別の日時をお選びください。",
+    { res_id: resId, type: "matching" }
+  );
 }
 
 /**
@@ -576,6 +634,18 @@ async function handleExtensionAmountCapturableUpdated(paymentIntent: any): Promi
       });
     });
     await batch.commit();
+    // FIX (comprehensive project-wide review, 2026-08-17): same push gap
+    // as the base-flow equivalent above.
+    await Promise.all(
+      admins.docs.map((adminDoc) =>
+        sendPushNotification(
+          adminDoc.id,
+          "延長決済保留の解放に失敗しました",
+          `予約 ${resId} の延長 ${extId} は時間帯の競合によりキャンセルされましたが、PaymentIntent ${paymentIntent.id} の解放に失敗しました。手動確認が必要です。`,
+          { res_id: resId, extension_id: extId, payment_intent_id: paymentIntent.id, type: "admin" }
+        )
+      )
+    );
   }
 
   await db
@@ -590,6 +660,14 @@ async function handleExtensionAmountCapturableUpdated(paymentIntent: any): Promi
       read: false,
       created_at: Timestamp.now(),
     });
+  // FIX (comprehensive project-wide review, 2026-08-17): same push gap as
+  // the base-flow slot-conflict fix above.
+  await sendPushNotification(
+    outcome.guestId,
+    "延長をご利用いただけませんでした",
+    "選択した延長時間は他のご予約で埋まってしまったため、延長を確定できませんでした。決済は行われません。",
+    { res_id: resId, extension_id: extId, type: "matching" }
+  );
 }
 
 async function handleTransferCreated(transfer: any): Promise<void> {
@@ -635,6 +713,17 @@ async function handleTransferFailed(transfer: any): Promise<void> {
     });
   });
   await batch.commit();
+  // FIX (comprehensive project-wide review, 2026-08-17): same push gap as
+  // every other admin-alert batch in this file.
+  await Promise.all(
+    admins.docs.map((adminDoc) =>
+      sendPushNotification(adminDoc.id, "送金失敗アラート", `Transfer ${transfer.id} が失敗しました。手動確認が必要です。`, {
+        transfer_id: transfer.id,
+        cast_uid: castUid || "",
+        type: "admin",
+      })
+    )
+  );
 }
 
 async function handleIdentityVerified(session: any): Promise<void> {
@@ -655,6 +744,11 @@ async function handleIdentityVerified(session: any): Promise<void> {
     read: false,
     created_at: Timestamp.now(),
   });
+  // FIX (comprehensive project-wide review, 2026-08-17): same push gap
+  // as every other notification write in this file.
+  await sendPushNotification(uid, "本人確認が完了しました", "本人確認が承認されました。すべての機能をご利用いただけます。", {
+    type: "stripe",
+  });
 }
 
 async function handleIdentityRequiresInput(session: any): Promise<void> {
@@ -673,6 +767,9 @@ async function handleIdentityRequiresInput(session: any): Promise<void> {
     data: {},
     read: false,
     created_at: Timestamp.now(),
+  });
+  await sendPushNotification(uid, "本人確認に追加情報が必要です", "本人確認書類に不備があります。再度ご提出ください。", {
+    type: "stripe",
   });
 }
 
@@ -711,6 +808,13 @@ async function handleAccountUpdated(account: any): Promise<void> {
       data: { disabled_reason: account.requirements?.disabled_reason },
       read: false,
       created_at: Timestamp.now(),
+    });
+    // FIX (comprehensive project-wide review, 2026-08-17): same push gap
+    // as every other notification write in this file — a restricted
+    // Stripe account blocks future bookings, this is worth an immediate
+    // push, not just an in-app entry the cast might not see for days.
+    await sendPushNotification(uid, "Stripeアカウントに要対応事項があります", "本人確認またはアカウント情報の更新が必要です。", {
+      type: "stripe",
     });
   }
 }
@@ -781,6 +885,13 @@ async function handlePayoutFailed(payout: any): Promise<void> {
       read: false,
       created_at: Timestamp.now(),
     });
+    // FIX (comprehensive project-wide review, 2026-08-17): same push gap
+    // as every other notification write in this file — a failed payout
+    // is exactly the kind of event a cast needs to see immediately.
+    await sendPushNotification(reqData.user_id, "出金処理に失敗しました", "出金処理中に問題が発生しました。サポートまでお問い合わせください。", {
+      stripe_payout_id: payout.id,
+      type: "stripe",
+    });
   }
 
   const admins = await db.collection("users").where("role", "==", "admin").get();
@@ -797,40 +908,15 @@ async function handlePayoutFailed(payout: any): Promise<void> {
     });
   });
   await batch.commit();
+  await Promise.all(
+    admins.docs.map((adminDoc) =>
+      sendPushNotification(
+        adminDoc.id,
+        "【要対応】出金失敗",
+        `出金 (payout_requests/${reqDoc.id}) がStripe側で失敗しました。確認してください。`,
+        { stripe_payout_id: payout.id, payout_request_id: reqDoc.id, type: "stripe" }
+      )
+    )
+  );
 }
 
-async function mirrorStripeNotification(event: any): Promise<void> {
-  const obj = event.data?.object;
-  const metadata = obj?.metadata || {};
-
-  const targetUids: string[] = [];
-
-  if (metadata.guest_uid) targetUids.push(metadata.guest_uid);
-  if (metadata.cast_uid) targetUids.push(metadata.cast_uid);
-  if (metadata.staff_uid) targetUids.push(metadata.staff_uid);
-  if (metadata.firebase_uid) targetUids.push(metadata.firebase_uid);
-
-  if (targetUids.length === 0 && metadata.res_id) {
-    const resDoc = await db.collection("reservations").doc(metadata.res_id).get();
-    if (resDoc.exists) {
-      const resData = resDoc.data()!;
-      targetUids.push(resData.guest_id);
-      if (resData.cast_ids) targetUids.push(...resData.cast_ids);
-    }
-  }
-
-  for (const uid of targetUids) {
-    await db.collection("users").doc(uid).collection("notifications").add({
-      type: "stripe",
-      title: `Stripe: ${event.type}`,
-      body: JSON.stringify(obj).substring(0, 500),
-      data: {
-        stripe_event_id: event.id,
-        stripe_event_type: event.type,
-        raw: obj,
-      },
-      read: false,
-      created_at: Timestamp.now(),
-    });
-  }
-}

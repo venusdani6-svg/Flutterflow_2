@@ -77,6 +77,7 @@ export {
   cancelExtensionPayment,
   processTip,
   createSetupIntent,
+  getRegisteredCard,
   requestPayout,
   getWalletBalance,
   retryFailedCastTransfers,

@@ -269,25 +269,19 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    match /payment_ledger/{docId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /withdrawal_applications/{docId} {
-      allow read: if isAdmin()
-        || (isSignedIn() && resource.data.user_id == request.auth.uid);
-      allow create: if isSignedIn()
-        && request.resource.data.user_id == request.auth.uid;
-      allow update, delete: if isAdmin();
-    }
-
-    match /kyc_reviews/{docId} {
-      allow read: if isAdmin()
-        || (isSignedIn() && resource.data.user_id == request.auth.uid);
-      allow create: if isSignedIn()
-        && request.resource.data.user_id == request.auth.uid;
-      allow update, delete: if isAdmin();
-    }
+    // FIX (comprehensive project-wide review, 2026-08-17): removed rule
+    // blocks for `payment_ledger`, `withdrawal_applications`, `kyc_reviews`
+    // (this spot), and `affiliates`/`cocomise`/`job_board_posts`/
+    // `system_settings`/`prefectures` (below) - confirmed zero readers or
+    // writers anywhere in this repo (backend Cloud Functions, dsl/edit.dart,
+    // generated_code/, and not declared as a collection in
+    // lib/flutterflow_project/schemas.dart). These were dead surface area:
+    // rule blocks with no real data behind them, several of which (e.g.
+    // withdrawal_applications/kyc_reviews) even granted an authenticated
+    // client a direct create path into a collection nothing ever reads,
+    // which is more attack surface than the app actually needs. If any of
+    // these are genuinely planned features, re-add the rule (and, per
+    // schema.md, the collection) when the real read/write path is built.
 
     // Tier-4 hardening (2026-07-31): reports are filed by one user about
     // another (reporter_id/reported_id, both confirmed live) and carry an
@@ -391,20 +385,6 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    match /affiliates/{docId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /cocomise/{docId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /job_board_posts/{docId} {
-      allow read: if isAdmin()
-        || (resource.data.status == 'published');
-      allow create, update, delete: if isAdmin();
-    }
-
     // Tier-5 hardening (2026-08-03, plan item 19): genuinely public
     // promotional content (title/image_url/link_url/page/display_order) -
     // read stays open, matching the already-proven `prefectures` pattern.
@@ -453,10 +433,6 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.cast_id == request.auth.uid);
     }
 
-    match /system_settings/{docId} {
-      allow read, write: if isAdmin();
-    }
-
     // Tier-4 hardening (2026-07-31): admin action audit trail - written
     // exclusively by createAuditLog() in admin.ts via Admin SDK (bypasses
     // these rules entirely), read exclusively by the admin dashboard's
@@ -498,9 +474,5 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    match /prefectures/{docId} {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
-    }
   }
 }

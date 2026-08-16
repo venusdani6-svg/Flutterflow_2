@@ -19,6 +19,12 @@ final class KycParams {
 
 final class KycState {
   const KycState();
+  ffai.ProjectStateFieldHandle get isSubmittingKyc =>
+      const ffai.ProjectStateFieldHandle(
+        name: "isSubmittingKyc",
+        key: "l0j0dzp3",
+        typeName: "Boolean",
+      );
   ffai.ProjectStateFieldHandle get kycDocUrl =>
       const ffai.ProjectStateFieldHandle(
         name: "kycDocUrl",
@@ -251,6 +257,13 @@ abstract final class KycWidgets {
                     triggers: const <String>[
                       "ON_TAP",
                     ],
+                  ),
+                  ffai.ProjectWidgetHandle(
+                    key: "Button_la0h8zr9",
+                    type: "Button",
+                    path: "Kyc.body[0].children[0].children[9]",
+                    name: "KycSubmittingButton",
+                    text: "処理中...",
                   ),
                 ],
               ),

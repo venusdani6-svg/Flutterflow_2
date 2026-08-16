@@ -603,6 +603,50 @@ export const updateProfile = onCall(async (request) => {
     }
   }
 
+  // FIX (comprehensive project-wide review): none of these string fields
+  // had any length limit at all - a caller could write an arbitrarily
+  // large string (megabytes) to any of them, with no client-side control
+  // over it since this is a raw callable, not a form-bound write. Caps
+  // below are generous relative to real usage (self_introduction has an
+  // existing 50-char MINIMUM enforced client-side, so 1000 is intentionally
+  // roomy) - this is a floor against abuse/mistakes, not a UX constraint.
+  // `DEFAULT_MAX_LENGTH` covers any string field in `allowedFields` not
+  // explicitly listed here.
+  const FIELD_MAX_LENGTHS: Record<string, number> = {
+    nickname: 50,
+    one_line_message: 100,
+    self_introduction: 1000,
+    hobbies: 200,
+    skills: 200,
+    favorite_food_tags: 200,
+    atmosphere: 100,
+    desired_interaction: 200,
+    offered_interaction: 200,
+    staff_type: 50,
+    prefecture: 50,
+    city: 50,
+    activity_prefecture: 50,
+    activity_city: 50,
+    drinking: 50,
+    smoking: 50,
+    location: 500,
+    profile_image_url: 2000,
+    gallery_images: 2000,
+  };
+  const DEFAULT_MAX_LENGTH = 1000;
+  for (const field of allowedFields) {
+    const value = request.data[field];
+    if (typeof value === "string") {
+      const maxLength = FIELD_MAX_LENGTHS[field] ?? DEFAULT_MAX_LENGTH;
+      if (value.length > maxLength) {
+        throw new HttpsError(
+          "invalid-argument",
+          `${field}は${maxLength}文字以内で入力してください。`
+        );
+      }
+    }
+  }
+
   const updateData: Record<string, any> = { updated_at: Timestamp.now() };
 
   for (const field of allowedFields) {

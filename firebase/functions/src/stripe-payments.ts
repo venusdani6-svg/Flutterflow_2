@@ -1059,15 +1059,33 @@ export const retryFailedCastTransfers = onSchedule("every 1 hours", async () => 
 
 /**
  * Internal: Process affiliate rewards for this reservation
+ *
+ * FIX (feature build, comprehensive project-wide review, 2026-08-17): the
+ * optional 3rd param is new — `recordCancellationCastRewards` (below) pays
+ * casts real money on guest cancellation but never called this function at
+ * all, meaning a referrer earned NOTHING when their referred cast got paid
+ * via that path, silently breaking the "affiliate earns a cut of what
+ * their referred cast earns" principle every OTHER cast-payment path in
+ * this file enforces. Can't just call this unmodified with `resData` —
+ * that would compute the reward base from `resData.total_amount` (the
+ * FULL reservation amount), overpaying the affiliate relative to the
+ * FRACTIONAL cancellation-tier share their referred cast actually
+ * received. `overrides` lets a caller supply the exact cast list that
+ * actually got paid and the exact amount each of them earned, while the
+ * DEFAULT (no `overrides`, every EXISTING call site unchanged) reproduces
+ * the original `resData.cast_ids` + `total_amount - transport_fee`
+ * behavior byte-for-byte.
  */
 async function processAffiliateRewards(
   resId: string,
-  resData: FirebaseFirestore.DocumentData
+  resData: FirebaseFirestore.DocumentData,
+  overrides?: { castIds: string[]; baseAmount: number }
 ): Promise<void> {
   const config = await getSystemConfig();
   const transportFee = resData.transport_fee || 0;
+  const castIdsToProcess = overrides ? overrides.castIds : resData.cast_ids || [];
 
-  for (const castId of resData.cast_ids || []) {
+  for (const castId of castIdsToProcess) {
     // FIX (confirmed live bug, found during comprehensive review): unlike
     // its sibling loops in this same file (the cast-reward loop above and
     // the staff-fee loop below), this loop had no per-iteration try/catch
@@ -1098,7 +1116,7 @@ async function processAffiliateRewards(
       if (referrerData.approval_status !== "approved") continue;
       if (castData.approval_status !== "approved") continue;
 
-      const baseForAffiliate = resData.total_amount - transportFee;
+      const baseForAffiliate = overrides ? overrides.baseAmount : resData.total_amount - transportFee;
       const affiliateRate = referrerData.affiliate_rate || config.default_affiliate_rate;
       const rewardAmount = Math.floor(baseForAffiliate * affiliateRate);
 
@@ -1267,6 +1285,20 @@ async function recordCancellationCastRewards(
   }
 
   await transferPendingCastRewards(resId);
+
+  // FIX (comprehensive project-wide review, 2026-08-17): this path pays
+  // `payableCastIds` real money (`rewardShareEach` each) but, until now,
+  // never generated affiliate accrual for it — see `processAffiliateRewards`'s
+  // own updated doc comment for the full reasoning. Only the casts who
+  // actually got paid (`payableCastIds`, not the full `cast_ids` list —
+  // a cast skipped above for missing `stripe_account_id`/being frozen
+  // earned nothing here, so their referrer shouldn't either) and the
+  // exact amount each of them earned (`rewardShareEach`, not the full
+  // reservation total) are passed through explicitly.
+  await processAffiliateRewards(resId, resData, {
+    castIds: payableCastIds,
+    baseAmount: rewardShareEach,
+  });
 }
 
 /**
@@ -1328,7 +1360,7 @@ export const cancelPayment = onCall(async (request) => {
   // PaymentIntent. Stripe itself rejects that (caught below, rethrown as
   // an HttpsError, so it wasn't silently wrong) - but it should be
   // rejected up front with a clear reason rather than attempted and fail.
-  if (["completed", "cancelled", "expired"].includes(resData.status)) {
+  if (["completed", "cancelled", "expired", "review_pending"].includes(resData.status)) {
     throw new HttpsError(
       "failed-precondition",
       "この予約はすでに終了しているため、キャンセルできません。"
@@ -1583,7 +1615,9 @@ export const createExtensionPayment = onCall(async (request) => {
   // actually charged.
   const nightSlots: string[] = config.night_time_slots || ["3部", "4部"];
   const isNightSlot = nightSlots.includes(resData.time_slot);
-  const ratePerThirtyMin = isNightSlot ? 3000 : 2500;
+  const ratePerThirtyMin = isNightSlot
+    ? config.extension_rate_per_30min_night
+    : config.extension_rate_per_30min;
   const computedBase = Math.round(duration_minutes / 30) * ratePerThirtyMin;
   const computedTax = Math.round(computedBase * 0.1);
   const amount = computedBase + computedTax;
@@ -2097,6 +2131,58 @@ export const createSetupIntent = onCall(async (request) => {
     client_secret: setupIntent.client_secret,
     customer_id: customerId,
     ephemeral_key_secret: ephemeralKey.secret,
+  };
+});
+
+/**
+ * Callable: check whether the caller has a real, currently-attached Stripe
+ * card (comprehensive project-wide review — user-decided fix "D1").
+ *
+ * PaymentConfirm's own 登録済みカード ("registered card") summary was
+ * hardcoded UI — a static "08 / 32" expiry and a fully-masked
+ * "※※※※-※※※※-※※※※-※※※※" number shown to EVERY guest regardless of whether
+ * they had ever actually registered a card, already flagged by
+ * `registerCardWithStripe`'s own dsl/edit.dart comment ("nothing in this
+ * backend exposes yet [a] listPaymentMethods-style callable"). This is that
+ * callable. Queries Stripe directly (not a Firestore flag) specifically
+ * because a flag could go stale if the guest later detaches their card via
+ * Stripe's own customer portal or a `paymentMethods.detach` from elsewhere -
+ * Stripe itself is the only always-correct source of truth for "is there
+ * really a card on file right now."
+ *
+ * Returns pre-formatted display strings (not raw last4/exp separately) so
+ * the DSL side only has to split-and-bind, matching this project's own
+ * established "server formats, client just displays" convention (see
+ * `taxiFeeConsentLabel`/`reservationListItemLabel` in dsl/edit.dart).
+ */
+export const getRegisteredCard = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const userDoc = await db.collection("users").doc(request.auth.uid).get();
+  const customerId = userDoc.data()?.stripe_customer_id;
+
+  if (!customerId) {
+    return { success: true, has_card: false, masked_number: "", expiry_label: "" };
+  }
+
+  const paymentMethods = await stripe.paymentMethods.list({
+    customer: customerId,
+    type: "card",
+    limit: 1,
+  });
+
+  const card = paymentMethods.data[0]?.card;
+  if (!card) {
+    return { success: true, has_card: false, masked_number: "", expiry_label: "" };
+  }
+
+  return {
+    success: true,
+    has_card: true,
+    masked_number: `※※※※-※※※※-※※※※-${card.last4}`,
+    expiry_label: `${String(card.exp_month).padStart(2, "0")} / ${String(card.exp_year).slice(-2)}`,
   };
 });
 
