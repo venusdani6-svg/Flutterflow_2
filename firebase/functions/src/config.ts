@@ -212,6 +212,37 @@ export async function sendPushNotification(
   if (!uid) return;
   try {
     const userDoc = await db.collection("users").doc(uid).get();
+
+    // FIX (feature build, Tier 2 — "notification-category preferences are
+    // stored and settable via SettingsPage but never enforced"): `data.type`
+    // is already passed at every real call site of this function today
+    // (confirmed via a whole-backend grep before writing this — 13 call
+    // sites across reservations.ts/work-posts.ts/admin.ts, values
+    // "matching"/"work"/"stripe"/"admin", zero missing it), and maps 1:1
+    // onto the 5 `notify_*` fields (`_addField`'d onto `users`,
+    // SettingsPage's own toggle UI, dsl/edit.dart) that existed but were
+    // never actually consulted anywhere. "cocoten" has no live call site
+    // yet — included for forward-compatibility, not because anything
+    // uses it today. Default-true (opt-out) whenever `type` is missing/
+    // unrecognized OR the field itself is unset on the user's own doc —
+    // mirrors `fetchNotificationPreferences`'s (dsl/edit.dart) own
+    // identical `data[key] == false ? 'false' : 'true'` default exactly,
+    // so a user who's never opened Settings sees "on" AND actually
+    // receives pushes, never silently muted by this change. Gates PUSH
+    // delivery only — every call site's own separate in-app
+    // `notifications` collection write (already-existing, unrelated code)
+    // is untouched, so the notification center still shows everything
+    // regardless of this preference.
+    const notifyFieldByType: Record<string, string> = {
+      matching: "notify_matching",
+      work: "notify_work",
+      cocoten: "notify_cocoten",
+      stripe: "notify_stripe",
+      admin: "notify_admin",
+    };
+    const notifyField = data?.type ? notifyFieldByType[data.type] : undefined;
+    if (notifyField && userDoc.data()?.[notifyField] === false) return;
+
     const token = userDoc.data()?.fcm_token;
     if (!token || typeof token !== "string") return;
 

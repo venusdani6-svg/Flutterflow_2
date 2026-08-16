@@ -8,7 +8,25 @@ abstract final class ApiGroups {
 }
 
 abstract final class ActionBlocks {
+  static const refetchAdminChatRooms = "refetchAdminChatRooms";
+  static const refetchAdminCocotenShops = "refetchAdminCocotenShops";
+  static const refetchAdminPayoutRequests = "refetchAdminPayoutRequests";
+  static const refetchAdminReservations = "refetchAdminReservations";
+  static const refetchAdminWorkPosts = "refetchAdminWorkPosts";
+  static const refetchAllBanners = "refetchAllBanners";
+  static const refetchBlockedUsers = "refetchBlockedUsers";
+  static const refetchFavoriteCasts = "refetchFavoriteCasts";
+  static const refetchPendingKyc = "refetchPendingKyc";
   static const all = <String>[
+    "refetchAdminChatRooms",
+    "refetchAdminCocotenShops",
+    "refetchAdminPayoutRequests",
+    "refetchAdminReservations",
+    "refetchAdminWorkPosts",
+    "refetchAllBanners",
+    "refetchBlockedUsers",
+    "refetchFavoriteCasts",
+    "refetchPendingKyc",
   ];
 }
 

@@ -392,12 +392,24 @@ export const respondToReservation = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "認証が必要です。");
   }
 
-  const { res_id, accept } = request.data;
+  const { res_id, accept, recruit_mode } = request.data;
   const uid = request.auth.uid;
 
   if (typeof res_id !== "string" || !res_id) {
     throw new HttpsError("invalid-argument", "予約IDが必要です。");
   }
+
+  // FIX (feature build, Tier 2 item 2 — group-invite recruitment mode):
+  // `recruit_mode` is new, optional, and only meaningful for a group-invite
+  // reservation resolving to "confirmed" below. Any value other than the
+  // literal string "affiliate" (including undefined/null from every
+  // pre-existing caller — decline, non-group-invite accept, and the old
+  // client build before this change) safely collapses to "work_board",
+  // which reproduces this function's own pre-existing behavior byte-for-
+  // byte. Deliberately not validated/thrown-on here (unlike `accept`
+  // above) — an unrecognized value degrading to the safe default is
+  // correct, not an error worth rejecting the whole call over.
+  const recruitMode: "affiliate" | "work_board" = recruit_mode === "affiliate" ? "affiliate" : "work_board";
   // FIX (confirmed live bug, found during audit): `accept` was only ever
   // checked with bare JS truthiness (`if (accept)` below) - Cloud
   // Functions are directly callable with arbitrary JSON, so a non-boolean
@@ -568,19 +580,93 @@ export const respondToReservation = onCall(async (request) => {
     );
 
     if (resData.group_invite && resData.group_size > 0) {
-      await db.collection("work_posts").add({
-        poster_id: uid,
-        res_id,
-        type: "partner_recruit",
-        description: `グループお誘い: ${resData.group_size}名募集`,
-        date: resData.date,
-        location: resData.location,
-        fee: 0,
-        status: "open",
-        applicants: [],
-        selected_id: "",
-        created_at: Timestamp.now(),
-      });
+      if (recruitMode === "affiliate") {
+        // FIX (feature build, Tier 2 item 2 — "pull from affiliate
+        // network" alternative to Work-board posting, product decision
+        // confirmed with the client 2026-08-16): mirrors the Work-board
+        // post's own shape exactly (same `work_posts` doc, same
+        // `partner_recruit` type, same applicants/selected_id status
+        // machine) so `applyToWorkPost`/`selectWorkApplicant`
+        // (work-posts.ts) work completely unchanged for this path — the
+        // only difference is `network_only`/`allowed_uids`, which
+        // `fetchWorkPosts`/`getWorkPostDetail`/`applyToWorkPost` (all in
+        // work-posts.ts) check to scope visibility/eligibility to
+        // exactly this cast's own active referred network, instead of
+        // every browsing cast. "Active" reuses `is_active`, the exact
+        // same field `getAffiliateDashboard` (affiliate.ts) already
+        // tallies referred casts by — not a new/different definition.
+        const networkSnap = await db
+          .collection("users")
+          .where("referred_by_uid", "==", uid)
+          .where("is_active", "==", true)
+          .get();
+        const allowedUids = networkSnap.docs
+          .filter(
+            (d) =>
+              d.data().account_type === "cast" && d.data().approval_status === "approved"
+          )
+          .map((d) => d.id);
+
+        const postRef = db.collection("work_posts").doc();
+        await postRef.set({
+          poster_id: uid,
+          res_id,
+          type: "partner_recruit",
+          description: `グループお誘い: ${resData.group_size}名募集`,
+          date: resData.date,
+          location: resData.location,
+          fee: 0,
+          status: "open",
+          applicants: [],
+          selected_id: "",
+          network_only: true,
+          allowed_uids: allowedUids,
+          created_at: Timestamp.now(),
+        });
+
+        // Product decision (confirmed 2026-08-16): notify every eligible
+        // network member at once rather than adding a member-picker UI —
+        // the poster then selects one applicant via the same
+        // `selectWorkApplicant` flow already built for Work-board posts.
+        // No automatic timeout/fallback to Work-board if nobody responds
+        // (also confirmed) — if `allowedUids` is empty, or nobody applies,
+        // the poster's own recovery path is the new `cancelMyWorkPost`
+        // (work-posts.ts) followed by a fresh Work-board-mode accept.
+        for (const memberUid of allowedUids) {
+          await db
+            .collection("users")
+            .doc(memberUid)
+            .collection("notifications")
+            .add({
+              type: "work",
+              title: "アフィリエイトネットワークからのお誘い",
+              body: "紹介したキャストからグループのお誘いに参加しませんか、という募集があります。",
+              data: { post_id: postRef.id },
+              read: false,
+              created_at: Timestamp.now(),
+            });
+          await sendPushNotification(
+            memberUid,
+            "アフィリエイトネットワークからのお誘い",
+            "紹介したキャストからグループのお誘いに参加しませんか、という募集があります。",
+            { post_id: postRef.id, type: "work" }
+          );
+        }
+      } else {
+        await db.collection("work_posts").add({
+          poster_id: uid,
+          res_id,
+          type: "partner_recruit",
+          description: `グループお誘い: ${resData.group_size}名募集`,
+          date: resData.date,
+          location: resData.location,
+          fee: 0,
+          status: "open",
+          applicants: [],
+          selected_id: "",
+          created_at: Timestamp.now(),
+        });
+      }
     }
 
     // Auto-create staff job posts for whichever roles the guest flagged as

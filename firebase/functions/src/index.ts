@@ -119,6 +119,7 @@ export {
 export {
   applyToWorkPost,
   selectWorkApplicant,
+  cancelMyWorkPost,
   fetchWorkPosts,
   getWorkPostDetail,
   fetchMyWorkPosts,

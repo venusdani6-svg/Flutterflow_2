@@ -179,21 +179,39 @@ export const createPaymentIntent = onCall(async (request) => {
   const transferGroup = `res_${res_id}`;
 
   try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: totalAmount,
-      currency: "jpy",
-      customer: userData.stripe_customer_id,
-      capture_method: "manual",
-      transfer_group: transferGroup,
-      metadata: {
-        res_id,
-        guest_uid: request.auth.uid,
-        transport_fee: finalTransportFee.toString(),
-        staff_fee: (staff_fee || 0).toString(),
-        base_amount: amount.toString(),
-        cast_ids: JSON.stringify(cast_ids || []),
-      },
-    });
+    // FIX (feature build, Tier 2 — "card/payment-method management isn't
+    // actually wired"): this PaymentIntent was already created against
+    // `userData.stripe_customer_id` (customer: below), but nothing ever
+    // minted the matching ephemeral key the client-side Payment Sheet
+    // needs to actually SHOW that customer's saved card as selectable —
+    // omitting it opens the sheet in its anonymous, one-off-card-entry
+    // shape regardless of whether a card was ever registered via
+    // `registerCardWithStripe`/`createSetupIntent` (PROJECT_KNOWLEDGE.md
+    // §71/§72). Mirrors `createSetupIntent`'s own already-proven
+    // `Promise.all` pattern exactly, including pinning the ephemeral
+    // key's `apiVersion` to this backend's own `STRIPE_API_VERSION`
+    // rather than letting it default.
+    const [paymentIntent, ephemeralKey] = await Promise.all([
+      stripe.paymentIntents.create({
+        amount: totalAmount,
+        currency: "jpy",
+        customer: userData.stripe_customer_id,
+        capture_method: "manual",
+        transfer_group: transferGroup,
+        metadata: {
+          res_id,
+          guest_uid: request.auth.uid,
+          transport_fee: finalTransportFee.toString(),
+          staff_fee: (staff_fee || 0).toString(),
+          base_amount: amount.toString(),
+          cast_ids: JSON.stringify(cast_ids || []),
+        },
+      }),
+      stripe.ephemeralKeys.create(
+        { customer: userData.stripe_customer_id },
+        { apiVersion: STRIPE_API_VERSION }
+      ),
+    ]);
 
     // FIX (confirmed live bug, found during audit): `status: "authorized"`
     // used to be written HERE, the instant `stripe.paymentIntents.create()`
@@ -230,6 +248,8 @@ export const createPaymentIntent = onCall(async (request) => {
       total_amount: totalAmount,
       transport_fee: finalTransportFee,
       thirty_min_rule_applied: finalTransportFee === 0 && (resDataForGuard.transport_fee || 0) > 0,
+      customer_id: userData.stripe_customer_id,
+      ephemeral_key_secret: ephemeralKey.secret,
     };
   } catch (err: any) {
     console.error("PaymentIntent creation failed:", err);
@@ -1696,20 +1716,37 @@ export const createExtensionPayment = onCall(async (request) => {
     .doc();
 
   try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency: "jpy",
-      customer: userData?.stripe_customer_id,
-      capture_method: "manual",
-      transfer_group: resData.transfer_group,
-      metadata: {
-        res_id,
-        type: "extension",
-        extension_id: extRef.id,
-        extension_number: extensionNumber.toString(),
-        guest_uid: request.auth.uid,
-      },
-    });
+    // FIX (feature build, Tier 2 — "card/payment-method management isn't
+    // actually wired"): same gap, same fix shape as `createPaymentIntent`
+    // above — the PaymentIntent was already customer-scoped, but nothing
+    // minted the ephemeral key the client's Payment Sheet needs to
+    // actually surface that customer's saved card. `createExtensionPayment`
+    // is guest-only and only reachable once a reservation is already
+    // `in_progress` (guarded above), which itself requires the guest to
+    // have already completed the ORIGINAL `createPaymentIntent` flow — so
+    // `userData?.stripe_customer_id` being present here is the same
+    // pre-existing implicit assumption this function's own PaymentIntent
+    // `customer:` field already relied on, not a new one introduced here.
+    const [paymentIntent, ephemeralKey] = await Promise.all([
+      stripe.paymentIntents.create({
+        amount,
+        currency: "jpy",
+        customer: userData?.stripe_customer_id,
+        capture_method: "manual",
+        transfer_group: resData.transfer_group,
+        metadata: {
+          res_id,
+          type: "extension",
+          extension_id: extRef.id,
+          extension_number: extensionNumber.toString(),
+          guest_uid: request.auth.uid,
+        },
+      }),
+      stripe.ephemeralKeys.create(
+        { customer: userData?.stripe_customer_id },
+        { apiVersion: STRIPE_API_VERSION }
+      ),
+    ]);
 
     await extRef.set({
       ext_id: extRef.id,
@@ -1726,6 +1763,8 @@ export const createExtensionPayment = onCall(async (request) => {
       client_secret: paymentIntent.client_secret,
       payment_intent_id: paymentIntent.id,
       extension_id: extRef.id,
+      customer_id: userData?.stripe_customer_id,
+      ephemeral_key_secret: ephemeralKey.secret,
     };
   } catch (err: any) {
     console.error("Extension payment creation failed:", err);

@@ -210,41 +210,51 @@ abstract final class WorkPostDetailPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
+                key: "Button_ds56g5qd",
+                type: "Button",
+                path: "WorkPostDetailPage.body[0].children[9]",
+                name: "WorkPostCancelButton",
+                text: "投稿を取り消す",
+                triggers: const <String>[
+                  "ON_TAP",
+                ],
+              ),
+              ffai.ProjectWidgetHandle(
                 key: "Text_hac41pdt",
                 type: "Text",
-                path: "WorkPostDetailPage.body[0].children[9]",
+                path: "WorkPostDetailPage.body[0].children[10]",
                 name: "Text",
                 text: "応募済みです。",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Text_vzqqarab",
                 type: "Text",
-                path: "WorkPostDetailPage.body[0].children[10]",
+                path: "WorkPostDetailPage.body[0].children[11]",
                 name: "Text",
                 text: "応募者一覧",
               ),
               ffai.ProjectWidgetHandle(
                 key: "ListView_9xkyi08s",
                 type: "ListView",
-                path: "WorkPostDetailPage.body[0].children[11]",
+                path: "WorkPostDetailPage.body[0].children[12]",
                 name: "WorkPostApplicantsListView",
                 children: <ffai.ProjectWidgetHandle>[
                   ffai.ProjectWidgetHandle(
                     key: "Row_h3jpdkvt",
                     type: "Row",
-                    path: "WorkPostDetailPage.body[0].children[11].children[0]",
+                    path: "WorkPostDetailPage.body[0].children[12].children[0]",
                     name: "Row",
                     children: <ffai.ProjectWidgetHandle>[
                       ffai.ProjectWidgetHandle(
                         key: "Text_oty2ekiz",
                         type: "Text",
-                        path: "WorkPostDetailPage.body[0].children[11].children[0].children[0]",
+                        path: "WorkPostDetailPage.body[0].children[12].children[0].children[0]",
                         name: "Text",
                       ),
                       ffai.ProjectWidgetHandle(
                         key: "Button_puhug8da",
                         type: "Button",
-                        path: "WorkPostDetailPage.body[0].children[11].children[0].children[1]",
+                        path: "WorkPostDetailPage.body[0].children[12].children[0].children[1]",
                         name: "Button",
                         text: "選定する",
                         triggers: const <String>[

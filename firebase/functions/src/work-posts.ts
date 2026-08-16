@@ -77,6 +77,17 @@ export const applyToWorkPost = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "自分の投稿には応募できません。");
   }
 
+  // FIX (feature build, Tier 2 item 2 — affiliate-network recruitment):
+  // `fetchWorkPosts` already excludes a `network_only` post from anyone
+  // outside `allowed_uids` at the listing level, but that's a convenience
+  // filter, not an authorization boundary — this callable is reachable
+  // directly with any `post_id`, so the real eligibility check belongs
+  // here too (defense in depth, same posture as the `blocked_users` check
+  // just below).
+  if (postData.network_only === true && !(postData.allowed_uids || []).includes(uid)) {
+    throw new HttpsError("permission-denied", "この投稿には応募できません。");
+  }
+
   // FIX (PROJECT_KNOWLEDGE.md §70, MEDIUM — comprehensive project-wide
   // review): `blocked_users` was checked at booking time
   // (createReservation, reservations.ts) but never anywhere in this file —
@@ -316,6 +327,71 @@ export const selectWorkApplicant = onCall(async (request) => {
 });
 
 /**
+ * Callable: cancel one's OWN open work post (poster-facing self-service,
+ * not admin — distinct from adminCloseWorkPost)
+ * 自分のワーク投稿の取り消し
+ *
+ * FIX (feature build, Tier 2 item 2 — UNRESOLVED_ISSUES.md, "no self-
+ * service way for the cast/poster to cancel just the group-invite
+ * portion — only an admin-only close exists"): `adminCloseWorkPost`
+ * (admin.ts) was the only way to close a `work_posts` doc before this;
+ * this is its poster-facing equivalent. Product decision (confirmed with
+ * the client 2026-08-16, matches IMPLEMENTATION_PLAN.md's own "if no
+ * members are ever found, only the group-invite/recruitment portion can
+ * be cancelled" wording literally): only permitted while the post has
+ * ZERO applicants — once someone has applied, cancelling out from under
+ * them is a bigger behavioral change than this pass is scoped to build,
+ * so the poster must either select an applicant (`selectWorkApplicant`)
+ * or fall back to admin moderation (`adminCloseWorkPost`) instead. Reuses
+ * `status: "closed"`, the exact same terminal state `adminCloseWorkPost`
+ * already writes, rather than introducing a new status value the rest of
+ * this collection's status machine (open -> filled -> closed) would need
+ * to learn about.
+ */
+export const cancelMyWorkPost = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です。");
+  }
+
+  const uid = request.auth.uid;
+  const { post_id } = request.data;
+  if (!post_id) {
+    throw new HttpsError("invalid-argument", "post_idが必要です。");
+  }
+
+  const postRef = db.collection("work_posts").doc(post_id);
+  // Transaction, matching selectWorkApplicant's own reasoning just above:
+  // a poster double-tapping "cancel" (or racing an incoming
+  // applyToWorkPost) must not be able to close a post whose applicant
+  // count changed underneath a non-atomic read-check-write.
+  await db.runTransaction(async (tx) => {
+    const postSnap = await tx.get(postRef);
+    if (!postSnap.exists) {
+      throw new HttpsError("not-found", "投稿が見つかりません。");
+    }
+    const data = postSnap.data()!;
+
+    if (data.poster_id !== uid) {
+      throw new HttpsError("permission-denied", "自分の投稿のみ操作できます。");
+    }
+    if (data.status !== "open") {
+      throw new HttpsError("failed-precondition", "この投稿はすでに処理済みです。");
+    }
+    const applicants: string[] = data.applicants || [];
+    if (applicants.length > 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "応募者がいる投稿は取り消せません。応募者を選定してください。"
+      );
+    }
+
+    tx.update(postRef, { status: "closed" });
+  });
+
+  return { success: true };
+});
+
+/**
  * Callable: list open work posts (client-facing browse, scoped to what a
  * cast is actually allowed to see/apply to — mirrors adminGetWorkPosts'
  * shape but without the admin gate, and only ever returns "open" posts
@@ -327,6 +403,7 @@ export const fetchWorkPosts = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "認証が必要です。");
   }
+  const uid = request.auth.uid;
 
   // `type` filtering is done in-memory below, not as a server-side
   // `.where()` — an optional third filter alongside status+orderBy would
@@ -345,6 +422,18 @@ export const fetchWorkPosts = onCall(async (request) => {
     .get();
   let posts = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   if (type) posts = posts.filter((p) => (p as { type?: string }).type === type);
+  // FIX (feature build, Tier 2 item 2 — affiliate-network recruitment):
+  // a `network_only` post (created by the new "pull from affiliate
+  // network" accept path, reservations.ts) must stay invisible on the
+  // general public browse to everyone except its own poster and the
+  // specific referred-network members it was created for — otherwise
+  // it's indistinguishable from a normal public Work-board post and the
+  // whole point of the "affiliate network" choice is defeated.
+  posts = posts.filter((p) => {
+    const row = p as { poster_id?: string; network_only?: boolean; allowed_uids?: string[] };
+    if (row.network_only !== true) return true;
+    return row.poster_id === uid || (row.allowed_uids || []).includes(uid);
+  });
 
   const posterIds = Array.from(
     new Set(posts.map((p) => (p as { poster_id?: string }).poster_id).filter((id): id is string => !!id))
@@ -388,6 +477,19 @@ export const getWorkPostDetail = onCall(async (request) => {
   }
   const postData = postSnap.data()!;
   const isPoster = postData.poster_id === uid;
+
+  // FIX (feature build, Tier 2 item 2 — affiliate-network recruitment):
+  // same visibility boundary as fetchWorkPosts' listing-level filter,
+  // enforced again here since a `post_id` (e.g. from the invite
+  // notification's own `data.post_id`) lets a caller request a specific
+  // post's detail directly, bypassing the list filter entirely.
+  if (
+    postData.network_only === true &&
+    !isPoster &&
+    !(postData.allowed_uids || []).includes(uid)
+  ) {
+    throw new HttpsError("permission-denied", "この投稿は閲覧できません。");
+  }
 
   const posterDoc = await db.collection("users").doc(postData.poster_id).get();
   const posterNickname = posterDoc.exists ? (posterDoc.data()?.nickname as string) || "" : "";

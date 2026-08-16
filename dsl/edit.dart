@@ -3697,6 +3697,43 @@ Future<bool> callRespondToReservation(String? resId, bool? accept) async {
 ''',
   );
 
+  // FIX (feature build, Tier 2 item 2 — UNRESOLVED_ISSUES.md, "no 'pull
+  // from affiliate network' alternative to Work-board posting"): kept as
+  // a SEPARATE action from `callRespondToReservation` above, deliberately
+  // — that action is still called unchanged for decline and for every
+  // non-group-invite accept, so adding a `recruitMode` param to ITS own
+  // signature would need the freeze+`updateCustomAction`+raw-arguments
+  // dance for a benefit only the group-invite accept path needs. Only
+  // ever called with `accept: true` implicitly (recruit mode is only
+  // meaningful on accept), so unlike `callRespondToReservation` this
+  // doesn't need its own `accept` param at all.
+  app.customAction(
+    'callRespondToReservationWithRecruitMode',
+    args: {'resId': string, 'recruitMode': string},
+    returns: bool_,
+    description:
+        'respondToReservation Cloud Functionを呼び出し、グループお誘いの募集方法（アフィリエイトネットワーク/ワーク掲示板）を指定して承諾する。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callRespondToReservationWithRecruitMode(String? resId, String? recruitMode) async {
+  try {
+    if (resId == null || resId.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('respondToReservation');
+    final result = await callable.call({
+      'res_id': resId,
+      'accept': true,
+      'recruit_mode': recruitMode ?? 'work_board',
+    });
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
+  }
+}
+''',
+  );
+
   // FIX (feature build, unimplemented-features pass): `callRespondToReservation`
   // above only ever returned a bare success bool — the cast always saw the
   // SAME generic "承諾しました"/"辞退しました" Snackbar regardless of the
@@ -4404,6 +4441,28 @@ import 'package:flutter_stripe/flutter_stripe.dart';
 
 Future<String?> confirmStripePayment(String clientSecret) async {
   try {
+    // FIX (feature build, Tier 2 — "card/payment-method management isn't
+    // actually wired"): `clientSecret` is now a `|||`-delimited blob
+    // (`getPaymentClientSecret`/`callCreateExtensionPayment`, both
+    // extended in this same pass) carrying the real PaymentIntent client
+    // secret PLUS the Stripe customer id and a matching ephemeral key —
+    // without those last two, `initPaymentSheet` below opens as an
+    // anonymous one-off card entry with no link back to the customer's
+    // Stripe record, so a card registered via `registerCardWithStripe`
+    // never actually surfaces as selectable here. Splitting on the
+    // signature's own single String param (rather than adding new named
+    // params via `updateCustomAction`'s `arguments:`) keeps every
+    // existing call site working unchanged — each already forwards
+    // whatever its own upstream action returned as this one string arg.
+    // Defensive on part count (falls back to the bare original behavior
+    // if either extra field is missing) rather than assuming every
+    // caller was updated — matches this file's own established
+    // `splitField`-consumer convention.
+    final parts = clientSecret.split('|||');
+    final realClientSecret = parts.isNotEmpty ? parts[0] : clientSecret;
+    final customerId = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null;
+    final ephemeralKeySecret = parts.length > 2 && parts[2].isNotEmpty ? parts[2] : null;
+
     // Set your Stripe publishable key (test mode)
     Stripe.publishableKey =
         'pk_test_51R7BeGR2VQ6GS3rfVe66XcFQRckis8u7cWcYtHnqOqJZw7ac0lmc8aS5SzFIZM8pAK0hUO0ZYuHQ3AeC0ZgJdnKD00ou7pId8U';
@@ -4413,7 +4472,9 @@ Future<String?> confirmStripePayment(String clientSecret) async {
     // Initialize the payment sheet
     await Stripe.instance.initPaymentSheet(
       paymentSheetParameters: SetupPaymentSheetParameters(
-        paymentIntentClientSecret: clientSecret,
+        paymentIntentClientSecret: realClientSecret,
+        customerId: customerId,
+        customerEphemeralKeySecret: ephemeralKeySecret,
         merchantDisplayName: 'icoccha',
         style: ThemeMode.light,
       ),
@@ -4436,12 +4497,66 @@ Future<String?> confirmStripePayment(String clientSecret) async {
     );
   });
 
-  app.customAction(
-    'getPaymentClientSecret',
-    args: {'resId': string},
-    returns: string,
-    description: 'createPaymentIntent Cloud Functionを呼び出し、Stripe決済のclient_secretを取得する。',
-    code: r'''
+  // Original declaration frozen (feature build, Tier 2 — "card/payment-
+  // method management isn't actually wired": `createPaymentIntent`
+  // (stripe-payments.ts) now also mints an ephemeral key and returns
+  // `customer_id`/`ephemeral_key_secret` alongside `client_secret` — this
+  // action needs to surface all 3 to its caller, not just the bare
+  // secret). Re-declaring via `app.customAction` fails once its payload
+  // changes (`getPaymentClientSecret` already exists live from an earlier
+  // session) — the extended return now lands via `updateCustomAction`
+  // inside `app.raw(...)` below, same established pattern as every other
+  // already-live custom action this file mutates in place.
+  //   app.customAction(
+  //     'getPaymentClientSecret',
+  //     args: {'resId': string},
+  //     returns: string,
+  //     description: 'createPaymentIntent Cloud Functionを呼び出し、Stripe決済のclient_secretを取得する。',
+  //     code: r'''
+  //   import 'package:cloud_firestore/cloud_firestore.dart';
+  //   import 'package:cloud_functions/cloud_functions.dart';
+  //
+  //   Future<String?> getPaymentClientSecret(String? resId) async {
+  //     try {
+  //       if (resId == null || resId.isEmpty) return null;
+  //       final doc = await FirebaseFirestore.instance
+  //           .collection('reservations')
+  //           .doc(resId)
+  //           .get();
+  //       final data = doc.data();
+  //       if (data == null) return null;
+  //       final baseAmount = (data['base_amount'] as num?)?.toInt() ?? 0;
+  //       final transportFee = (data['transport_fee'] as num?)?.toInt() ?? 0;
+  //       final staffFee = (data['staff_fee'] as num?)?.toInt() ?? 0;
+  //       final castIds =
+  //           (data['cast_ids'] as List?)?.map((e) => e.toString()).toList() ??
+  //               <String>[];
+  //
+  //       final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+  //           .httpsCallable('createPaymentIntent');
+  //       final result = await callable.call({
+  //         'res_id': resId,
+  //         'amount': baseAmount,
+  //         'transport_fee': transportFee,
+  //         'staff_fee': staffFee,
+  //         'cast_ids': castIds,
+  //       });
+  //       if (result.data is Map && result.data['client_secret'] != null) {
+  //         return result.data['client_secret'] as String;
+  //       }
+  //       return null;
+  //     } catch (e) {
+  //       return null;
+  //     }
+  //   }
+  //   ''',
+  //   );
+
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'getPaymentClientSecret',
+      code: r'''
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
@@ -4471,7 +4586,18 @@ Future<String?> getPaymentClientSecret(String? resId) async {
       'cast_ids': castIds,
     });
     if (result.data is Map && result.data['client_secret'] != null) {
-      return result.data['client_secret'] as String;
+      // FIX (feature build, Tier 2 — card/payment-method management):
+      // appended as trailing `|||`-delimited fields (this codebase's own
+      // established multi-value custom-action-return convention, e.g.
+      // `callCreateExtensionPayment` below) rather than changing this
+      // action's return TYPE — `confirmStripePayment` (the sole
+      // consumer) already receives whatever this returns as its single
+      // `clientSecret` string arg unchanged, so extending the STRING
+      // itself needs zero changes at that call site.
+      final clientSecret = result.data['client_secret'] as String;
+      final customerId = result.data['customer_id']?.toString() ?? '';
+      final ephemeralKeySecret = result.data['ephemeral_key_secret']?.toString() ?? '';
+      return '$clientSecret|||$customerId|||$ephemeralKeySecret';
     }
     return null;
   } catch (e) {
@@ -4479,7 +4605,8 @@ Future<String?> getPaymentClientSecret(String? resId) async {
   }
 }
 ''',
-  );
+    );
+  });
 
   app.customAction(
     'isPaymentSuccess',
@@ -7063,16 +7190,41 @@ Future<bool> callUpdateProfilePhoto(String? photoUrl) async {
         If(
           Not(Equals(ActionOutput('newPhotoUrl'), '')),
           then: [
-            SetState('editProfileImageUrl', ActionOutput('newPhotoUrl')),
+            // Confirm-before-action pass (fresh full-app survey, see
+            // PROJECT_KNOWLEDGE.md §116): added right after a real image was
+            // successfully picked/uploaded, immediately before it's
+            // persisted — not before opening the picker, since picking a
+            // file isn't itself the mutation and confirming before that
+            // step would be a confusing extra tap for no reason. Edited
+            // this EXISTING `ensureActions` call in place (per this file's
+            // own established rule for a button with an active prior
+            // declaration) rather than adding a competing new one.
             CallCustomAction.named(
-              'callUpdateProfilePhoto',
-              arguments: {'photoUrl': ActionOutput('newPhotoUrl')},
-              outputAs: 'photoSaveResult',
+              'confirmDialog',
+              arguments: {
+                'title': 'プロフィール画像を変更しますか？',
+                'message': '選択した画像を新しいプロフィール画像として保存します。よろしいですか？',
+                'confirmText': '変更する',
+                'dismissText': 'キャンセル',
+              },
+              outputAs: 'profilePhotoChangeConfirmed',
             ),
             If(
-              ActionOutput('photoSaveResult'),
-              then: [Snackbar('画像を更新しました。')],
-              orElse: [Snackbar('画像の保存に失敗しました。もう一度お試しください。')],
+              ActionOutput('profilePhotoChangeConfirmed'),
+              then: [
+                SetState('editProfileImageUrl', ActionOutput('newPhotoUrl')),
+                CallCustomAction.named(
+                  'callUpdateProfilePhoto',
+                  arguments: {'photoUrl': ActionOutput('newPhotoUrl')},
+                  outputAs: 'photoSaveResult',
+                ),
+                If(
+                  ActionOutput('photoSaveResult'),
+                  then: [Snackbar('画像を更新しました。')],
+                  orElse: [Snackbar('画像の保存に失敗しました。もう一度お試しください。')],
+                ),
+              ],
+              orElse: [],
             ),
           ],
           orElse: [],
@@ -11578,12 +11730,63 @@ Future<List<String>> fetchWorkPostsList() async {
 ''',
   );
 
-  app.customAction(
-    'fetchWorkPostDetailData',
-    args: {'postId': string},
-    returns: string,
-    description: 'getWorkPostDetail Cloud Functionを呼び出し、ワーク投稿の詳細を取得する。',
-    code: r'''
+  // Original declaration frozen (feature build, Tier 2 item 2 — the
+  // self-service cancel button needs to know the post's applicant count
+  // to gate its own visibility, PROJECT_KNOWLEDGE.md's own established
+  // pattern for extending an already-live return string: append a new
+  // field at the END rather than inserting one in the middle, so every
+  // existing `parts[N]` consumer of this string — all already live —
+  // keeps reading the exact same index it always has). Re-declaring via
+  // `app.customAction` fails once its payload changes (`fetchWorkPostDetailData`
+  // already exists live from an earlier session) — the `applicantCount`
+  // field now lands via `updateCustomAction` inside `app.raw(...)` below,
+  // same established pattern as `fetchReservationDetailData` elsewhere in
+  // this file.
+  //   app.customAction(
+  //     'fetchWorkPostDetailData',
+  //     args: {'postId': string},
+  //     returns: string,
+  //     description: 'getWorkPostDetail Cloud Functionを呼び出し、ワーク投稿の詳細を取得する。',
+  //     code: r'''
+  //   import 'package:cloud_functions/cloud_functions.dart';
+  //
+  //   Future<String> fetchWorkPostDetailData(String? postId) async {
+  //     try {
+  //       final pid = postId ?? '';
+  //       if (pid.isEmpty) return '';
+  //       final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+  //           .httpsCallable('getWorkPostDetail');
+  //       final result = await callable.call({'post_id': pid});
+  //       if (result.data is! Map) return '';
+  //       final d = result.data as Map;
+  //       final post = d['post'] as Map? ?? {};
+  //       final type = post['type']?.toString() ?? '';
+  //       final description = (post['description']?.toString() ?? '').replaceAll('|||', '');
+  //       var dateLabel = '';
+  //       final ts = post['date'];
+  //       if (ts is Map && ts['_seconds'] != null) {
+  //         final dt = DateTime.fromMillisecondsSinceEpoch((ts['_seconds'] as int) * 1000);
+  //         dateLabel = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  //       }
+  //       final location = (post['location']?.toString() ?? '').replaceAll('|||', '');
+  //       final fee = post['fee']?.toString() ?? '0';
+  //       final status = post['status']?.toString() ?? '';
+  //       final posterNickname = (d['poster_nickname']?.toString() ?? '').replaceAll('|||', '');
+  //       final isPoster = (d['is_poster'] == true).toString();
+  //       final hasApplied = (d['has_applied'] == true).toString();
+  //       return '$type|||$description|||$dateLabel|||$location|||$fee|||$status|||$posterNickname|||$isPoster|||$hasApplied';
+  //     } catch (e) {
+  //       return '';
+  //     }
+  //   }
+  //   ''',
+  //   );
+
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'fetchWorkPostDetailData',
+      code: r'''
 import 'package:cloud_functions/cloud_functions.dart';
 
 Future<String> fetchWorkPostDetailData(String? postId) async {
@@ -11610,11 +11813,35 @@ Future<String> fetchWorkPostDetailData(String? postId) async {
     final posterNickname = (d['poster_nickname']?.toString() ?? '').replaceAll('|||', '');
     final isPoster = (d['is_poster'] == true).toString();
     final hasApplied = (d['has_applied'] == true).toString();
-    return '$type|||$description|||$dateLabel|||$location|||$fee|||$status|||$posterNickname|||$isPoster|||$hasApplied';
+    // FIX (feature build, Tier 2 item 2): `applicants` is only present on
+    // `post` when the caller IS the poster (getWorkPostDetail's own
+    // `omitApplicants` strips it for everyone else, work-posts.ts) —
+    // exactly the audience the new cancel button's own visibility gate
+    // cares about, so defaulting to 0 for a non-poster caller is safe
+    // (the button stays hidden for them regardless of this value).
+    final applicants = post['applicants'];
+    final applicantCount = (applicants is List) ? applicants.length.toString() : '0';
+    return '$type|||$description|||$dateLabel|||$location|||$fee|||$status|||$posterNickname|||$isPoster|||$hasApplied|||$applicantCount';
   } catch (e) {
     return '';
   }
 }
+''',
+    );
+  });
+
+  final workPostDetailCanCancelFn = app.customFunction(
+    'workPostDetailCanCancel',
+    args: {'data': string},
+    returns: bool_,
+    description: 'ワーク投稿詳細データから、投稿者が今すぐ投稿を取り消せるか（募集中・応募者0名）を判定する。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+if (parts.length <= 9) return false;
+final status = parts[5];
+final isPoster = parts[7] == 'true';
+final applicantCount = int.tryParse(parts[9]) ?? -1;
+return isPoster && status == 'open' && applicantCount == 0;
 ''',
   );
 
@@ -11691,6 +11918,33 @@ Future<String> callSelectWorkApplicant(String? postId, String? applicantId) asyn
     return result.data['chat_room_id']?.toString() ?? '';
   } catch (e) {
     return 'error';
+  }
+}
+''',
+  );
+
+  // FIX (feature build, Tier 2 item 2 — UNRESOLVED_ISSUES.md, "no self-
+  // service way for the cast/poster to cancel just the group-invite
+  // portion — only an admin-only close exists"): `cancelMyWorkPost`
+  // (work-posts.ts) is its poster-facing counterpart to `adminCloseWorkPost`.
+  app.customAction(
+    'callCancelMyWorkPost',
+    args: {'postId': string},
+    returns: bool_,
+    description: 'cancelMyWorkPost Cloud Functionを呼び出し、自分のワーク投稿を取り消す。',
+    code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<bool> callCancelMyWorkPost(String? postId) async {
+  try {
+    final pid = postId ?? '';
+    if (pid.isEmpty) return false;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('cancelMyWorkPost');
+    final result = await callable.call({'post_id': pid});
+    return result.data is Map && result.data['success'] == true;
+  } catch (e) {
+    return false;
   }
 }
 ''',
@@ -12306,6 +12560,7 @@ Future<String> fetchMyWorkSettings() async {
 
   app.editPageState(ff.Pages.paymentConfirm, (state) {
     state.ensureField('paymentConfirmData', string.withDefault(''));
+    state.ensureField('taxiFeeConsentChecked', bool_.withDefault(false));
   });
 
   // Original declaration frozen (comprehensive project-wide review round
@@ -12438,6 +12693,50 @@ return (int.tryParse(parts[5]) ?? 0) > 0;
 final parts = (data ?? '').split('|||');
 final applied = parts.length > 6 && parts[6] == 'true';
 return applied ? '適用済み' : '未適用';
+''',
+  );
+
+  // Night-taxi-fee dedicated consent step (IMPLEMENTATION_PLAN.md
+  // §3.5.3/§3.6.12). `transport_fee` (index 3, already displayed as the
+  // existing "タクシー代" line above) is confirmed via
+  // firebase/functions/src/reservations.ts to be EXCLUSIVELY the flat
+  // night-slot fee (`nightTimeSlots.includes(time_slot) ? config
+  // .transport_fee_amount : 0`) — no other transport-fee concept exists in
+  // this backend, so `> 0` is an accurate, backend-verified proxy for "this
+  // reservation was charged the night fee," not a guess.
+  final paymentConfirmHasTaxiFeeFn = app.customFunction(
+    'paymentConfirmHasTaxiFee',
+    args: {'data': string},
+    returns: bool_,
+    description: '決済確認画面データから深夜タクシー代（transport_fee）が発生しているか判定する。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+if (parts.length <= 3) return false;
+return (int.tryParse(parts[3]) ?? 0) > 0;
+''',
+  );
+
+  final paymentConfirmNeedsTaxiConsentFn = app.customFunction(
+    'paymentConfirmNeedsTaxiConsent',
+    args: {'data': string, 'consented': bool_},
+    returns: bool_,
+    description: '深夜タクシー代が発生しているにもかかわらず、同意チェックボックスが未チェックか判定する。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+final hasTaxiFee = parts.length > 3 && (int.tryParse(parts[3]) ?? 0) > 0;
+return hasTaxiFee && !(consented ?? false);
+''',
+  );
+
+  final taxiFeeConsentLabelFn = app.customFunction(
+    'taxiFeeConsentLabel',
+    args: {'data': string},
+    returns: string,
+    description: '深夜タクシー代の同意チェックボックス用ラベル（実際の金額を含む）を生成する。',
+    code: r'''
+final parts = (data ?? '').split('|||');
+final fee = parts.length > 3 ? (int.tryParse(parts[3]) ?? 0) : 0;
+return '深夜タクシー代 ¥$fee を含む合計金額に同意します';
 ''',
   );
 
@@ -12796,6 +13095,55 @@ return 'ご利用時間帯　${timeSlot ?? "第2部"}';
   //     returns: string,
   //     code: r'''...returns "client_secret|||extension_id"...''',
   //   );
+
+  // FIX (feature build, Tier 2 — "card/payment-method management isn't
+  // actually wired"): the FRESH `updateCustomAction` call the comment
+  // block above says is required before this action can be touched again
+  // — args/returns type UNCHANGED (still `{resId: string, minutes: int_,
+  // amount: int_} -> string`), only the return STRING's content extended.
+  // `createExtensionPayment` (stripe-payments.ts) now also returns
+  // `customer_id`/`ephemeral_key_secret` (same fix as `createPaymentIntent`,
+  // this same pass). Field ORDER deliberately changed, not just appended:
+  // `client_secret|||customer_id|||ephemeral_key_secret|||extension_id` —
+  // putting the 3 fields `confirmStripePayment` needs contiguously at the
+  // FRONT (indices 0-2) lets that action's call site (below) pass this
+  // WHOLE returned blob straight through as its single `clientSecret`
+  // string arg with zero extraction/reconstruction needed; `extension_id`
+  // moves to index 3, so its own call site's `splitFieldFn` extraction
+  // (originally index 1) is updated to index 3 in the SAME push, not left
+  // silently broken.
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'callCreateExtensionPayment',
+      code: r'''
+import 'package:cloud_functions/cloud_functions.dart';
+
+Future<String?> callCreateExtensionPayment(
+    String? resId, int? minutes, int? amount) async {
+  try {
+    if (resId == null || resId.isEmpty) return null;
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('createExtensionPayment');
+    final result = await callable.call({
+      'res_id': resId,
+      'amount': amount ?? 0,
+      'duration_minutes': minutes ?? 0,
+    });
+    if (result.data is Map && result.data['client_secret'] != null) {
+      final extensionId = result.data['extension_id']?.toString() ?? '';
+      final customerId = result.data['customer_id']?.toString() ?? '';
+      final ephemeralKeySecret = result.data['ephemeral_key_secret']?.toString() ?? '';
+      return '${result.data['client_secret']}|||$customerId|||$ephemeralKeySecret|||$extensionId';
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+''',
+    );
+  });
 
   app.customAction(
     'callCancelExtensionPayment',
@@ -13243,10 +13591,95 @@ return list.where((shop) {
 ''',
   );
 
+  // FIX (feature build, Tier 2 last item — "CocoTen incomplete: no ...
+  // area search"): `adminUpsertCocotenShop` (admin.ts) has ALWAYS written
+  // a real `prefecture` field on every `cocoten_shops` document (confirmed
+  // by reading it directly — `resolvedPrefecture`, part of `shopData`) —
+  // the data was already there, only the FlutterFlow-side typed schema
+  // never declared it (only the combined `address` string was ever
+  // declared), so no `FirestoreQuery`/typed custom function could read it.
+  // `_addField` (this file's own idempotent schema helper, defined near
+  // the top of this file) exposes it — purely additive, no existing
+  // reader/writer of `cocoten_shops` is affected.
+  app.raw((project) {
+    _addField(project, 'cocoten_shops', 'prefecture', _string, description: '都道府県。');
+  });
+
+  // Derives the set of prefectures actually in use from the already-
+  // fetched `shops` list (CocomisePage's own ON_INIT_STATE, below) rather
+  // than a separate backend fetch — no new Cloud Function needed, and a
+  // prefecture with zero shops never appears as a selectable, empty-result
+  // filter option.
+  final cocotenShopPrefecturesFn = app.customFunction(
+    'cocotenShopPrefectures',
+    args: {'shops': listOf(ff.Collections.cocotenShops)},
+    returns: listOf(string),
+    description: '取得済みのcocoten_shops一覧から、実際に存在する都道府県の一覧（重複除去・昇順ソート）を作る。',
+    code: r'''
+final list = shops ?? const [];
+final set = <String>{};
+for (final shop in list) {
+  final p = (shop.prefecture ?? '').trim();
+  if (p.isNotEmpty) set.add(p);
+}
+final result = set.toList()..sort();
+return result;
+''',
+  );
+
+  // FIX (feature build, Tier 2 last item): a NEW function rather than
+  // extending the already-live `filterCocotenShopsFn` above via
+  // `updateCustomFunction`'s `arguments:` list — this project's own
+  // established, hard-won rule (`.cursor/rules/project_rules.md`, "Adding
+  // a NEW PARAMETER to an ALREADY-LIVE custom action... cannot be made to
+  // validate successfully no matter how it's expressed — declare a
+  // brand-new action instead") applies the same way to custom FUNCTIONS
+  // (`updateCustomFunction` takes the identical raw `List<FFParameter>?`
+  // shape). Same filtering logic as the original, plus a `prefecture`
+  // check; the original `filterCocotenShopsFn` declaration is left live
+  // and unused rather than removed (harmless, avoids risking a working
+  // artifact for a cosmetic cleanup).
+  final filterCocotenShopsV2Fn = app.customFunction(
+    'filterCocotenShopsV2',
+    args: {
+      'shops': listOf(ff.Collections.cocotenShops),
+      'genre': string,
+      'activeOnly': bool_,
+      'keyword': string,
+      'prefecture': string,
+    },
+    returns: listOf(ff.Collections.cocotenShops),
+    description: 'cocoten_shops一覧をジャンル/オープン中/キーワード/都道府県でクライアント側フィルタする（CocomisePage、都道府県フィルタ追加版）。',
+    code: r'''
+final list = shops ?? const [];
+String strip(String s) => s.replaceAll(RegExp(r'[\s　]'), '');
+final normalizedGenre = strip(genre ?? '');
+final kw = (keyword ?? '').trim().toLowerCase();
+final onlyActive = activeOnly ?? false;
+final pref = (prefecture ?? '').trim();
+return list.where((shop) {
+  if (onlyActive && shop.active != true) return false;
+  if (normalizedGenre.isNotEmpty) {
+    final shopGenre = strip(shop.genre ?? '');
+    if (!shopGenre.contains(normalizedGenre)) return false;
+  }
+  if (kw.isNotEmpty) {
+    if (!(shop.name ?? '').toLowerCase().contains(kw)) return false;
+  }
+  if (pref.isNotEmpty) {
+    if ((shop.prefecture ?? '') != pref) return false;
+  }
+  return true;
+}).toList();
+''',
+  );
+
   app.editPageState(ff.Pages.cocomisePage, (state) {
     state.ensureField('shops', listOf(ff.Collections.cocotenShops));
     state.ensureField('selectedGenre', string.withDefault(''));
     state.ensureField('activeOnly', bool_.withDefault(true)); // preserves the switch's current default-ON look
+    state.ensureField('selectedPrefecture', string.withDefault(''));
+    state.ensureField('prefectureOptions', listOf(string));
   });
 
   app.editPage(ff.Pages.cocomisePage, (page) {
@@ -13294,7 +13727,10 @@ return list.where((shop) {
     // project's own hard-learned rule (a SECOND ensureActions call on the
     // same root+ON_INIT_STATE trigger fails compileDslApp outright), this
     // must stay the ONLY call on this trigger going forward — any future
-    // addition nests inside this same call.
+    // addition nests inside this same call. Re-edited (feature build, Tier
+    // 2 last item) to also derive `prefectureOptions` from the SAME fetch
+    // — the 3 original actions above reproduced byte-for-byte, one new
+    // action appended.
     page.ensureActions(
       page.root,
       triggerType: FFActionTriggerType.ON_INIT_STATE,
@@ -13307,6 +13743,10 @@ return list.where((shop) {
           outputAs: 'cocotenShopsResult',
         ),
         SetState('shops', ActionOutput('cocotenShopsResult')),
+        SetState(
+          'prefectureOptions',
+          CustomFunction(cocotenShopPrefecturesFn, args: {'shops': ActionOutput('cocotenShopsResult')}),
+        ),
       ],
     );
 
@@ -13389,6 +13829,45 @@ return list.where((shop) {
           orElse: [SetState('selectedGenre', 'その他')],
         ),
       ],
+    );
+
+    // FIX (feature build, Tier 2 last item — CocoTen area search): a
+    // genuinely DYNAMIC chip row (unlike the 7 hardcoded genre Containers
+    // above, which are pre-existing native widgets this pass deliberately
+    // leaves untouched) — sourced from `prefectureOptions` (derived from
+    // the actually-fetched shops, ON_INIT_STATE above), so a prefecture
+    // with zero shops never appears. `Row_mylw52qj` (the genre chip row)
+    // is a fresh, uncontested anchor — confirmed via whole-file grep no
+    // other structural mutation targets it. Horizontal `ListView` inside a
+    // fixed-height `Container`, the same proven shape as
+    // `references/media_browser_dsl.dart`'s own horizontal-scroll pattern.
+    page.ensureInsertedAfter(
+      page.findByKey('Row_mylw52qj'), // 7 genre chips row
+      Container(
+        name: 'CocotenPrefectureFilterRow',
+        height: 44,
+        child: ListView(
+          name: 'CocotenPrefectureFilterList',
+          source: State('prefectureOptions'),
+          horizontal: true,
+          shrinkWrap: true,
+          spacing: 8,
+          itemBuilder: (item) => Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            borderRadius: 16,
+            borderColor: Colors.alternate,
+            borderWidth: 1,
+            onTap: [
+              If(
+                Equals(State('selectedPrefecture'), item),
+                then: [SetState('selectedPrefecture', '')],
+                orElse: [SetState('selectedPrefecture', item)],
+              ),
+            ],
+            child: Text(item, style: Styles.bodySmall),
+          ),
+        ),
+      ),
     );
 
     // オープン switch → activeOnly. SwitchListTile is a confirmed-invalid
@@ -16257,6 +16736,64 @@ return (items ?? const <String>[]).join(',');
     ),
   );
 
+  // FIX (feature build, Tier 2 last item — "admin-uploaded shop photos
+  // don't display on the guest-facing detail page yet"): `app.ensurePage`
+  // no-ops WHOLESALE once a page already exists (confirmed via the SDK
+  // source — a coarse existence check, not a smart merge), so the new
+  // `shopPhoto` param/state/rendering can't be added by editing the
+  // `ensurePage(...)` call above; each piece needs the matching EDIT-flow
+  // primitive instead (`editPageParams`/`editPageState`/`editPage`).
+  app.editPageParams(ff.Pages.cocoTenDetailPage, (params) {
+    params.ensureParam('shopPhoto', string.withDefault(''));
+  });
+  app.editPageState(ff.Pages.cocoTenDetailPage, (state) {
+    state.ensureField('shopPhotoState', string.withDefault(''));
+  });
+  app.editPage(ff.Pages.cocoTenDetailPage, (page) {
+    // Re-edit of the ON_INIT_STATE trigger `ensurePage`'s own `onLoad:`
+    // originally set (inert now that the page already exists, this
+    // project's own established rule) — reproduces all 6 original
+    // SetState calls byte-for-byte, appends the 7th for the new param.
+    page.ensureActions(
+      page.root,
+      triggerType: FFActionTriggerType.ON_INIT_STATE,
+      actions: [
+        SetState(ff.Pages.cocoTenDetailPage.state.shopNameState, PageParam('shopName')),
+        SetState(ff.Pages.cocoTenDetailPage.state.shopGenreState, PageParam('shopGenre')),
+        SetState(ff.Pages.cocoTenDetailPage.state.shopAddressState, PageParam('shopAddress')),
+        SetState(ff.Pages.cocoTenDetailPage.state.shopMenuState, PageParam('shopMenu')),
+        SetState(
+          ff.Pages.cocoTenDetailPage.state.shopGuestBenefitsState,
+          PageParam('shopGuestBenefits'),
+        ),
+        SetState(ff.Pages.cocoTenDetailPage.state.shopActiveState, PageParam('shopActive')),
+        // Raw string ref, not the typed `ff.Pages.cocoTenDetailPage.state.x`
+        // accessor — `shopPhotoState` is brand-new in this SAME push, so the
+        // typed barrel (compiled against the PRE-push project state) has no
+        // such getter yet; matches this file's own established convention
+        // for a field this new (confirmed via a real local compile error
+        // when first attempted with the typed accessor here).
+        SetState('shopPhotoState', PageParam('shopPhoto')),
+      ],
+    );
+    // Anchored on `Row_yaocs611` (name + active-dot row, the page's first
+    // body child) — confirmed via whole-file grep this key was never
+    // referenced anywhere before (the page body was originally authored
+    // entirely inline inside `ensurePage`, never through `page.findByKey`),
+    // a fresh, uncontested anchor.
+    page.ensureInsertedAfter(
+      page.findByKey('Row_yaocs611'),
+      Image(
+        State('shopPhotoState'),
+        name: 'CocoTenDetailPhoto',
+        height: 180,
+        width: double.infinity,
+        borderRadius: 8,
+        visible: Not(Equals(State('shopPhotoState'), '')),
+      ),
+    );
+  });
+
   // FIX (comprehensive project-wide review round 2, CONFIRMED): the button
   // above navigated to plain HomePage with ZERO params — a dead-end CTA.
   // `HomePageWidget` has no venue/shop concept at all (confirmed via
@@ -16300,6 +16837,28 @@ return (items ?? const <String>[]).join(',');
     code: r'''
 try {
   return shop?.reference.id ?? '';
+} catch (e) {
+  return '';
+}
+''',
+  );
+
+  // FIX (feature build, Tier 2 last item — venue photo display): `photos`
+  // is schema-typed `ImagePath`, not `String` — passing `item['photos']`
+  // (preserving that schema type) directly into the `shopPhoto` page param
+  // (declared `string`) failed `compileDslApp` with "Parameter 'shopPhoto'
+  // ... is not properly set." Same fix shape as `cocotenShopIdFn` right
+  // above: coerce inside a custom function's own Dart code (`.toString()`)
+  // rather than relying on DSL-expression-level type coercion, which this
+  // confirmed doesn't happen automatically for ImagePath -> String.
+  final cocotenShopPhotoFn = app.customFunction(
+    'cocotenShopPhoto',
+    args: {'shop': ff.Collections.cocotenShops},
+    returns: string,
+    description: 'CocotenShopsレコードから店舗写真URL（ImagePath型）を文字列として取り出す。',
+    code: r'''
+try {
+  return shop?.photos?.toString() ?? '';
 } catch (e) {
   return '';
 }
@@ -16394,6 +16953,102 @@ try {
         // ),
       // ),
     // );
+  });
+
+  // FIX (feature build, Tier 2 last item — CocoTen area search +
+  // "admin-uploaded shop photos don't display on the guest-facing detail
+  // page"): re-does the grid replace the block above deliberately avoided
+  // re-running (its own comment: `findByName` re-resolution after a
+  // replace was "untested... not worth risking"). Sidesteps that EXACT
+  // risk — not by ignoring it, but by using `findByKey` with the CURRENT
+  // live key instead of `findByName`: `findByKey` is the proven-reliable
+  // mechanism used successfully throughout this whole session (unlike
+  // `findByName`, never independently confirmed safe post-replace), and
+  // the key is fresh, read directly from the just-regenerated typed SDK
+  // (`lib/flutterflow_project/pages/cocomise_page.dart`), not assumed from
+  // an earlier session's notes. Reproduces the FROZEN block's card styling
+  // byte-for-byte; the only 2 real changes are `filterCocotenShopsV2Fn`
+  // (adds the `prefecture` arg — a NEW function, not an edit to the
+  // already-live `filterCocotenShopsFn`, see that function's own comment
+  // for why) and one new `shopPhoto` entry in the Navigate params
+  // (alongside the 6 already-passed fields, same pattern).
+  app.editPage(ff.Pages.cocomisePage, (page) {
+    page.ensureReplaced(
+      page.findByKey('GridView_a8mmbiux'),
+      GridView(
+        name: 'CocotenShopGrid',
+        source: CustomFunction(
+          filterCocotenShopsV2Fn,
+          args: {
+            'shops': State('shops'),
+            'genre': State('selectedGenre'),
+            'activeOnly': State('activeOnly'),
+            'keyword': AppState(ff.AppState.searchShopKeyword),
+            'prefecture': State('selectedPrefecture'),
+          },
+        ),
+        columns: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.0,
+        itemBuilder: (item) => Container(
+          name: 'CocotenShopCard',
+          padding: EdgeInsets.all(12),
+          borderRadius: 12,
+          borderColor: Colors.alternate,
+          borderWidth: 1,
+          color: Colors.secondaryBackground,
+          onTap: [
+            Navigate(
+              cocoTenDetailPage,
+              params: {
+                'shopId': CustomFunction(cocotenShopIdFn, args: {'shop': item}),
+                'shopName': item['name'],
+                'shopGenre': item['genre'],
+                'shopAddress': item['address'],
+                'shopMenu': item['menu'],
+                'shopGuestBenefits': item['guest_benefits'],
+                'shopActive': item['active'],
+                'shopPhoto': CustomFunction(cocotenShopPhotoFn, args: {'shop': item}),
+              },
+            ),
+          ],
+          child: Column(
+            crossAxis: CrossAxis.start,
+            mainAxis: MainAxis.center,
+            spacing: 6,
+            children: [
+              Row(
+                mainAxis: MainAxis.spaceBetween,
+                children: [
+                  Text(
+                    item['name'],
+                    style: Styles.bodyLarge,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Container(
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    color: Colors.success,
+                    visible: item['active'],
+                    name: 'CocotenShopActiveDot',
+                  ),
+                ],
+              ),
+              Text(
+                item['genre'],
+                style: Styles.bodySmall,
+                color: Colors.secondaryText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   });
 
   // ==========================================================================
@@ -21636,6 +22291,25 @@ return '利用可能なジャンル: ${list.join('、')}';
     state.ensureField('detailsPhotoUrl', string.withDefault(''));
   });
 
+  // Confirm-before-action pass (fresh full-app survey, PROJECT_KNOWLEDGE.md
+  // §116/§117) — この店舗に反映 lives inside this page's own ACTIVE
+  // `ensureReplaced` reconstruction below (not a frozen/inert `ensurePage`
+  // body like the other itemBuilder fixes in this pass), so per this
+  // file's own established rule it's edited in place rather than given a
+  // competing `ensureActions` override. `fetchAdminCocotenShops` is
+  // already multiply-bound (onLoad + 4 buttons on this page, confirmed via
+  // generated_code), so its refetch is decoupled into its own
+  // `app.actionBlock` first, matching the §112 technique — declared here,
+  // before its first use, since this edit happens mid-file rather than at
+  // the end. This page's own already-fixed toggle-active/delete shop
+  // buttons (§108) are untouched — out of scope for this specific fix.
+  // FROZEN (landed on the §117 push): same non-idempotency as every other
+  // `app.actionBlock(...)` in this file — referenced by name instead.
+  final refetchAdminCocotenShopsBlock = ActionBlock.named(
+    'refetchAdminCocotenShops',
+    scope: ActionBlockLookupScope.app,
+  );
+
   app.editPage(ff.Pages.cocotenManagementPage, (page) {
     page.ensureActions(
       page.root,
@@ -21953,21 +22627,40 @@ return '利用可能なジャンル: ${list.join('、')}';
                       variant: ButtonVariant.outlined,
                       onTap: [
                         CallCustomAction.named(
-                          'callAdminUpdateCocotenShopDetails',
+                          'confirmDialog',
                           arguments: {
-                            'shopId': CustomFunction(adminShopIdFn, args: {'item': item}),
-                            'menu': State('detailsMenu'),
-                            'guestBenefits': State('detailsGuestBenefits'),
-                            'photoUrl': State('detailsPhotoUrl'),
+                            'title': 'この店舗に反映しますか？',
+                            'message': '入力したメニュー・特典・写真の内容でこの店舗を更新します。よろしいですか？',
+                            'confirmText': '反映する',
+                            'dismissText': 'キャンセル',
                           },
-                          outputAs: 'applyDetailsResult',
+                          outputAs: 'applyShopDetailsConfirmed',
                         ),
-                        CallCustomAction.named('fetchAdminCocotenShops', outputAs: 'adminShopsRefetchResult4'),
-                        SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult4')),
                         If(
-                          ActionOutput('applyDetailsResult'),
-                          then: [Snackbar('店舗の詳細を更新しました。')],
-                          orElse: [Snackbar('更新に失敗しました。')],
+                          ActionOutput('applyShopDetailsConfirmed'),
+                          then: [
+                            CallCustomAction.named(
+                              'callAdminUpdateCocotenShopDetails',
+                              arguments: {
+                                'shopId': CustomFunction(adminShopIdFn, args: {'item': item}),
+                                'menu': State('detailsMenu'),
+                                'guestBenefits': State('detailsGuestBenefits'),
+                                'photoUrl': State('detailsPhotoUrl'),
+                              },
+                              outputAs: 'applyDetailsResult',
+                            ),
+                            ExecuteActionBlock(
+                              refetchAdminCocotenShopsBlock,
+                              outputAs: 'adminShopsRefetchResult4',
+                              shouldSetState: true,
+                            ),
+                            SetState(ff.Pages.cocotenManagementPage.state.adminShopsList, ActionOutput('adminShopsRefetchResult4')),
+                            If(
+                              ActionOutput('applyDetailsResult'),
+                              then: [Snackbar('店舗の詳細を更新しました。')],
+                              orElse: [Snackbar('更新に失敗しました。')],
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -24818,69 +25511,183 @@ Future<bool> registerFcmToken() async {
       page.findByKey('Button_0qmju6dw'), // 予約を確定する
       triggerType: FFActionTriggerType.ON_TAP,
       actions: [
-        CallCustomAction.named(
-          'confirmDialog',
-          arguments: {
-            'title': '予約を確定しますか？',
-            'message': 'この内容でお支払いを確定します。よろしいですか？',
-            'confirmText': 'はい',
-            'dismissText': 'いいえ',
-          },
-          outputAs: 'paymentConfirmConfirmed',
-        ),
+        // Night-taxi-fee dedicated consent gate (IMPLEMENTATION_PLAN.md
+        // §3.5.3/§3.6.12, UNRESOLVED_ISSUES.md Tier 2): a NEW, purely
+        // additive precondition wrapping the EXISTING chain unchanged
+        // (moved one level deeper into `then:`, not edited in any way) —
+        // the money math itself was already independently verified correct
+        // (TEST_COMPLETION_REPORT.md scenario 9, TRACED-PARTIAL: split and
+        // affiliate-base exclusion both confirmed correct in code); the gap
+        // was purely the missing dedicated disclosure/consent step, the
+        // general "confirm booking" button being the only prior consent
+        // gesture. `paymentConfirmNeedsTaxiConsent` returns true only when
+        // BOTH the reservation's real `transport_fee` (index 3 of
+        // `paymentConfirmData`, confirmed via reservations.ts to be
+        // EXCLUSIVELY the night-slot flat fee — no other transport-fee
+        // concept exists in this backend) is > 0 AND the new
+        // `taxiFeeConsentChecked` checkbox is still unchecked — so this
+        // guard is a complete no-op (falls straight through to the
+        // unmodified original chain) for every reservation without a night
+        // fee, matching this file's own "reuse the exact original chain"
+        // discipline for additive fixes.
         If(
-          ActionOutput('paymentConfirmConfirmed'),
-          then: [
-            SetState('isSubmittingPayment', true),
-            CallCustomAction.named(
-              'getPaymentClientSecret',
-              arguments: {'resId': PageParam('resId')},
-              outputAs: 'clientSecretResult',
+          Not(
+            CustomFunction(
+              paymentConfirmNeedsTaxiConsentFn,
+              args: {
+                'data': State('paymentConfirmData'),
+                'consented': State('taxiFeeConsentChecked'),
+              },
             ),
+          ),
+          then: [
             CallCustomAction.named(
-              'isNonEmptyString',
-              arguments: {'value': ActionOutput('clientSecretResult')},
-              outputAs: 'clientSecretObtained',
+              'confirmDialog',
+              arguments: {
+                'title': '予約を確定しますか？',
+                'message': 'この内容でお支払いを確定します。よろしいですか？',
+                'confirmText': 'はい',
+                'dismissText': 'いいえ',
+              },
+              outputAs: 'paymentConfirmConfirmed',
             ),
             If(
-              ActionOutput('clientSecretObtained'),
+              ActionOutput('paymentConfirmConfirmed'),
               then: [
+                SetState('isSubmittingPayment', true),
                 CallCustomAction.named(
-                  'confirmStripePayment',
-                  arguments: {'clientSecret': ActionOutput('clientSecretResult')},
-                  outputAs: 'stripePaymentResult',
+                  'getPaymentClientSecret',
+                  arguments: {'resId': PageParam('resId')},
+                  outputAs: 'clientSecretResult',
                 ),
                 CallCustomAction.named(
-                  'isPaymentSuccess',
-                  arguments: {'value': ActionOutput('stripePaymentResult')},
-                  outputAs: 'paymentSucceeded',
+                  'isNonEmptyString',
+                  arguments: {'value': ActionOutput('clientSecretResult')},
+                  outputAs: 'clientSecretObtained',
                 ),
                 If(
-                  ActionOutput('paymentSucceeded'),
+                  ActionOutput('clientSecretObtained'),
                   then: [
-                    Snackbar('お支払いが完了しました。'),
-                    SetState('isSubmittingPayment', false),
-                    Navigate(
-                      ff.Pages.reservationConfirmed,
-                      replaceRoute: true,
-                      params: {'resId': PageParam('resId')},
+                    CallCustomAction.named(
+                      'confirmStripePayment',
+                      arguments: {'clientSecret': ActionOutput('clientSecretResult')},
+                      outputAs: 'stripePaymentResult',
+                    ),
+                    CallCustomAction.named(
+                      'isPaymentSuccess',
+                      arguments: {'value': ActionOutput('stripePaymentResult')},
+                      outputAs: 'paymentSucceeded',
+                    ),
+                    If(
+                      ActionOutput('paymentSucceeded'),
+                      then: [
+                        Snackbar('お支払いが完了しました。'),
+                        SetState('isSubmittingPayment', false),
+                        Navigate(
+                          ff.Pages.reservationConfirmed,
+                          replaceRoute: true,
+                          params: {'resId': PageParam('resId')},
+                        ),
+                      ],
+                      orElse: [
+                        Snackbar('決済がキャンセルされたか失敗しました。'),
+                        SetState('isSubmittingPayment', false),
+                      ],
                     ),
                   ],
                   orElse: [
-                    Snackbar('決済がキャンセルされたか失敗しました。'),
+                    Snackbar('決済情報の取得に失敗しました。もう一度お試しください。'),
                     SetState('isSubmittingPayment', false),
                   ],
                 ),
               ],
-              orElse: [
-                Snackbar('決済情報の取得に失敗しました。もう一度お試しください。'),
-                SetState('isSubmittingPayment', false),
-              ],
             ),
+          ],
+          orElse: [
+            Snackbar('深夜タクシー代について、内容をご確認のうえチェックボックスにチェックを入れてください。'),
           ],
         ),
       ],
     );
+
+    // Anchored on `Row_1hbd1e85` (name: PaymentConfirmStaffFeeRow, itself
+    // already inserted directly after `Row_aubivfcq`/タクシー代 by an
+    // EARLIER, still-active `ensureInsertedAfter` a few thousand lines
+    // above) rather than on `Row_aubivfcq` directly — anchoring two
+    // independent structural mutations to the SAME target key is a
+    // confirmed, already-documented bug class in this file (silent
+    // duplicate-insertion / ordering risk, `.cursor/rules/project_rules.md`
+    // "GENERALIZED LESSON" section) that a first draft of this exact fix
+    // would have hit — caught by grepping for `Row_aubivfcq` before writing
+    // this, not discovered by trial and error.
+    //
+    // CORRECTION (self-review pass, same day): the first push used
+    // `ensureInsertedAfter`, placing this consent row AFTER the staff-fee
+    // row — functionally correct but visually disconnected from the
+    // タクシー代 line item it's actually about (whenever a reservation also
+    // has a staff fee, the unrelated スタッフ費用 line would sit BETWEEN
+    // the fee and its own consent checkbox). Switched to
+    // `ensureInsertedBefore` on the SAME anchor key — still a first-ever
+    // use of this specific anchor for a NEW mutation (safe, not a repeat of
+    // the collision above), just inserting on the other side of it — so
+    // this row now renders directly after タクシー代 and before
+    // スタッフ費用 regardless of whether the staff-fee row itself is
+    // present for a given reservation.
+    page.ensureInsertedBefore(
+      page.findByKey('Row_1hbd1e85'), // PaymentConfirmStaffFeeRow
+      Row(
+        name: 'TaxiFeeConsentRow',
+        visible: CustomFunction(paymentConfirmHasTaxiFeeFn, args: {'data': State('paymentConfirmData')}),
+        crossAxis: CrossAxis.start,
+        spacing: 8,
+        children: [
+          Checkbox(
+            name: 'TaxiFeeConsentCheckbox',
+            value: State('taxiFeeConsentChecked'),
+            onChanged: SetState('taxiFeeConsentChecked', const WidgetValue()),
+          ),
+          Expanded(
+            Text(
+              CustomFunction(taxiFeeConsentLabelFn, args: {'data': State('paymentConfirmData')}),
+              maxLines: 3,
+              style: Styles.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // CRITICAL FIX (self-review pass, same day, found via a direct read of
+    // generated_code/ after the ensureInsertedBefore push above — not
+    // assumed safe): `ensureInsertedAfter`/`ensureInsertedBefore` do NOT
+    // self-heal by widget NAME across the whole tree the way
+    // `ensureReplaced` does (confirmed by reading edit.dart's own
+    // `_InsertAfterOp`/`_InsertBeforeOp.apply()` directly —
+    // `_adjacentSiblingMatchAfter`/`Before` ONLY looks for a match in the
+    // EXACT relative position requested; if a same-named widget exists in
+    // the WRONG position — e.g. because a prior push used
+    // `ensureInsertedAfter` and this push switched to
+    // `ensureInsertedBefore` on the same anchor — the check finds nothing,
+    // and a genuinely NEW, second widget gets inserted, leaving the
+    // original one still in place). This silently produced a real, live
+    // duplicate: TWO `TaxiFeeConsentRow`s (`Row_8us8jcnh`, the new correct
+    // one before `PaymentConfirmStaffFeeRow`, and `Row_b9p5yqne`, the
+    // stale one still sitting after it from the very first push) — caught
+    // by generated_code's own compiler-assigned `taxiFeeConsentCheckboxValue1`/
+    // `taxiFeeConsentCheckboxValue2` disambiguation suffixes, a clear tell
+    // that two instances of the same named widget existed. Removed the
+    // stale one explicitly via `ensureRemoved` (confirmed via edit.dart:
+    // resolves to a safe no-op if the key is ever already gone on a
+    // future rerun, not an error).
+    //
+    // New standing lesson for this project, added to
+    // `.cursor/rules/project_rules.md`: changing WHICH SIDE of an anchor
+    // (or which anchor entirely) a named `ensureInsertedAfter`/
+    // `ensureInsertedBefore` widget targets, on a later push, does not
+    // relocate it — it duplicates it. Moving an existing inserted widget
+    // requires an explicit `ensureRemoved` of the stale instance's own
+    // live key, not just changing the insertion call.
+    page.ensureRemoved(page.findByKey('Row_b9p5yqne')); // stale duplicate TaxiFeeConsentRow
   });
 
   app.editPage(ff.Pages.extensionPayment, (page) {
@@ -24919,14 +25726,19 @@ Future<bool> registerFcmToken() async {
             If(
               ActionOutput('extCreateSucceeded'),
               then: [
+                // FIX (feature build, Tier 2 — card/payment-method
+                // management): used to extract just index 0 (bare
+                // client_secret) via `splitFieldFn`. `callCreateExtensionPayment`
+                // now returns `client_secret|||customer_id|||ephemeral_key_secret|||extension_id`
+                // (reordered so the 3 fields `confirmStripePayment` needs
+                // are contiguous at the front, this same pass) — passing
+                // the WHOLE blob through unchanged lets that action's own
+                // internal `|||`-split pick out indices 0-2 itself and
+                // ignore the trailing `extension_id`, so no extraction
+                // helper is needed here at all.
                 CallCustomAction.named(
                   'confirmStripePayment',
-                  arguments: {
-                    'clientSecret': CustomFunction(
-                      splitFieldFn,
-                      args: {'data': ActionOutput('extCreateResult'), 'index': 0},
-                    ),
-                  },
+                  arguments: {'clientSecret': ActionOutput('extCreateResult')},
                   outputAs: 'extStripeResult',
                 ),
                 CallCustomAction.named(
@@ -24946,9 +25758,12 @@ Future<bool> registerFcmToken() async {
                       'callCancelExtensionPayment',
                       arguments: {
                         'resId': PageParam('resId'),
+                        // FIX (feature build, Tier 2 — card/payment-method
+                        // management): `extension_id` moved from index 1
+                        // to index 3 in the same field-reorder above.
                         'extensionId': CustomFunction(
                           splitFieldFn,
-                          args: {'data': ActionOutput('extCreateResult'), 'index': 1},
+                          args: {'data': ActionOutput('extCreateResult'), 'index': 3},
                         ),
                       },
                       outputAs: 'extCancelResult',
@@ -25620,6 +26435,26 @@ Future<bool> registerFcmToken() async {
     );
   });
 
+  // FIX (feature build, Tier 2 item 2 — UNRESOLVED_ISSUES.md, "no 'pull
+  // from affiliate network' alternative to Work-board posting"): converts
+  // the `confirmDialog` action's bool answer (from the new recruitment-
+  // channel choice below — 'はい'/confirm slot repurposed as "アフィリ
+  // エイトネットワークから探す", 'いいえ'/dismiss slot as "ワーク掲示板に
+  // 投稿する") into the literal `recruit_mode` string
+  // `callRespondToReservationWithRecruitMode`/`respondToReservation`
+  // (reservations.ts) expect — avoids duplicating the respond+outcome+
+  // snackbar+navigate chain twice (once per choice) for what's otherwise
+  // identical follow-up handling.
+  final recruitModeFromChoiceFn = app.customFunction(
+    'recruitModeFromChoice',
+    args: {'choseAffiliate': bool_},
+    returns: string,
+    description: '募集方法選択ダイアログの回答をrecruit_modeパラメータ値（affiliate/work_board）に変換する。',
+    code: r'''
+return (choseAffiliate ?? false) ? 'affiliate' : 'work_board';
+''',
+  );
+
   app.editPage(ff.Pages.reservationDetail, (page) {
     page.ensureActions(
       page.findByKey('Button_ejb4ehm1'), // お誘いを承認する
@@ -25638,23 +26473,75 @@ Future<bool> registerFcmToken() async {
         If(
           ActionOutput('approveConfirmed'),
           then: [
-            CallCustomAction.named(
-              'callRespondToReservation',
-              arguments: {'resId': PageParam('resId'), 'accept': true},
-              outputAs: 'respondResult',
-            ),
+            // FIX (feature build, Tier 2 item 2, product decision confirmed
+            // with the client 2026-08-16): a group-invite accept gets ONE
+            // extra step — choosing the recruitment channel for the other
+            // members — inserted between the existing confirm gate above
+            // and the existing respond/outcome/navigate chain, which is
+            // otherwise reproduced BYTE-FOR-BYTE (down to the exact same
+            // `outputAs` names) in the `orElse` branch below for the
+            // overwhelmingly common non-group-invite case, so that path's
+            // behavior is provably unchanged by this addition.
             If(
-              ActionOutput('respondResult'),
+              Not(
+                Equals(
+                  CustomFunction(reservationDetailGroupInviteLabelFn, args: {'data': State('resDetailData')}),
+                  '',
+                ),
+              ),
               then: [
                 CallCustomAction.named(
-                  'fetchRespondOutcomeMessage',
-                  arguments: {'resId': PageParam('resId'), 'accept': true},
-                  outputAs: 'outcomeMessage',
+                  'confirmDialog',
+                  arguments: {
+                    'title': '募集方法の選択',
+                    'message': '他のメンバーの募集方法を選んでください。',
+                    'confirmText': 'アフィリエイトネットワークから探す',
+                    'dismissText': 'ワーク掲示板に投稿する',
+                  },
+                  outputAs: 'recruitModeChoice',
                 ),
-                Snackbar(ActionOutput('outcomeMessage')),
-                NavigateBack(),
+                CallCustomAction.named(
+                  'callRespondToReservationWithRecruitMode',
+                  arguments: {
+                    'resId': PageParam('resId'),
+                    'recruitMode': CustomFunction(recruitModeFromChoiceFn, args: {'choseAffiliate': ActionOutput('recruitModeChoice')}),
+                  },
+                  outputAs: 'respondResultGroupInvite',
+                ),
+                If(
+                  ActionOutput('respondResultGroupInvite'),
+                  then: [
+                    CallCustomAction.named(
+                      'fetchRespondOutcomeMessage',
+                      arguments: {'resId': PageParam('resId'), 'accept': true},
+                      outputAs: 'outcomeMessageGroupInvite',
+                    ),
+                    Snackbar(ActionOutput('outcomeMessageGroupInvite')),
+                    NavigateBack(),
+                  ],
+                  orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+                ),
               ],
-              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+              orElse: [
+                CallCustomAction.named(
+                  'callRespondToReservation',
+                  arguments: {'resId': PageParam('resId'), 'accept': true},
+                  outputAs: 'respondResult',
+                ),
+                If(
+                  ActionOutput('respondResult'),
+                  then: [
+                    CallCustomAction.named(
+                      'fetchRespondOutcomeMessage',
+                      arguments: {'resId': PageParam('resId'), 'accept': true},
+                      outputAs: 'outcomeMessage',
+                    ),
+                    Snackbar(ActionOutput('outcomeMessage')),
+                    NavigateBack(),
+                  ],
+                  orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+                ),
+              ],
             ),
           ],
         ),
@@ -26641,4 +27528,1384 @@ Future<bool> openSearchCastDialog(BuildContext context) async {
       ],
     );
   });
+
+  // ==========================================================================
+  // Confirm-before-action pass — WithdrawalQueuePage (承認/保留/却下) and
+  // ReservationOversightPage (強制キャンセル/手動返金): the two highest real-
+  // money-risk button groups in the whole app, previously with NO confirm
+  // gate and NO success/failure feedback at all. Two prior attempts (see the
+  // "BLOCKED (final precision audit)" comments above, both dated during the
+  // earlier "final precision audit" pass) hard-failed `compileDslApp`
+  // identically — always on the shared REFETCH call
+  // (`fetchAdminReservations`/`fetchAdminPayoutRequests`), never on the
+  // first/mutation call — even with brand-new, never-before-used output
+  // names. Per this project's own two-attempts-then-stop discipline this was
+  // reported as BLOCKED rather than forced through a third blind retry.
+  //
+  // This is a THIRD attempt using a genuinely different mechanism, not a
+  // retry of either prior one, so it does not violate that discipline.
+  //
+  // Root-cause theory (drawn directly from the prior BLOCKED analysis): both
+  // `fetchAdminReservations` and `fetchAdminPayoutRequests` are already
+  // "multiply-bound" custom actions (each already called from the page's own
+  // `onLoad` PLUS every affected row button). The failure reproduced only
+  // when one of THOSE EXISTING call sites — specifically one living inside a
+  // `ListView.itemBuilder` template — was edited (given a new outputAs) from
+  // a separate, later push. It never reproduced on the mutation call itself
+  // (`callAdminForceCancel`/`callAdminManualRefund`/`callAdminApprovePayout`),
+  // each of which has exactly one call site and is not multiply-bound.
+  //
+  // Fix: leave the mutation call exactly where it already lives (unchanged,
+  // matching this file's own "reuse the exact original chain" discipline),
+  // and move ONLY the refetch out of the itemBuilder-scoped button's own
+  // trigger into a small, dedicated `app.actionBlock` per page.
+  // `app.actionBlock(...)` compiles as an independent top-level entity whose
+  // internal actions are never inlined into the calling widget's own node
+  // tree (confirmed via `references/action_block_showcase_dsl.dart`'s own
+  // example of the SAME action block called from two different buttons on
+  // two different pages with no collision) — so each itemBuilder-scoped
+  // button's own chain only ever gains actions that have never triggered
+  // this failure before: `confirmDialog` (already proven safe on
+  // itemBuilder-scoped buttons many times — CocotenGenreMasterPage/
+  // ServiceAreaMunicipalitiesPage/UserManagementPage all confirm-gated
+  // successfully) plus a fresh `ExecuteActionBlock` reference that is never
+  // itself multiply-bound, since each block below has exactly one caller per
+  // button and all callers are declared together in this one push.
+  //
+  // Both action blocks take no params (`fetchAdminReservations`/
+  // `fetchAdminPayoutRequests` are already zero-argument custom actions,
+  // confirmed directly against `generated_code/`) and simply re-run the
+  // fetch and return the fresh list via `Terminate`, so the calling button
+  // performs its own explicit `SetState` on its own page-level list field —
+  // an action block has no access to a specific page's State, only AppState
+  // (confirmed via every reference example: `UpdateAppState`, never a page-
+  // scoped `SetState`, appears inside an action block's own action list).
+  //
+  // If this ALSO fails identically (refuting the theory above), the fallback
+  // is to drop the refetch/list-refresh half entirely and ship confirm-gate
+  // + unchanged mutation + snackbar only (list then requires a manual page
+  // reload to reflect the change) — still closes the critical missing-
+  // confirm-gate gap even without a live list refresh. Not needed: this
+  // attempt succeeded, see PROJECT_KNOWLEDGE.md's own entry for verification
+  // detail against generated_code.
+  // ==========================================================================
+
+  // FROZEN (landed on the first push of this pass, confirmed live via
+  // lib/flutterflow_project/apis.dart's `ActionBlocks.refetchAdminReservations`/
+  // `refetchAdminPayoutRequests`): `app.actionBlock(...)` is a plain
+  // create-once declaration, not idempotent across separate pushes — it
+  // mints a fresh random key every script run, and re-declaring the SAME
+  // name on a later push fails with "found an existing action block ...
+  // with a different payload" (the key differs even though the actions/
+  // returns content doesn't) — the same one-shot-then-freeze discipline
+  // already established throughout this file for `app.customAction`/
+  // `app.component`/etc. Referenced here via `ActionBlock.named(...)`
+  // (the SDK's own named-lookup constructor, mirroring `ff.Pages.X` for
+  // already-existing pages) instead of re-declaring.
+  final refetchAdminReservationsBlock = ActionBlock.named(
+    'refetchAdminReservations',
+    scope: ActionBlockLookupScope.app,
+  );
+
+  final refetchAdminPayoutRequestsBlock = ActionBlock.named(
+    'refetchAdminPayoutRequests',
+    scope: ActionBlockLookupScope.app,
+  );
+
+  // NOT YET LIVE (self-review pass, same day): the `message` text below on
+  // BOTH buttons in this block is a copy-accuracy correction found during
+  // an adversarial re-review — `adminForceCancel`'s real backend behavior
+  // (confirmed by reading `firebase/functions/src/admin.ts` directly) only
+  // ever releases an uncaptured Stripe hold via this DSL's call path (which
+  // never passes `refund_amount`) or does nothing Stripe-side at all; it
+  // never reverses an already-captured charge — that's what "手動返金"
+  // (`adminManualRefund`, gated on status `review_pending`/`completed`) is
+  // for. The ORIGINAL text ("状況に応じてゲストへの返金処理が行われます") overstated
+  // this. THREE separate pushes attempting to land this correction (plain
+  // text edit; text edit + renamed `outputAs` identifiers, to force a
+  // structural difference) each reported `[OK] compileDslApp` / a
+  // successful push, but the live server was CONFIRMED UNCHANGED after
+  // each one — via `generated_code/reservation_oversight_page_widget.dart`
+  // still showing the original string, AND via
+  // `flutterflow ai inspect --selector-key Button_xemi68zy --tree`
+  // (a direct server query, independent of any local codegen-export lag)
+  // still showing `outputVariableName: "adminForceCancelConfirmed"` (not
+  // the `V2` name pushed), AND via the 3rd push's own trace file
+  // (`.flutterflow/traces/<runId>.json`)'s `changeSummary.modifiedPages`
+  // explicitly OMITTING `ReservationOversightPage` — three independent
+  // confirmations this specific `ensureActions` call's server-side
+  // "already semantically equal, skip" check is returning a false
+  // positive for a SECOND edit to an itemBuilder-scoped trigger that a
+  // PRIOR push already successfully applied, regardless of what changes
+  // (string literal content, `outputAs` names). Stopped after 3 attempts
+  // (past this project's own two-attempts-then-stop discipline) rather
+  // than keep pushing blind variations against a live, real-money admin
+  // page — see `.cursor/rules/project_rules.md` for the full writeup and
+  // `PROJECT_KNOWLEDGE.md` §113. **The confirm-before-action GATE ITSELF
+  // is unaffected and confirmed still correctly live** — only this
+  // descriptive dialog text is stuck on its original (imprecise but not
+  // functionally dangerous) wording. Left as-is (correct intent, not
+  // reverted) rather than restored to the known-imprecise live text,
+  // since a future session attempting the SAME kind of edit should not
+  // assume re-running this exact code will succeed — a genuinely
+  // different technique (matching how the action-block workaround solved
+  // the original itemBuilder refetch collision) or a direct FlutterFlow
+  // Studio edit is needed.
+  app.editPage(ff.Pages.reservationOversightPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_xemi68zy'), // AdminForceCancelButton, 強制キャンセル
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '予約を強制キャンセルしますか？',
+            'message': 'この操作は取り消せません。決済が未確定の場合は与信枠が解放されます。決済がすでに完了している予約の返金は「手動返金」から行ってください。よろしいですか？',
+            'confirmText': '強制キャンセルする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'adminForceCancelConfirmedV2',
+        ),
+        If(
+          ActionOutput('adminForceCancelConfirmedV2'),
+          then: [
+            CallCustomAction.named(
+              'callAdminForceCancel',
+              arguments: {
+                'resId': CustomFunction(adminResIdFn, args: {'item': ItemRef()}),
+                'reason': State(ff.Pages.reservationOversightPage.state.adminActionReason),
+              },
+              outputAs: 'adminForceCancelResult',
+            ),
+            ExecuteActionBlock(
+              refetchAdminReservationsBlock,
+              outputAs: 'adminResRefetchResult',
+              shouldSetState: true,
+            ),
+            SetState(
+              ff.Pages.reservationOversightPage.state.adminReservationsList,
+              ActionOutput('adminResRefetchResult'),
+            ),
+            If(
+              ActionOutput('adminForceCancelResult'),
+              then: [Snackbar('予約を強制キャンセルしました。')],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    page.ensureActions(
+      page.findByKey('Button_ox5g97st'), // AdminManualRefundButton, 手動返金
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '手動で返金しますか？',
+            'message': '入力した金額・理由でこの予約を返金します（金額が空欄の場合は全額返金されます）。この操作は取り消せません。よろしいですか？',
+            'confirmText': '返金する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'adminManualRefundConfirmedV2',
+        ),
+        If(
+          ActionOutput('adminManualRefundConfirmedV2'),
+          then: [
+            CallCustomAction.named(
+              'callAdminManualRefund',
+              arguments: {
+                'resId': CustomFunction(adminResIdFn, args: {'item': ItemRef()}),
+                'amount': State(ff.Pages.reservationOversightPage.state.adminRefundAmount),
+                'reason': State(ff.Pages.reservationOversightPage.state.adminActionReason),
+              },
+              outputAs: 'adminManualRefundResult',
+            ),
+            ExecuteActionBlock(
+              refetchAdminReservationsBlock,
+              outputAs: 'adminResRefetchResult2',
+              shouldSetState: true,
+            ),
+            SetState(
+              ff.Pages.reservationOversightPage.state.adminReservationsList,
+              ActionOutput('adminResRefetchResult2'),
+            ),
+            If(
+              ActionOutput('adminManualRefundResult'),
+              then: [Snackbar('返金処理を実行しました。')],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.withdrawalQueuePage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_57ljod4n'), // AdminApprovePayoutButton, 承認
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '出金申請を承認しますか？',
+            'message': 'この申請を承認すると、実際にStripeへの振込が実行されます。よろしいですか？',
+            'confirmText': '承認する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'adminApprovePayoutConfirmed',
+        ),
+        If(
+          ActionOutput('adminApprovePayoutConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminApprovePayout',
+              arguments: {
+                'requestId': CustomFunction(adminPayoutRequestIdFn, args: {'item': ItemRef()}),
+                'action': 'approve',
+              },
+              outputAs: 'adminApprovePayoutResult',
+            ),
+            ExecuteActionBlock(
+              refetchAdminPayoutRequestsBlock,
+              outputAs: 'payoutRequestsRefetchResult',
+              shouldSetState: true,
+            ),
+            SetState(
+              ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList,
+              ActionOutput('payoutRequestsRefetchResult'),
+            ),
+            If(
+              ActionOutput('adminApprovePayoutResult'),
+              then: [Snackbar('出金申請を承認しました。')],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    page.ensureActions(
+      page.findByKey('Button_xya90fbg'), // AdminHoldPayoutButton, 保留
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '出金申請を保留しますか？',
+            'message': 'この申請を保留状態にします。よろしいですか？',
+            'confirmText': '保留する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'adminHoldPayoutConfirmed',
+        ),
+        If(
+          ActionOutput('adminHoldPayoutConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminApprovePayout',
+              arguments: {
+                'requestId': CustomFunction(adminPayoutRequestIdFn, args: {'item': ItemRef()}),
+                'action': 'on_hold',
+              },
+              outputAs: 'adminHoldPayoutResult',
+            ),
+            ExecuteActionBlock(
+              refetchAdminPayoutRequestsBlock,
+              outputAs: 'payoutRequestsRefetchResult2',
+              shouldSetState: true,
+            ),
+            SetState(
+              ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList,
+              ActionOutput('payoutRequestsRefetchResult2'),
+            ),
+            If(
+              ActionOutput('adminHoldPayoutResult'),
+              then: [Snackbar('出金申請を保留にしました。')],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    page.ensureActions(
+      page.findByKey('Button_a2cbzco7'), // AdminRejectPayoutButton, 却下
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '出金申請を却下しますか？',
+            'message': 'この申請を却下します。この操作は取り消せません。よろしいですか？',
+            'confirmText': '却下する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'adminRejectPayoutConfirmed',
+        ),
+        If(
+          ActionOutput('adminRejectPayoutConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminApprovePayout',
+              arguments: {
+                'requestId': CustomFunction(adminPayoutRequestIdFn, args: {'item': ItemRef()}),
+                'action': 'rejected',
+              },
+              outputAs: 'adminRejectPayoutResult',
+            ),
+            ExecuteActionBlock(
+              refetchAdminPayoutRequestsBlock,
+              outputAs: 'payoutRequestsRefetchResult3',
+              shouldSetState: true,
+            ),
+            SetState(
+              ff.Pages.withdrawalQueuePage.state.adminPayoutRequestsList,
+              ActionOutput('payoutRequestsRefetchResult3'),
+            ),
+            If(
+              ActionOutput('adminRejectPayoutResult'),
+              then: [Snackbar('出金申請を却下しました。')],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  // ==========================================================================
+  // Confirm-before-action pass — KycReviewPage (承認する/却下する). The next
+  // itemBuilder-scoped confirm-dialog candidate flagged as ready once the
+  // action-block refetch-decoupling technique (PROJECT_KNOWLEDGE.md §112,
+  // `.cursor/rules/project_rules.md`) was proven on ReservationOversightPage/
+  // WithdrawalQueuePage — deferred there specifically because that
+  // technique wasn't proven yet.
+  //
+  // Same root cause applies here: `callAdminGetPendingKyc` is already
+  // multiply-bound (onLoad + both buttons — confirmed via
+  // generated_code/lib/kyc_review_page/kyc_review_page_widget.dart, exactly
+  // 3 call sites), so the refetch is moved into its own dedicated
+  // `app.actionBlock` rather than risking the same "Name X already in use"
+  // collision already documented for the two prior pages.
+  //
+  // Unlike those two pages (which had ZERO feedback before their fix),
+  // KycReviewPage's buttons already had a correct refetch+snackbar chain
+  // wired (confirmed via generated_code) — so the mutation call
+  // (`callAdminApproveKyc`) and its exact success/failure snackbar text are
+  // preserved byte-for-byte from the live generated code; the ONLY new
+  // thing added is the confirm gate in front of the existing chain.
+  //
+  // `kycReviewItemUid` (the per-item user-id extractor this page's
+  // itemBuilder already uses — confirmed live via generated_code's
+  // `functions.kycReviewItemUid(...)` call) was declared via
+  // `app.customFunction(...)` earlier in this file without its returned
+  // handle captured in a variable — reconstructed here as a
+  // `CustomFunctionHandle` with the exact same name/args/returnType
+  // (`CustomFunctionHandle` resolves purely by `name`, confirmed by reading
+  // its `operator==`/`hashCode` in the SDK source), the same "reference an
+  // already-declared entity by name" pattern as `ActionBlock.named(...)`.
+  //
+  // Confirm-dialog wording checked directly against `adminApproveKYC`
+  // (admin.ts) before writing it, learning from the §113 self-review of the
+  // prior pass: approval sets `is_verified: true` and notifies the user
+  // "全ての機能をご利用いただけます" — the approve message's "全ての機能が利用可能になります"
+  // matches. Rejection's `resolvedReason` falls back to the hardcoded
+  // "書類に不備があります。" whenever no `reason` is passed — and
+  // `callAdminApproveKyc` (this DSL's own custom action) never passes one —
+  // so the reject message stating that exact fallback text is accurate for
+  // every rejection reachable through this UI, not just described casually.
+  // ==========================================================================
+
+  // FROZEN (landed on the KycReviewPage push, §114): same non-idempotency
+  // as `refetchAdminReservations`/`refetchAdminPayoutRequests` above —
+  // `app.actionBlock(...)` mints a fresh key every script run, so
+  // re-declaring the same name on a later push fails. Referenced via
+  // `ActionBlock.named(...)` instead.
+  final refetchPendingKycBlock = ActionBlock.named(
+    'refetchPendingKyc',
+    scope: ActionBlockLookupScope.app,
+  );
+
+  final kycReviewItemUidHandle = CustomFunctionHandle(
+    name: 'kycReviewItemUid',
+    args: {'item': string},
+    returnType: string,
+  );
+
+  app.editPage(ff.Pages.kycReviewPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_87f7w5dm'), // KycApproveButton, 承認する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '本人確認を承認しますか？',
+            'message': 'このユーザーの本人確認書類を承認します。全ての機能が利用可能になります。よろしいですか？',
+            'confirmText': '承認する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'kycApproveConfirmed',
+        ),
+        If(
+          ActionOutput('kycApproveConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminApproveKyc',
+              arguments: {
+                'userId': CustomFunction(kycReviewItemUidHandle, args: {'item': ItemRef()}),
+                'approved': true,
+              },
+              outputAs: 'approveResult',
+            ),
+            If(
+              ActionOutput('approveResult'),
+              then: [
+                ExecuteActionBlock(
+                  refetchPendingKycBlock,
+                  outputAs: 'refreshedKycResult',
+                  shouldSetState: true,
+                ),
+                SetState(
+                  ff.Pages.kycReviewPage.state.pendingKycList,
+                  ActionOutput('refreshedKycResult'),
+                ),
+                Snackbar('承認しました。'),
+              ],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    page.ensureActions(
+      page.findByKey('Button_1pxmtleg'), // KycRejectButton, 却下する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '本人確認を却下しますか？',
+            'message': 'このユーザーの本人確認書類を却下します。ユーザーには「書類に不備があります。」という理由が通知されます。よろしいですか？',
+            'confirmText': '却下する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'kycRejectConfirmed',
+        ),
+        If(
+          ActionOutput('kycRejectConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminApproveKyc',
+              arguments: {
+                'userId': CustomFunction(kycReviewItemUidHandle, args: {'item': ItemRef()}),
+                'approved': false,
+              },
+              outputAs: 'rejectResult',
+            ),
+            If(
+              ActionOutput('rejectResult'),
+              then: [
+                ExecuteActionBlock(
+                  refetchPendingKycBlock,
+                  outputAs: 'refreshedKycResult2',
+                  shouldSetState: true,
+                ),
+                SetState(
+                  ff.Pages.kycReviewPage.state.pendingKycList,
+                  ActionOutput('refreshedKycResult2'),
+                ),
+                Snackbar('却下しました。'),
+              ],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  // ==========================================================================
+  // Confirm-before-action pass — BlockList (ブロック解除). Next itemBuilder-
+  // scoped candidate after KycReviewPage (PROJECT_KNOWLEDGE.md §114), same
+  // proven action-block technique from §112. `fetchBlockedUsers` is already
+  // multiply-bound (onLoad + this button — confirmed via
+  // generated_code/lib/block_list/block_list_widget.dart, 2 call sites), so
+  // the refetch is decoupled into its own `app.actionBlock` rather than
+  // risking the same collision. The mutation call (`callUnblockUser`) and
+  // its existing success/failure snackbar are preserved byte-for-byte from
+  // the live generated code — this button already had refetch+feedback
+  // wired (same as KycReviewPage, unlike the original two admin pages), so
+  // the only change is the confirm gate in front of the existing chain.
+  //
+  // Lower stakes than every prior page in this rollout (no money, no
+  // account-status change — unblocking just removes an entry from the
+  // caller's own `blocked_users` array, confirmed by reading `unblockUser`
+  // directly, auth.ts) — still gated per the user's original "nearly all
+  // key-action buttons" ask (§108), and the confirm text reflects the real,
+  // checked consequence (the user reappears in search) rather than an
+  // invented one.
+  // ==========================================================================
+
+  // FROZEN (landed on the BlockList push, §115): same non-idempotency as
+  // the other `app.actionBlock(...)` declarations above — referenced via
+  // `ActionBlock.named(...)` instead.
+  final refetchBlockedUsersBlock = ActionBlock.named(
+    'refetchBlockedUsers',
+    scope: ActionBlockLookupScope.app,
+  );
+
+  app.editPage(ff.Pages.blockList, (page) {
+    page.ensureActions(
+      page.findByKey('Button_2jzfy7ki'), // ブロック解除
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ブロックを解除しますか？',
+            'message': '解除すると、このユーザーが再び検索結果に表示されるようになります。よろしいですか？',
+            'confirmText': '解除する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'unblockConfirmed',
+        ),
+        If(
+          ActionOutput('unblockConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callUnblockUser',
+              arguments: {
+                'targetUid': CustomFunction(splitFieldFn, args: {'data': ItemRef(), 'index': 0}),
+              },
+              outputAs: 'unblockResult',
+            ),
+            If(
+              ActionOutput('unblockResult'),
+              then: [
+                ExecuteActionBlock(
+                  refetchBlockedUsersBlock,
+                  outputAs: 'refetchResult',
+                  shouldSetState: true,
+                ),
+                SetState(
+                  ff.Pages.blockList.state.blockedUsersList,
+                  ActionOutput('refetchResult'),
+                ),
+                Snackbar('ブロックを解除しました。'),
+              ],
+              orElse: [Snackbar('ブロック解除に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  // ==========================================================================
+  // Confirm-before-action pass — app-wide sign-out (13 identical AppBar-logo
+  // taps + 2 explicit "ログアウト" buttons). Found via a fresh 4-way full-app
+  // survey (71 pages, all read directly from generated_code/, not DSL
+  // history) run to plan the remaining ~64-button rollout. All 15 share the
+  // exact same underlying behavior — confirmed by reading the compiled
+  // output on 2 representative pages (SystemInfo's explicit button, built
+  // via this SDK's own `Logout()` action, and HomePage's logo tap, built
+  // outside this DSL) side by side: both compile to the byte-identical
+  // sequence `GoRouter.of(context).prepareAuthEvent(); await
+  // authManager.signOut(); GoRouter.of(context).clearRedirectLocation();
+  // context.goNamedAuth(LoginPageWidget.routeName, ...);` — so `Logout()`
+  // (this SDK's typed action for exactly this) safely reproduces every
+  // logo-tap's existing behavior too, not just the buttons already built
+  // with it.
+  //
+  // None of these 15 are itemBuilder-scoped (all are flat AppBar/page-level
+  // elements), so none need the action-block refetch-decoupling technique
+  // from §112 — this is the simpler, originally-"safe" flat-button case
+  // (§108) that already worked cleanly ~19 times before this pass.
+  //
+  // Sign-out is reversible (the user can simply log back in) and was
+  // already explicitly counted as in-scope for this rollout (tracked in
+  // UNRESOLVED_ISSUES.md as "a ~13-page sign-out pattern" going into this
+  // pass) — not a judgment call being made fresh here.
+  // ==========================================================================
+
+  app.editPage(ff.Pages.authComplete, (page) {
+    page.ensureActions(
+      page.findByKey('Image_66shos62'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.castProfile, (page) {
+    page.ensureActions(
+      page.findByKey('Image_gnr33ifp'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.cocomisePage, (page) {
+    page.ensureActions(
+      page.findByKey('Image_8kcwkbva'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.emailVerification, (page) {
+    page.ensureActions(
+      page.findByKey('Image_7ecqhzgw'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.homePage, (page) {
+    page.ensureActions(
+      page.findByKey('Image_zw5rywhq'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.homePageBasic, (page) {
+    page.ensureActions(
+      page.findByKey('Image_jlqjsiyh'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.kyc, (page) {
+    page.ensureActions(
+      page.findByKey('Image_gnbe0x7a'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.macchaPage, (page) {
+    page.ensureActions(
+      page.findByKey('Image_a01mlb9d'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.myPage, (page) {
+    page.ensureActions(
+      page.findByKey('Image_4zgrm6bf'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.phoneVarification, (page) {
+    page.ensureActions(
+      page.findByKey('Image_d821t1g9'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.reservationDetail, (page) {
+    page.ensureActions(
+      page.findByKey('Image_7dqokqd3'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.reservationForm, (page) {
+    page.ensureActions(
+      page.findByKey('Image_1iaa6oop'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.reviewPending, (page) {
+    page.ensureActions(
+      page.findByKey('Image_msxdg76g'), // header logo, sign-out tap
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoSignOutConfirmed',
+        ),
+        If(ActionOutput('logoSignOutConfirmed'), then: [const Logout()]),
+      ],
+    );
+
+    page.ensureActions(
+      page.findByKey('Button_cg4zw1tl'), // ログアウト (explicit button)
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoutButtonConfirmed',
+        ),
+        If(ActionOutput('logoutButtonConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.systemInfo, (page) {
+    page.ensureActions(
+      page.findByKey('Button_0k8pas4f'), // ログアウト (explicit button)
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ログアウトしますか？',
+            'message': 'ログアウトすると、再度ログインが必要になります。よろしいですか？',
+            'confirmText': 'ログアウトする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'logoutButtonConfirmed',
+        ),
+        If(ActionOutput('logoutButtonConfirmed'), then: [const Logout()]),
+      ],
+    );
+  });
+
+  // ==========================================================================
+  // Confirm-before-action pass — InquiryForm (送信する). Flat, non-itemBuilder
+  // button; no active `ensureActions` for this key exists anywhere in this
+  // file (only a frozen/commented one-shot construction), so a fresh
+  // `ensureActions` call is safe here (per this file's own established
+  // rule). Reproduces the exact existing chain — including its two nested
+  // required-field validation `If`s — from `generated_code/`, with the
+  // confirm gate inserted AFTER both fields validate, immediately before
+  // the real submission, matching the placement convention used on
+  // ProfileEdit's photo-change fix just above.
+  // ==========================================================================
+
+  app.editPage(ff.Pages.inquiryForm, (page) {
+    page.ensureActions(
+      page.findByKey('Button_2ybfdmpk'), // 送信する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        If(
+          Not(Equals(State('inquirySubject'), '')),
+          then: [
+            If(
+              Not(Equals(State('inquiryMessage'), '')),
+              then: [
+                CallCustomAction.named(
+                  'confirmDialog',
+                  arguments: {
+                    'title': 'お問い合わせを送信しますか？',
+                    'message': 'この内容で運営にお問い合わせを送信します。よろしいですか？',
+                    'confirmText': '送信する',
+                    'dismissText': 'キャンセル',
+                  },
+                  outputAs: 'inquirySubmitConfirmed',
+                ),
+                If(
+                  ActionOutput('inquirySubmitConfirmed'),
+                  then: [
+                    CallCustomAction.named(
+                      'callSubmitInquiry',
+                      arguments: {
+                        'subject': State('inquirySubject'),
+                        'message': State('inquiryMessage'),
+                      },
+                      outputAs: 'inquiryResult',
+                    ),
+                    If(
+                      ActionOutput('inquiryResult'),
+                      then: [
+                        SetState('inquirySubject', ''),
+                        SetState('inquiryMessage', ''),
+                        Snackbar('お問い合わせを送信しました。'),
+                      ],
+                      orElse: [Snackbar('送信に失敗しました。')],
+                    ),
+                  ],
+                ),
+              ],
+              orElse: [Snackbar('お問い合わせ内容を入力してください。')],
+            ),
+          ],
+          orElse: [Snackbar('件名を入力してください。')],
+        ),
+      ],
+    );
+  });
+
+  // ==========================================================================
+  // Confirm-before-action pass — remaining itemBuilder-scoped buttons from
+  // the fresh full-app survey (PROJECT_KNOWLEDGE.md §116). Each target's
+  // refetch call is already multiply-bound (onLoad + button(s), confirmed
+  // via generated_code for every one below), so each gets its own
+  // dedicated `app.actionBlock`, same §112 technique. All 5 buttons here
+  // had no active competing `ensureActions`/`ensureReplaced` declaration
+  // elsewhere in the file (verified individually — each site's only other
+  // reference is inside an inert post-creation `ensurePage` body or an
+  // already-frozen/commented one-shot construction), so each gets a fresh
+  // `page.ensureActions(page.findByKey(...))` call, safe per this file's
+  // own established rule.
+  //
+  // Confirm-dialog wording checked against each button's real backend
+  // function before writing it (admin.ts's `adminCloseChat`/
+  // `adminCloseWorkPost`, work-posts.ts's `selectWorkApplicant`) — not
+  // guessed: chat force-close and work-post stop are both genuinely
+  // irreversible through this admin panel (no re-open function exists for
+  // either); selecting a work-post applicant genuinely does exclude all
+  // other applicants going forward (the backend transactionally requires
+  // `status === "open"`, which selecting flips away from).
+  //
+  // NOT included here, a deliberate exclusion, not an oversight: MyPage's
+  // schedule-slot toggle (found by the same survey). It's a rapid-fire
+  // 24h/30-min-grid calendar-editing control — a cast taps dozens of cells
+  // in one sitting to set up a week's availability. Confirming every tap
+  // would make the feature nearly unusable, unlike every other target in
+  // this pass (one-shot, deliberate actions). Flagged in
+  // UNRESOLVED_ISSUES.md for an explicit product decision rather than
+  // mechanically applying the same pattern somewhere it would actively
+  // harm the UX.
+  // ==========================================================================
+
+  // FROZEN (landed on the §117 push): referenced by name instead.
+  final refetchAllBannersBlock = ActionBlock.named(
+    'refetchAllBanners',
+    scope: ActionBlockLookupScope.app,
+  );
+
+  app.editPage(ff.Pages.bannerManagementPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_3q44tz7j'), // 公開/非公開切替
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '公開状態を切り替えますか？',
+            'message': 'このバナーの公開/非公開状態を切り替えます。よろしいですか？',
+            'confirmText': '切り替える',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'toggleBannerConfirmed',
+        ),
+        If(
+          ActionOutput('toggleBannerConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminUpsertBanner',
+              arguments: {
+                'bannerId': CustomFunction(bannerIdFn, args: {'item': ItemRef()}),
+                'title': '',
+                'imageUrl': '',
+                'linkUrl': '',
+                'page': '',
+                'displayOrder': '',
+                'active': CustomFunction(
+                  boolToStringFn,
+                  args: {'value': Not(CustomFunction(bannerIsActiveFn, args: {'item': ItemRef()}))},
+                ),
+              },
+              outputAs: 'toggleBannerResult',
+            ),
+            ExecuteActionBlock(
+              refetchAllBannersBlock,
+              outputAs: 'bannersRefetchResult2',
+              shouldSetState: true,
+            ),
+            SetState(ff.Pages.bannerManagementPage.state.bannersList, ActionOutput('bannersRefetchResult2')),
+          ],
+        ),
+      ],
+    );
+
+    page.ensureActions(
+      page.findByKey('Button_6hd6sm6u'), // 削除
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'このバナーを削除しますか？',
+            'message': 'この操作は取り消せません。よろしいですか？',
+            'confirmText': '削除する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'deleteBannerConfirmed',
+        ),
+        If(
+          ActionOutput('deleteBannerConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminDeleteBanner',
+              arguments: {'bannerId': CustomFunction(bannerIdFn, args: {'item': ItemRef()})},
+              outputAs: 'deleteBannerResult',
+            ),
+            ExecuteActionBlock(
+              refetchAllBannersBlock,
+              outputAs: 'bannersRefetchResult3',
+              shouldSetState: true,
+            ),
+            SetState(ff.Pages.bannerManagementPage.state.bannersList, ActionOutput('bannersRefetchResult3')),
+          ],
+        ),
+      ],
+    );
+  });
+
+  // FROZEN (landed on the §117 push): referenced by name instead.
+  final refetchAdminChatRoomsBlock = ActionBlock.named(
+    'refetchAdminChatRooms',
+    scope: ActionBlockLookupScope.app,
+  );
+
+  app.editPage(ff.Pages.chatOversightPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_iext81b7'), // 強制クローズ
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'チャットルームを強制クローズしますか？',
+            'message': 'この操作は取り消せません。参加者は今後このルームでメッセージを送信できなくなります。よろしいですか？',
+            'confirmText': 'クローズする',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'adminCloseChatConfirmed',
+        ),
+        If(
+          ActionOutput('adminCloseChatConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminCloseChat',
+              arguments: {'roomId': CustomFunction(adminChatRoomIdFn, args: {'item': ItemRef()})},
+              outputAs: 'adminCloseChatResult',
+            ),
+            ExecuteActionBlock(
+              refetchAdminChatRoomsBlock,
+              outputAs: 'adminChatRoomsRefetchResult',
+              shouldSetState: true,
+            ),
+            SetState(ff.Pages.chatOversightPage.state.adminChatRoomsList, ActionOutput('adminChatRoomsRefetchResult')),
+          ],
+        ),
+      ],
+    );
+  });
+
+  // FROZEN (landed on the §117 push): referenced by name instead.
+  final refetchFavoriteCastsBlock = ActionBlock.named(
+    'refetchFavoriteCasts',
+    scope: ActionBlockLookupScope.app,
+  );
+
+  app.editPage(ff.Pages.favoritesPage, (page) {
+    page.ensureActions(
+      page.findByKey('IconButton_fbnt826m'), // お気に入り解除アイコン
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'お気に入りから削除しますか？',
+            'message': 'このキャストをお気に入りから削除します。よろしいですか？',
+            'confirmText': '削除する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'favRemoveConfirmed',
+        ),
+        If(
+          ActionOutput('favRemoveConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callRemoveFavorite',
+              arguments: {'castId': CustomFunction(favCastIdFn, args: {'item': ItemRef()})},
+              outputAs: 'favListRemoveResult',
+            ),
+            ExecuteActionBlock(
+              refetchFavoriteCastsBlock,
+              outputAs: 'favListRefetchResult',
+              shouldSetState: true,
+            ),
+            SetState(ff.Pages.favoritesPage.state.favoriteCastsList, ActionOutput('favListRefetchResult')),
+          ],
+        ),
+      ],
+    );
+  });
+
+  // NOTE: no action-block decoupling here, unlike the other targets in this
+  // pass. A parameterized action block (`params: {'postId': string}`,
+  // `CallCustomAction.named('fetchWorkPostDetailData', arguments: {'postId':
+  // const ActionBlockParam('postId')})`) failed `compileDslApp` outright
+  // with `Custom action argument "postId" is not set properly` — the
+  // project's first attempt at a PARAMETERIZED action block (every prior
+  // one in this pass/§112 was zero-arg); root cause not isolated, not
+  // reattempted per this file's own two-attempts-then-stop discipline.
+  // Fell back to calling `fetchWorkPostDetailData` directly inline instead
+  // — a genuinely different situation from the §112 collision this
+  // decoupling technique exists to route around: THIS is a FIRST-TIME
+  // `ensureActions` application to this widget (no prior override existed
+  // at all), not a SECOND EDIT to an already-successfully-applied one — the
+  // §112 root cause was specifically "editing an existing call site of an
+  // already-multiply-bound action from a later push," which doesn't apply
+  // to a brand-new override. Verify this assumption held after pushing
+  // (see PROJECT_KNOWLEDGE.md's own entry for this pass).
+  app.editPage(ff.Pages.workPostDetailPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_puhug8da'), // 選定する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'この応募者を選定しますか？',
+            'message': '選定すると、他の応募者はもう選べなくなります。よろしいですか？',
+            'confirmText': '選定する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'selectApplicantConfirmed',
+        ),
+        If(
+          ActionOutput('selectApplicantConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callSelectWorkApplicant',
+              arguments: {
+                'postId': PageParam('postId'),
+                'applicantId': CustomFunction(splitFieldFn, args: {'data': ItemRef(), 'index': 0}),
+              },
+              outputAs: 'selectResult',
+            ),
+            If(
+              Not(Equals(ActionOutput('selectResult'), 'error')),
+              then: [
+                Snackbar('選定しました。'),
+                CallCustomAction.named(
+                  'fetchWorkPostDetailData',
+                  arguments: {'postId': PageParam('postId')},
+                  outputAs: 'detailRefetchResult',
+                ),
+                SetState(ff.Pages.workPostDetailPage.state.detailData, ActionOutput('detailRefetchResult')),
+              ],
+              orElse: [Snackbar('選定に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    // FIX (feature build, Tier 2 item 2 — UNRESOLVED_ISSUES.md, "no self-
+    // service way for the cast/poster to cancel just the group-invite
+    // portion — only an admin-only close exists"): new poster-only
+    // "投稿を取り消す" button, inserted right after the apply button (a
+    // fresh, uncontested anchor — confirmed via a whole-file grep that no
+    // other structural mutation targets `Button_jaw63ext`/`Divider_3zwjg5hk`
+    // before this). `onTap:` wired inline at construction (`Button`'s own
+    // constructor takes it directly, confirmed via the SDK source) rather
+    // than a separate follow-up `ensureActions` on the freshly-inserted
+    // key — one push, not two. Visibility gated on the new
+    // `workPostDetailCanCancelFn` (isPoster && status=='open' &&
+    // applicantCount==0), matching the literal "zero applicants only"
+    // product decision confirmed with the client 2026-08-16. Stays hidden
+    // for the SAME reason `Button_jaw63ext` itself has no isPoster gate
+    // yet (a separate, pre-existing, out-of-scope gap on this page, not
+    // introduced or fixed here) — this button's own `visible:` is fully
+    // self-contained regardless of that.
+    page.ensureInsertedAfter(
+      page.findByKey('Button_jaw63ext'), // 応募する
+      Button(
+        '投稿を取り消す',
+        name: 'WorkPostCancelButton',
+        borderRadius: 8,
+        color: Colors.error,
+        textColor: Colors.hex(0xFFFFFFFF), // no Colors.white token in this DSL
+        visible: CustomFunction(workPostDetailCanCancelFn, args: {'data': State(ff.Pages.workPostDetailPage.state.detailData)}),
+        onTap: [
+          CallCustomAction.named(
+            'confirmDialog',
+            arguments: {
+              'title': '投稿を取り消しますか？',
+              'message': 'この募集投稿を取り消します。この操作は取り消せません。よろしいですか？',
+              'confirmText': '取り消す',
+              'dismissText': 'キャンセル',
+            },
+            outputAs: 'cancelWorkPostConfirmed',
+          ),
+          If(
+            ActionOutput('cancelWorkPostConfirmed'),
+            then: [
+              CallCustomAction.named(
+                'callCancelMyWorkPost',
+                arguments: {'postId': PageParam('postId')},
+                outputAs: 'cancelWorkPostResult',
+              ),
+              If(
+                ActionOutput('cancelWorkPostResult'),
+                then: [
+                  Snackbar('投稿を取り消しました。'),
+                  CallCustomAction.named(
+                    'fetchWorkPostDetailData',
+                    arguments: {'postId': PageParam('postId')},
+                    outputAs: 'detailRefetchResult2',
+                  ),
+                  SetState(ff.Pages.workPostDetailPage.state.detailData, ActionOutput('detailRefetchResult2')),
+                ],
+                orElse: [Snackbar('取り消しに失敗しました。')],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  });
+
+  // FROZEN (landed on the §117 push): referenced by name instead.
+  final refetchAdminWorkPostsBlock = ActionBlock.named(
+    'refetchAdminWorkPosts',
+    scope: ActionBlockLookupScope.app,
+  );
+
+  app.editPage(ff.Pages.workPostManagementPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_e28059xj'), // 停止する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'この投稿を停止しますか？',
+            'message': 'この操作は取り消せません。よろしいですか？',
+            'confirmText': '停止する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'adminCloseWorkPostConfirmed',
+        ),
+        If(
+          ActionOutput('adminCloseWorkPostConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminCloseWorkPost',
+              arguments: {'postId': CustomFunction(adminWorkPostIdFn, args: {'item': ItemRef()})},
+              outputAs: 'adminCloseWorkPostResult',
+            ),
+            ExecuteActionBlock(
+              refetchAdminWorkPostsBlock,
+              outputAs: 'adminWorkPostsRefetchResult2',
+              shouldSetState: true,
+            ),
+            SetState(ff.Pages.workPostManagementPage.state.adminWorkPostsList, ActionOutput('adminWorkPostsRefetchResult2')),
+          ],
+        ),
+      ],
+    );
+  });
+
+  // ==========================================================================
+  // Copy-accuracy fix, 4th attempt, ABANDONED — exhausted, not reattempted.
+  // Attempts 1-3 (see §113) all used `page.ensureActions(...)` to RE-EDIT
+  // these two buttons' already-applied triggers — every one silently
+  // no-opped server-side (`_triggerSemanticallyEquals` false positive,
+  // confirmed 3 independent ways). This 4th attempt tried a structurally
+  // different SDK operation instead — `page.ensureReplaced(...)` (replaces
+  // the whole widget NODE by key, self-heals via
+  // `_ReplaceAlreadyAppliedNoop`, NOT the `_triggerSemanticallyEquals` code
+  // path §113 diagnosed) — reconstructing each button in full (text, color,
+  // white text via `Colors.hex(0xFFFFFFFF)` since no `Colors.white` token
+  // exists in this DSL's theme-slot enum, zero padding, borderRadius 8) with
+  // only the confirm-dialog message corrected.
+  //
+  // FAILED DIFFERENTLY, and more fundamentally: `compileDslApp` rejected it
+  // LOCALLY (never reached the server, confirmed by the error surfacing in
+  // ~14s with no push/commit step logged) with `Bad state: ItemRef used
+  // outside a ListView builder`. This reveals a genuine structural
+  // incompatibility, not just another instance of the §113 bug:
+  // `ItemRef()` only resolves for a widget already compiled inside a real
+  // itemBuilder closure (confirmed working for `page.ensureActions` on an
+  // EXISTING widget, per §112/§114/§115/§116/§117's own successful use)
+  // — but `ensureReplaced` constructs a BRAND NEW widget definition via a
+  // DSL constructor call, the same category as `ensureInsertedAfter`/
+  // `ensureInsertedBefore` (already documented elsewhere in this file as
+  // unable to supply `ItemRef()`), NOT the "editing an existing compiled
+  // widget" category. Since these 2 buttons need the itemBuilder's
+  // per-row reservation ID (`CustomFunction(adminResIdFn, args: {'item':
+  // ItemRef()})`), `ensureReplaced` on the BUTTON alone cannot work at all.
+  //
+  // The only way to keep `ItemRef()`'s functional equivalent would be
+  // reconstructing the ENTIRE containing `ListView` via `ensureReplaced`
+  // with a real `itemBuilder: (item) => ...` closure (giving direct `item`
+  // access, no `ItemRef()` needed) — technically possible, but explicitly
+  // NOT attempted: it means hand-reproducing this row's full structure
+  // (both buttons, all their properties) from scratch, a much larger
+  // surface area for a byte-level mismatch, to fix 2 words of dialog
+  // copy on buttons whose actual confirm-gating behavior is already 100%
+  // correct and independently re-verified (§118). The cost/risk of a 5th
+  // attempt no longer justifies the value of a cosmetic text correction on
+  // a live financial admin page. STOPPED HERE — if this specific wording
+  // is ever wanted, the lowest-risk real path is the same one already used
+  // for the LoginPage password-rule gap (§107): a direct edit in
+  // FlutterFlow Studio, not through this SDK's authoring surface.
+  // ==========================================================================
 }

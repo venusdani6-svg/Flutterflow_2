@@ -57,6 +57,12 @@ final class CocoTenDetailPageParams {
         key: "d3njptam",
         typeName: "String",
       );
+  ffai.ProjectParamHandle get shopPhoto =>
+      const ffai.ProjectParamHandle(
+        name: "shopPhoto",
+        key: "z0yh28zb",
+        typeName: "String",
+      );
 }
 
 final class CocoTenDetailPageState {
@@ -95,6 +101,12 @@ final class CocoTenDetailPageState {
       const ffai.ProjectStateFieldHandle(
         name: "shopNameState",
         key: "0ssiyrpo",
+        typeName: "String",
+      );
+  ffai.ProjectStateFieldHandle get shopPhotoState =>
+      const ffai.ProjectStateFieldHandle(
+        name: "shopPhotoState",
+        key: "epzkin7w",
         typeName: "String",
       );
 }
@@ -157,60 +169,66 @@ abstract final class CocoTenDetailPageWidgets {
                 ],
               ),
               ffai.ProjectWidgetHandle(
+                key: "Image_necqfhkl",
+                type: "Image",
+                path: "CocoTenDetailPage.body[0].children[1]",
+                name: "CocoTenDetailPhoto",
+              ),
+              ffai.ProjectWidgetHandle(
                 key: "Text_9jzm4w9b",
                 type: "Text",
-                path: "CocoTenDetailPage.body[0].children[1]",
+                path: "CocoTenDetailPage.body[0].children[2]",
                 name: "Text",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Divider_uny39lip",
                 type: "Divider",
-                path: "CocoTenDetailPage.body[0].children[2]",
+                path: "CocoTenDetailPage.body[0].children[3]",
                 name: "Divider",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Text_3warb732",
                 type: "Text",
-                path: "CocoTenDetailPage.body[0].children[3]",
+                path: "CocoTenDetailPage.body[0].children[4]",
                 name: "Text",
                 text: "住所",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Text_v14g40k5",
                 type: "Text",
-                path: "CocoTenDetailPage.body[0].children[4]",
+                path: "CocoTenDetailPage.body[0].children[5]",
                 name: "Text",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Text_cmz4m4tx",
                 type: "Text",
-                path: "CocoTenDetailPage.body[0].children[5]",
+                path: "CocoTenDetailPage.body[0].children[6]",
                 name: "Text",
                 text: "メニュー",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Text_r2soykvq",
                 type: "Text",
-                path: "CocoTenDetailPage.body[0].children[6]",
+                path: "CocoTenDetailPage.body[0].children[7]",
                 name: "Text",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Text_q4aux679",
                 type: "Text",
-                path: "CocoTenDetailPage.body[0].children[7]",
+                path: "CocoTenDetailPage.body[0].children[8]",
                 name: "Text",
                 text: "ゲスト特典",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Text_a2e7z0ze",
                 type: "Text",
-                path: "CocoTenDetailPage.body[0].children[8]",
+                path: "CocoTenDetailPage.body[0].children[9]",
                 name: "Text",
               ),
               ffai.ProjectWidgetHandle(
                 key: "Button_l4uhb287",
                 type: "Button",
-                path: "CocoTenDetailPage.body[0].children[9]",
+                path: "CocoTenDetailPage.body[0].children[10]",
                 name: "InviteAtVenueButton",
                 text: "このお店で待ち合わせるキャストを探す",
                 triggers: const <String>[
