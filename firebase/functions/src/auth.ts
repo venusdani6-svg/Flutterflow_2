@@ -1190,10 +1190,19 @@ export const getDiscoveryCasts = onCall(async (request) => {
   }
 
   const uid = request.auth.uid;
-  const { lat, lng } = request.data || {};
+  const { lat, lng, keyword } = request.data || {};
   if (typeof lat !== "number" || typeof lng !== "number") {
     throw new HttpsError("invalid-argument", "lat/lngが必要です。");
   }
+  // FIX (comprehensive review, confirmed bug): Home's cast search dialog
+  // has a fully-functional-looking text field + "検索" button - it stores
+  // the typed keyword into FFAppState().searchCastKeyword, but nothing ever
+  // read that value again anywhere in the app, and this callable took no
+  // search parameter at all. Every keyword search was a silent no-op with
+  // no error. Accepts an optional keyword now and filters by nickname
+  // substring match (case-insensitive) below, once results are assembled.
+  const searchKeyword: string =
+    typeof keyword === "string" ? keyword.trim().toLowerCase() : "";
 
   // Phase 7 (2026-08-11): §3.6.17's own wording is specifically "blocked
   // users disappear from the BLOCKER's search results" - unidirectional,
@@ -1276,7 +1285,8 @@ export const getDiscoveryCasts = onCall(async (request) => {
         ""
       );
       return { id: d.id, isOnline, dist, lastLoginMs, nickname, photoUrl };
-    });
+    })
+    .filter((r) => !searchKeyword || r.nickname.toLowerCase().includes(searchKeyword));
 
   rows.sort((a, b) => {
     if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;

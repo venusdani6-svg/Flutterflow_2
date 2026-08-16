@@ -8,6 +8,7 @@ import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https
 import * as functionsV1 from "firebase-functions/v1";
 import { db, auth, stripe, Timestamp, FieldValue, isAllowedKycDocUrl, getSystemConfig, backfillServiceAreas, sendPushNotification, messaging } from "./config";
 import { reservedSlotsQuery } from "./schedule";
+import { MAX_CAST_IDS_PER_RESERVATION } from "./reservations";
 
 /**
  * Helper: Verify admin role
@@ -2339,6 +2340,27 @@ export const adminApprovePayout = functionsV1
       );
     }
 
+    // FIX (comprehensive review, confirmed bug — same class as the
+    // is_frozen fix immediately above, just not generalized to this field):
+    // `requestPayout` (stripe-payments.ts) blocks creating a payout request
+    // at all while `logical_debt > 0`, but `payout_requests`'s own create
+    // rule lets a client write a request doc directly (a separate,
+    // already-disclosed low-severity gap — PROJECT_KNOWLEDGE.md), bypassing
+    // that check. Without a re-check here, an admin approving such a
+    // request pays out the cast's full live Stripe balance while their debt
+    // stays uncollected — and since debt is only ever recouped by deducting
+    // from FUTURE reward transfers, a cast who stops taking bookings after
+    // this makes it permanently uncollectable. Same revert-and-reject
+    // pattern as the two guards above/below, so the request isn't left
+    // stuck in "processing".
+    if ((userData?.logical_debt || 0) > 0) {
+      await db.collection("payout_requests").doc(requestId).update({ status: "pending" });
+      throw new functionsV1.https.HttpsError(
+        "failed-precondition",
+        "このユーザーには未精算の債務があるため出金を承認できません。"
+      );
+    }
+
     if (!userData?.stripe_account_id) {
       // Claimed above but can't proceed — revert the claim so the request
       // isn't stuck "processing" forever with no payout ever attempted.
@@ -3735,11 +3757,34 @@ export const adminHireWorkPostApplicant = onCall(async (request) => {
     // Reads before writes — the reservation existence check must happen
     // here, not interleaved with the tx.update() calls below.
     let resRef: FirebaseFirestore.DocumentReference | null = null;
-    if ((data.type === "security" || data.type === "transport") && data.res_id) {
+    let resSnapData: FirebaseFirestore.DocumentData | null = null;
+    // FIX (comprehensive review, confirmed bug): this omitted
+    // "partner_recruit" — work-posts.ts's selectWorkApplicant (the
+    // client-facing sibling) already includes it, fixed for the exact same
+    // "recruited cast never wired into the reservation" bug class
+    // (PROJECT_KNOWLEDGE.md §105 item 1). The admin-facing hire path never
+    // got the matching fix: an admin hiring a group-invite (partner_recruit)
+    // applicant marked the post filled but never added the applicant to
+    // `cast_ids`, so they could never confirm meetup, report completion, or
+    // get paid for a reservation they were visibly selected for.
+    if ((data.type === "security" || data.type === "transport" || data.type === "partner_recruit") && data.res_id) {
       const candidateRef = db.collection("reservations").doc(data.res_id);
       const resSnap = await tx.get(candidateRef);
       if (resSnap.exists) {
         resRef = candidateRef;
+        resSnapData = resSnap.data()!;
+      }
+    }
+
+    // Same MAX_CAST_IDS_PER_RESERVATION safety cap selectWorkApplicant
+    // enforces before adding a partner_recruit hire to cast_ids.
+    if (resRef && data.type === "partner_recruit") {
+      const existingCastIds: string[] = resSnapData?.cast_ids || [];
+      if (!existingCastIds.includes(applicant_id) && existingCastIds.length >= MAX_CAST_IDS_PER_RESERVATION) {
+        throw new HttpsError(
+          "failed-precondition",
+          "この予約はすでに参加キャスト数の上限に達しています。"
+        );
       }
     }
 
@@ -3753,22 +3798,26 @@ export const adminHireWorkPostApplicant = onCall(async (request) => {
     // admin panel instead of the client-facing flow was never wired to
     // receive their fee. Mirrors selectWorkApplicant's logic exactly.
     if (resRef) {
-      // FIX (confirmed live bug, found during audit — same gap as
-      // work-posts.ts's selectWorkApplicant, mirrored here for the
-      // admin-facing hire path): `security_staff_fee`/`transport_staff_fee`
-      // are independently admin-configurable and not guaranteed equal, but
-      // `recordCastRewardsAndProcessOthers` (stripe-payments.ts) used to
-      // pay every staff_id on a reservation an EVEN split of the aggregate
-      // `staff_fee` — misallocating pay between a security and a transport
-      // staffer whenever those two config values differ. This work_post's
-      // own `fee` is the authoritative amount THIS hire should be paid;
-      // recorded into `staff_fee_map` (dot-path update) so payout can pay
-      // the right amount to the right person instead of guessing via an
-      // even split.
-      tx.update(resRef, {
-        staff_ids: FieldValue.arrayUnion(applicant_id),
-        [`staff_fee_map.${applicant_id}`]: data.fee || 0,
-      });
+      if (data.type === "partner_recruit") {
+        tx.update(resRef, { cast_ids: FieldValue.arrayUnion(applicant_id) });
+      } else {
+        // FIX (confirmed live bug, found during audit — same gap as
+        // work-posts.ts's selectWorkApplicant, mirrored here for the
+        // admin-facing hire path): `security_staff_fee`/`transport_staff_fee`
+        // are independently admin-configurable and not guaranteed equal, but
+        // `recordCastRewardsAndProcessOthers` (stripe-payments.ts) used to
+        // pay every staff_id on a reservation an EVEN split of the aggregate
+        // `staff_fee` — misallocating pay between a security and a transport
+        // staffer whenever those two config values differ. This work_post's
+        // own `fee` is the authoritative amount THIS hire should be paid;
+        // recorded into `staff_fee_map` (dot-path update) so payout can pay
+        // the right amount to the right person instead of guessing via an
+        // even split.
+        tx.update(resRef, {
+          staff_ids: FieldValue.arrayUnion(applicant_id),
+          [`staff_fee_map.${applicant_id}`]: data.fee || 0,
+        });
+      }
     }
 
   });

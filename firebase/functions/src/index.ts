@@ -98,6 +98,7 @@ export {
   submitReview,
   autoCancelExpiredAuth,
   autoCompleteReviews,
+  autoCompleteStalledInProgress,
   sendChatMessage,
   getChatRoomInfo,
   getReservationDetailInfo,

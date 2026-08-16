@@ -431,6 +431,294 @@ Future<bool> confirmDialog(
 ''',
   );
 
+  // `app.customAction(...)` compiles to `ensureCustomAction`, which is
+  // CREATE-IF-MISSING ONLY (confirmed via a real compile failure: "found
+  // an existing custom action ... with a different payload. `ensure*`
+  // helpers are create-if-missing only") — NOT create-or-update, contrary
+  // to this session's own earlier (wrong) assumption that it silently
+  // updated on content changes just because it had never errored before
+  // (it hadn't errored because the content had simply never changed
+  // between reruns until this exact fix). Switched to `updateCustomAction`
+  // inside `app.raw(...)`, the same established pattern already proven
+  // for `fetchMyReservations` earlier this session.
+  //
+  // MAJOR BUG FIX (2026-08-11, full-project review): this action used to
+  // query `users` DIRECTLY from the client. `firestore.rules`' own
+  // `users` rule is strictly owner-only (`allow read: if
+  // request.auth.uid == document`, confirmed by reading the rules file
+  // directly) — a query filtering on `account_type`/`approval_status`
+  // (matching MANY other users' documents, not the caller's own) is
+  // provably unsatisfiable by that rule, so Firestore denies the whole
+  // query outright at rule-evaluation time. The action's own try/catch
+  // silently swallowed this into an empty list, meaning the ENTIRE Home
+  // ranking query feature has shown zero casts to every user since it
+  // was built — a real, previously undiscovered defect, not a cosmetic
+  // one. Real fix: moved the query/filter/sort server-side into a new
+  // `getDiscoveryCasts` callable (Admin SDK bypasses Firestore rules,
+  // the same reason `getServiceAreas` exists) — this action now only
+  // resolves the guest's own coordinates (GPS or prefecture fallback,
+  // unchanged from before) and calls that callable.
+  app.raw((project) {
+    updateCustomAction(
+      project,
+      name: 'fetchDiscoveryCasts',
+      code: r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:geolocator/geolocator.dart';
+import '/auth/firebase_auth/auth_util.dart';
+
+Future<List<String>> fetchDiscoveryCasts() async {
+  try {
+    final firestore = FirebaseFirestore.instance;
+    final uid = currentUserUid;
+    double? guestLat;
+    double? guestLng;
+
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse) {
+        final position = await Geolocator.getCurrentPosition(
+          timeLimit: const Duration(seconds: 5),
+        );
+        guestLat = position.latitude;
+        guestLng = position.longitude;
+      }
+    } catch (e) {
+      // GPS unavailable/denied/timed out — fall through to the
+      // prefecture-based fallback below.
+    }
+
+    if (guestLat == null || guestLng == null) {
+      // FIX (unimplemented-features pass, municipality/GPS task): this used
+      // to be a hardcoded static Dart table (10 prefecture centers,
+      // compiled into the app, not admin-editable) — replaced with a live
+      // lookup against `getServiceAreaCoordinates` (auth.ts), backed by the
+      // real admin-editable `system_config/settings.service_areas` data
+      // (ServiceAreaMunicipalitiesPage). Also now tries a MUNICIPALITY-
+      // level match first (more precise than the prefecture centroid) using
+      // the guest's own `city` field, before falling back to the
+      // prefecture's own representative point, before falling back to
+      // Tokyo — same 3-tier shape as before, just data-driven instead of
+      // compiled-in. Tokyo fallback is set FIRST and unconditionally, so
+      // any failure below (network, malformed data, no match) safely
+      // leaves it in place — same defensive shape as the rest of this
+      // action.
+      guestLat = 35.6895; // 東京駅
+      guestLng = 139.6917;
+      try {
+        var ownPrefecture = '';
+        var ownCity = '';
+        if (uid.isNotEmpty) {
+          final ownDoc = await firestore.collection('users').doc(uid).get();
+          // `prefecture`/`city` (required, all-users residential fields),
+          // NOT `activity_prefecture`/`activity_city` (optional, cast-only
+          // "where I work" fields) — a guest browsing Home would almost
+          // always have those empty, making the fallback silently fail for
+          // the primary user of this feature. Real bug, found on review,
+          // not present in the original design intent.
+          ownPrefecture = ownDoc.data()?['prefecture']?.toString() ?? '';
+          ownCity = ownDoc.data()?['city']?.toString() ?? '';
+        }
+        if (ownPrefecture.isNotEmpty) {
+          final coordCallable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+              .httpsCallable('getServiceAreaCoordinates');
+          final coordResult = await coordCallable.call({});
+          if (coordResult.data is Map && coordResult.data['areas'] is List) {
+            for (final raw in coordResult.data['areas'] as List) {
+              final area = raw as Map;
+              final prefName = area['prefecture']?.toString() ?? '';
+              if (prefName.isEmpty || !ownPrefecture.contains(prefName)) continue;
+
+              var matched = false;
+              if (ownCity.isNotEmpty && area['municipalities'] is List) {
+                for (final rawM in area['municipalities'] as List) {
+                  final m = rawM as Map;
+                  final mName = m['name']?.toString() ?? '';
+                  final mLat = (m['lat'] as num?)?.toDouble();
+                  final mLng = (m['lng'] as num?)?.toDouble();
+                  if (mName.isNotEmpty && ownCity.contains(mName) && mLat != null && mLng != null) {
+                    guestLat = mLat;
+                    guestLng = mLng;
+                    matched = true;
+                    break;
+                  }
+                }
+              }
+              if (!matched) {
+                final pLat = (area['lat'] as num?)?.toDouble();
+                final pLng = (area['lng'] as num?)?.toDouble();
+                if (pLat != null && pLng != null) {
+                  guestLat = pLat;
+                  guestLng = pLng;
+                }
+              }
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        // Leave guestLat/guestLng at the Tokyo fallback already set above.
+      }
+    }
+
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('getDiscoveryCasts');
+    final result = await callable.call({'lat': guestLat, 'lng': guestLng, 'keyword': ''});
+    if (result.data is Map && result.data['items'] is List) {
+      return (result.data['items'] as List).map((e) => e.toString()).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+    );
+  });
+
+  // Comprehensive review pass (2026-08-16): HomePage's search dialog
+  // stores the typed keyword into FFAppState().searchCastKeyword but
+  // nothing ever read it back — every keyword search was a silent no-op
+  // (getDiscoveryCasts (auth.ts) already supports server-side filtering by
+  // nickname substring; the client just never sent the keyword).
+  //
+  // First attempt: added a `keyword` parameter directly to the EXISTING
+  // `fetchDiscoveryCasts` custom action via `updateCustomAction`. Compiled
+  // fine locally every time (tried with/without `isOptional`, with/without
+  // a `defaultValue`, with a literal value vs. an `AppState(...)`
+  // expression at the call site, and with the call site correctly ordered
+  // after the mutation to rule out the file-execution-order issue
+  // documented just above) — but EVERY attempt failed the same way at the
+  // server-side validation stage (~11s round trip, message not present
+  // anywhere in the local SDK source, so not a client-side compiler.dart
+  // check): "Custom action argument 'keyword' is not specified", even
+  // though the call site visibly supplied one. Five materially different
+  // fix attempts, all failing identically, confirms this is a genuine gap
+  // in how the server-side validator handles a NEW parameter added to an
+  // EXISTING custom action via the API/DSL path (as opposed to through the
+  // interactive builder UI) — not a mistake in this script. Per this
+  // project's own stop-iterating rule for confirmed SDK/codegen gaps,
+  // abandoned that path rather than continuing to guess.
+  //
+  // Working fix: a BRAND NEW custom action (declared via `app.customAction`,
+  // the CREATE path — not `updateCustomAction` on an existing one) with the
+  // keyword parameter present from its first declaration. New custom
+  // actions with parameters compile and validate cleanly elsewhere in this
+  // file (`confirmDialog`, `openSearchCastDialog`, both parameter-bearing
+  // and neither hitting this error) — only ADDING a parameter to an
+  // existing action triggers it. `fetchDiscoveryCasts` above stays
+  // reverted to its original zero-arg form (still used by HomePage's
+  // ON_INIT_STATE for the initial, keyword-less load) so that well-tested
+  // path is untouched; only the search icon's own explicit search action
+  // uses this new keyword-aware action.
+  app.customAction(
+    'searchDiscoveryCasts',
+    args: {'keyword': string},
+    returns: listOf(string),
+    description: 'キーワードでキャストを検索し、近隣キャストの一覧を返す（Home画面の検索ダイアログ用）。',
+    code: r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:geolocator/geolocator.dart';
+import '/auth/firebase_auth/auth_util.dart';
+
+Future<List<String>> searchDiscoveryCasts(String? keyword) async {
+  try {
+    final firestore = FirebaseFirestore.instance;
+    final uid = currentUserUid;
+    double? guestLat;
+    double? guestLng;
+
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse) {
+        final position = await Geolocator.getCurrentPosition(
+          timeLimit: const Duration(seconds: 5),
+        );
+        guestLat = position.latitude;
+        guestLng = position.longitude;
+      }
+    } catch (e) {
+      // GPS unavailable/denied/timed out — fall through to the
+      // prefecture-based fallback below.
+    }
+
+    if (guestLat == null || guestLng == null) {
+      guestLat = 35.6895; // 東京駅
+      guestLng = 139.6917;
+      try {
+        var ownPrefecture = '';
+        var ownCity = '';
+        if (uid.isNotEmpty) {
+          final ownDoc = await firestore.collection('users').doc(uid).get();
+          ownPrefecture = ownDoc.data()?['prefecture']?.toString() ?? '';
+          ownCity = ownDoc.data()?['city']?.toString() ?? '';
+        }
+        if (ownPrefecture.isNotEmpty) {
+          final coordCallable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+              .httpsCallable('getServiceAreaCoordinates');
+          final coordResult = await coordCallable.call({});
+          if (coordResult.data is Map && coordResult.data['areas'] is List) {
+            for (final raw in coordResult.data['areas'] as List) {
+              final area = raw as Map;
+              final prefName = area['prefecture']?.toString() ?? '';
+              if (prefName.isEmpty || !ownPrefecture.contains(prefName)) continue;
+
+              var matched = false;
+              if (ownCity.isNotEmpty && area['municipalities'] is List) {
+                for (final rawM in area['municipalities'] as List) {
+                  final m = rawM as Map;
+                  final mName = m['name']?.toString() ?? '';
+                  final mLat = (m['lat'] as num?)?.toDouble();
+                  final mLng = (m['lng'] as num?)?.toDouble();
+                  if (mName.isNotEmpty && ownCity.contains(mName) && mLat != null && mLng != null) {
+                    guestLat = mLat;
+                    guestLng = mLng;
+                    matched = true;
+                    break;
+                  }
+                }
+              }
+              if (!matched) {
+                final pLat = (area['lat'] as num?)?.toDouble();
+                final pLng = (area['lng'] as num?)?.toDouble();
+                if (pLat != null && pLng != null) {
+                  guestLat = pLat;
+                  guestLng = pLng;
+                }
+              }
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        // Leave guestLat/guestLng at the Tokyo fallback already set above.
+      }
+    }
+
+    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
+        .httpsCallable('getDiscoveryCasts');
+    final result = await callable.call({'lat': guestLat, 'lng': guestLng, 'keyword': keyword ?? ''});
+    if (result.data is Map && result.data['items'] is List) {
+      return (result.data['items'] as List).map((e) => e.toString()).toList();
+    }
+    return <String>[];
+  } catch (e) {
+    return <String>[];
+  }
+}
+''',
+  );
+
   // ==========================================================================
   // Phase 1 — Data model remediation (IMPLEMENTATION_PLAN.md §5)
   //
@@ -2933,6 +3221,39 @@ Future<String?> callCreateReservation(
     params.ensureParam('resId', string.withDefault(''));
   });
 
+  // Comprehensive review pass (2026-08-16): closes a previously-disclosed,
+  // deliberate scope cut (this file's own earlier comment, near
+  // FavoritesPage's bulk-invite button: "Deliberately NOT wired:
+  // auto-hiding ReservationForm's group-invite toggle when arriving via
+  // bulk-invite" — a real gap, not a bug, per §3.6.7's "mutually exclusive
+  // UI paths" wording). FavoritesPage's bulk-invite flow navigates here
+  // with `castId` as a COMMA-JOINED string of up to 5 IDs (see
+  // `joinIdsFn`/`callCreateReservationWithStaff`'s own `castId.split(',')`
+  // parsing) — a guest who already explicitly multi-selected named casts
+  // has no reason to ALSO be offered a separate "invite a group" toggle;
+  // showing both is confusing UI, not a correctness bug (group_invite is
+  // just an independent boolean on the reservation either way).
+  final isSingleCastFn = app.customFunction(
+    'isSingleCastId',
+    args: {'castId': string},
+    returns: bool_,
+    description: 'castIdパラメータが単一キャストか判定する（一括お誘い経由のカンマ区切り複数IDでない場合true）。',
+    code: r'''
+return !(castId ?? '').contains(',');
+''',
+  );
+
+  final shouldShowGroupSizeFn = app.customFunction(
+    'shouldShowGroupSize',
+    args: {'castId': string, 'groupInvite': bool_},
+    returns: bool_,
+    description: '単一キャスト予約かつグループお誘いONの場合のみ人数選択を表示する。',
+    code: r'''
+final single = !(castId ?? '').contains(',');
+return single && (groupInvite ?? false);
+''',
+  );
+
   app.editPage(ff.Pages.reservationForm, (page) {
     // Date: was an icon-only container with no real input behind it at all
     // (confirmed via the typed SDK — just an Icon, no TextField anywhere in
@@ -3103,6 +3424,83 @@ Future<String?> callCreateReservation(
       page.findByKey('TextField_5xuym89f'), // お誘い内容詳細
       triggerType: FFActionTriggerType.ON_TEXTFIELD_CHANGE,
       actions: [SetState('resDetails', const TextValue())],
+    );
+
+    // Comprehensive review pass (2026-08-16): "グループお誘い希望人数"
+    // (group-invite desired headcount) was ALWAYS visible and editable
+    // regardless of whether "グループお誘い希望" (the group-invite checkbox,
+    // `ResGroupInviteCheckbox` / State('resGroupInvite')) was checked —
+    // confirmed via generated_code, the row carried no `visible` binding at
+    // all. A guest could set a headcount with group-invite left OFF; that
+    // value is still sent as `groupSizeLabel` to `callCreateReservationWithStaff`
+    // regardless (see the submit chain below), so a leftover/accidental
+    // headcount selection could silently imply a group invite the guest
+    // never actually opted into. Also closes the disclosed bulk-invite
+    // auto-hide gap in the same reconstruction: `shouldShowGroupSizeFn`
+    // (declared above) additionally requires `isSingleCastId` so this row
+    // never shows at all when `castId` arrived as a bulk-invite CSV list.
+    // Fix: reconstruct the row wrapping the dropdown
+    // (findByName('ResGroupSizeDropdown')'s parent Row, Row_p7lrty4m —
+    // confirmed via the typed SDK, not the older frozen block's now-stale
+    // key) with a `visible:` bound to that function, same dropdown/options/
+    // binding as already live, unchanged. `patch.visible()` only accepts a
+    // literal bool (confirmed via `EditWidgetPatch.visible`'s signature) —
+    // no typed patch method exists for a DYNAMIC/state-bound visibility, so
+    // this needs the constructor-level `visible:` (which DOES accept a
+    // `DslExpression`, confirmed via `Row`'s own constructor +
+    // `_normalizeVisibility`), meaning a full reconstruction via
+    // `ensureReplaced`, not an in-place patch.
+    page.ensureReplaced(
+      page.findByKey('Row_p7lrty4m'),
+      Row(
+        name: 'ResGroupSizeRow',
+        visible: CustomFunction(
+          shouldShowGroupSizeFn,
+          args: {'castId': PageParam('castId'), 'groupInvite': State('resGroupInvite')},
+        ),
+        children: [
+          Column(
+            crossAxis: CrossAxis.start,
+            children: [
+              Text('グループお誘い希望人数', style: Styles.bodyMedium),
+              Dropdown(
+                name: 'ResGroupSizeDropdown',
+                hint: 'グループお誘い希望人数を選択してください',
+                options: const ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
+                value: State('resGroupSizeLabel'),
+                onChanged: SetState('resGroupSizeLabel', const WidgetValue()),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    // Bulk-invite auto-hide, other half: the "グループお誘い希望" checkbox
+    // itself (ResGroupInviteCheckbox) is meaningless once the guest already
+    // multi-selected named casts via FavoritesPage's bulk-invite flow —
+    // hide the whole row in that case. Same `isSingleCastId` reactive
+    // binding, same reconstruction approach as the row above (Checkbox's
+    // parent Row, Row_2xq8snzh, confirmed via the typed SDK).
+    page.ensureReplaced(
+      page.findByKey('Row_2xq8snzh'),
+      Row(
+        name: 'ResGroupInviteRow',
+        visible: CustomFunction(isSingleCastFn, args: {'castId': PageParam('castId')}),
+        children: [
+          Column(
+            crossAxis: CrossAxis.start,
+            children: [
+              Text('グループお誘い希望', style: Styles.bodyMedium),
+              Checkbox(
+                name: 'ResGroupInviteCheckbox',
+                value: State('resGroupInvite'),
+                onChanged: SetState('resGroupInvite', const WidgetValue()),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
 
     // 延長予定の有無 (DropDown_ne646169) stays deliberately UNWIRED — it has
@@ -5893,156 +6291,6 @@ return parts.length > 2 ? parts[2] : '';
     if (findPubDependency(project, name: 'geolocator') == null) {
       addPubDependency(project, name: 'geolocator', version: '^13.0.1');
     }
-  });
-
-  // `app.customAction(...)` compiles to `ensureCustomAction`, which is
-  // CREATE-IF-MISSING ONLY (confirmed via a real compile failure: "found
-  // an existing custom action ... with a different payload. `ensure*`
-  // helpers are create-if-missing only") — NOT create-or-update, contrary
-  // to this session's own earlier (wrong) assumption that it silently
-  // updated on content changes just because it had never errored before
-  // (it hadn't errored because the content had simply never changed
-  // between reruns until this exact fix). Switched to `updateCustomAction`
-  // inside `app.raw(...)`, the same established pattern already proven
-  // for `fetchMyReservations` earlier this session.
-  //
-  // MAJOR BUG FIX (2026-08-11, full-project review): this action used to
-  // query `users` DIRECTLY from the client. `firestore.rules`' own
-  // `users` rule is strictly owner-only (`allow read: if
-  // request.auth.uid == document`, confirmed by reading the rules file
-  // directly) — a query filtering on `account_type`/`approval_status`
-  // (matching MANY other users' documents, not the caller's own) is
-  // provably unsatisfiable by that rule, so Firestore denies the whole
-  // query outright at rule-evaluation time. The action's own try/catch
-  // silently swallowed this into an empty list, meaning the ENTIRE Home
-  // ranking query feature has shown zero casts to every user since it
-  // was built — a real, previously undiscovered defect, not a cosmetic
-  // one. Real fix: moved the query/filter/sort server-side into a new
-  // `getDiscoveryCasts` callable (Admin SDK bypasses Firestore rules,
-  // the same reason `getServiceAreas` exists) — this action now only
-  // resolves the guest's own coordinates (GPS or prefecture fallback,
-  // unchanged from before) and calls that callable.
-  app.raw((project) {
-    updateCustomAction(
-      project,
-      name: 'fetchDiscoveryCasts',
-      code: r'''
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:geolocator/geolocator.dart';
-import '/auth/firebase_auth/auth_util.dart';
-
-Future<List<String>> fetchDiscoveryCasts() async {
-  try {
-    final firestore = FirebaseFirestore.instance;
-    final uid = currentUserUid;
-    double? guestLat;
-    double? guestLng;
-
-    try {
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.always ||
-          permission == LocationPermission.whileInUse) {
-        final position = await Geolocator.getCurrentPosition(
-          timeLimit: const Duration(seconds: 5),
-        );
-        guestLat = position.latitude;
-        guestLng = position.longitude;
-      }
-    } catch (e) {
-      // GPS unavailable/denied/timed out — fall through to the
-      // prefecture-based fallback below.
-    }
-
-    if (guestLat == null || guestLng == null) {
-      // FIX (unimplemented-features pass, municipality/GPS task): this used
-      // to be a hardcoded static Dart table (10 prefecture centers,
-      // compiled into the app, not admin-editable) — replaced with a live
-      // lookup against `getServiceAreaCoordinates` (auth.ts), backed by the
-      // real admin-editable `system_config/settings.service_areas` data
-      // (ServiceAreaMunicipalitiesPage). Also now tries a MUNICIPALITY-
-      // level match first (more precise than the prefecture centroid) using
-      // the guest's own `city` field, before falling back to the
-      // prefecture's own representative point, before falling back to
-      // Tokyo — same 3-tier shape as before, just data-driven instead of
-      // compiled-in. Tokyo fallback is set FIRST and unconditionally, so
-      // any failure below (network, malformed data, no match) safely
-      // leaves it in place — same defensive shape as the rest of this
-      // action.
-      guestLat = 35.6895; // 東京駅
-      guestLng = 139.6917;
-      try {
-        var ownPrefecture = '';
-        var ownCity = '';
-        if (uid.isNotEmpty) {
-          final ownDoc = await firestore.collection('users').doc(uid).get();
-          // `prefecture`/`city` (required, all-users residential fields),
-          // NOT `activity_prefecture`/`activity_city` (optional, cast-only
-          // "where I work" fields) — a guest browsing Home would almost
-          // always have those empty, making the fallback silently fail for
-          // the primary user of this feature. Real bug, found on review,
-          // not present in the original design intent.
-          ownPrefecture = ownDoc.data()?['prefecture']?.toString() ?? '';
-          ownCity = ownDoc.data()?['city']?.toString() ?? '';
-        }
-        if (ownPrefecture.isNotEmpty) {
-          final coordCallable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
-              .httpsCallable('getServiceAreaCoordinates');
-          final coordResult = await coordCallable.call({});
-          if (coordResult.data is Map && coordResult.data['areas'] is List) {
-            for (final raw in coordResult.data['areas'] as List) {
-              final area = raw as Map;
-              final prefName = area['prefecture']?.toString() ?? '';
-              if (prefName.isEmpty || !ownPrefecture.contains(prefName)) continue;
-
-              var matched = false;
-              if (ownCity.isNotEmpty && area['municipalities'] is List) {
-                for (final rawM in area['municipalities'] as List) {
-                  final m = rawM as Map;
-                  final mName = m['name']?.toString() ?? '';
-                  final mLat = (m['lat'] as num?)?.toDouble();
-                  final mLng = (m['lng'] as num?)?.toDouble();
-                  if (mName.isNotEmpty && ownCity.contains(mName) && mLat != null && mLng != null) {
-                    guestLat = mLat;
-                    guestLng = mLng;
-                    matched = true;
-                    break;
-                  }
-                }
-              }
-              if (!matched) {
-                final pLat = (area['lat'] as num?)?.toDouble();
-                final pLng = (area['lng'] as num?)?.toDouble();
-                if (pLat != null && pLng != null) {
-                  guestLat = pLat;
-                  guestLng = pLng;
-                }
-              }
-              break;
-            }
-          }
-        }
-      } catch (e) {
-        // Leave guestLat/guestLng at the Tokyo fallback already set above.
-      }
-    }
-
-    final callable = FirebaseFunctions.instanceFor(region: 'asia-northeast1')
-        .httpsCallable('getDiscoveryCasts');
-    final result = await callable.call({'lat': guestLat, 'lng': guestLng});
-    if (result.data is Map && result.data['items'] is List) {
-      return (result.data['items'] as List).map((e) => e.toString()).toList();
-    }
-    return <String>[];
-  } catch (e) {
-    return <String>[];
-  }
-}
-''',
-    );
   });
 
   app.customFunction(
@@ -26305,6 +26553,91 @@ Future<bool> registerFcmToken() async {
             ),
           ],
         ),
+      ],
+    );
+  });
+
+  // Comprehensive review pass (2026-08-16): HomePage's "検索" AppBar icon
+  // (Column_h2wel92a) already opened SearchCastDialogComp natively (a
+  // ShowDialog wired at original-scaffold level, predating this
+  // workspace's own edit history — confirmed via generated_code's
+  // home_page_widget.dart showing an inline `await showDialog(...)`, not
+  // anything traceable in dsl/edit.dart itself). The dialog lets the guest
+  // type a keyword into FFAppState().searchCastKeyword, but nothing ever
+  // re-ran the discovery-cast fetch afterward — so typing a keyword and
+  // dismissing the dialog silently did nothing, the exact "button does
+  // nothing" class of bug this review pass was chartered to find.
+  //
+  // First attempt used the typed `ShowDialog.component(ff.Components.
+  // searchCastDialogComp)` — failed to compile: `ShowDialog.component`'s
+  // `component` field is statically typed `ComponentHandle` (the type
+  // returned by greenfield `app.component(...)`), not the
+  // `ProjectComponentHandle` subclass the typed brownfield SDK returns for
+  // EXISTING components (`ff.Components.*`). Confirmed by reading the SDK
+  // source directly (`actions.dart`'s `ShowDialog` class + `compiler.dart`'s
+  // `_compileComponentInstance`, which shows `ProjectComponentHandle` is
+  // only handled for component-as-widget placement, never for
+  // `ShowDialog`/`ShowBottomSheet`) — a real brownfield gap in this action,
+  // not a typo to iterate on. Replacement: the exact custom-action pattern
+  // already proven in this file for "native DSL action can't reach an
+  // existing widget" (see `confirmDialog` above) — a Dart custom action
+  // with `includeContext: true` that calls `showDialog` directly,
+  // importing the generated widget the same way generated_code itself does
+  // (`home_page_widget.dart`'s own import of
+  // `search_cast_dialog_comp_widget.dart`), replicating the exact Dialog
+  // shell FlutterFlow originally generated for this trigger so the visual
+  // result is unchanged.
+  app.customAction(
+    'openSearchCastDialog',
+    args: {},
+    returns: bool_,
+    includeContext: true,
+    description: 'キャスト検索ダイアログ（SearchCastDialogComp）を表示し、閉じるまで待機する。',
+    code: r'''
+import 'package:flutter/material.dart';
+import '/component/search_cast_dialog_comp/search_cast_dialog_comp_widget.dart';
+
+Future<bool> openSearchCastDialog(BuildContext context) async {
+  await showDialog(
+    context: context,
+    builder: (dialogContext) {
+      return Dialog(
+        elevation: 0,
+        insetPadding: EdgeInsets.zero,
+        backgroundColor: Colors.transparent,
+        alignment: AlignmentDirectional(0.0, -1.0)
+            .resolve(Directionality.of(context)),
+        child: GestureDetector(
+          onTap: () {
+            FocusScope.of(dialogContext).unfocus();
+            FocusManager.instance.primaryFocus?.unfocus();
+          },
+          child: Container(
+            height: 150.0,
+            width: 400.0,
+            child: SearchCastDialogCompWidget(),
+          ),
+        ),
+      );
+    },
+  );
+  return true;
+}
+''',
+  );
+
+  app.editPage(ff.Pages.homePage, (page) {
+    page.ensureActions(
+      page.findByKey('Column_h2wel92a'),
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named('openSearchCastDialog', outputAs: 'homeSearchDialogClosed'),
+        CallCustomAction.named(
+          'searchDiscoveryCasts',
+          arguments: {'keyword': AppState(ff.AppState.searchCastKeyword)},
+          outputAs: 'homeSearchDiscoveryCastsFetchResult',
+        ),
+        SetState('discoveryCasts', ActionOutput('homeSearchDiscoveryCastsFetchResult')),
       ],
     );
   });

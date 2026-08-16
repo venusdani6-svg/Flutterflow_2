@@ -430,8 +430,25 @@ service cloud.firestore {
     match /schedule_slots/{document} {
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.cast_id == request.auth.uid);
+      // FIX (comprehensive review): the `cast_id` FIELD check alone let any
+      // signed-in user create a document at another cast's own resolution
+      // ID (`{castId}_{slotStartMs}`, per schedule.ts's slotDocId()) while
+      // setting `cast_id` to their own uid - a doc-ID collision, not a
+      // field-value forgery. Every backend consumer that locks/checks
+      // availability (schedule.ts's findUnavailableCastId/
+      // buildReservationSlotRefs, stripe-webhooks.ts's
+      // handleAmountCapturableUpdated) resolves purely by that deterministic
+      // ID, never by querying the cast_id field - so a colliding doc
+      // permanently sabotaged the real cast's availability and could get a
+      // real reservation auto-cancelled, with no self-remediation possible
+      // for the victim (toggleScheduleSlot refuses to touch a "reserved"
+      // slot). Tying the document ID itself to the caller's own uid closes
+      // this: an attacker can no longer create anything at a path that
+      // resolves to another cast's slot, regardless of what they set the
+      // cast_id field to.
       allow create: if isSignedIn()
-        && request.resource.data.cast_id == request.auth.uid;
+        && request.resource.data.cast_id == request.auth.uid
+        && document.matches(request.auth.uid + '_[0-9]+');
       allow update, delete: if isAdmin()
         || (isSignedIn() && resource.data.cast_id == request.auth.uid);
     }

@@ -1197,6 +1197,94 @@ export const autoCompleteReviews = onSchedule("every 1 hours", async () => {
 });
 
 /**
+ * Scheduled: safety net for reservations stuck at `in_progress`
+ * (comprehensive review, confirmed bug). IMPLEMENTATION_PLAN.md §3.5's own
+ * state-machine table gives state 5 (完了報告待ち) TWO entry triggers —
+ * "Reservation end time reached, OR cast's completion report" — but only
+ * the second half was ever implemented (`reportCompletion`, cast-initiated
+ * only). Unlike every other stage of this pipeline (`request_pending`/
+ * `authorized` has `autoCancelExpiredAuth`; `review_pending`/
+ * `completion_pending` has `autoCompleteReviews` above), NOTHING ever swept
+ * `in_progress` — confirmed by grepping every write site for that status
+ * (`confirmMeetup`'s transition in, `reportCompletion`'s transition out —
+ * no third site). A cast who never taps "report completion" (forgets, app
+ * crash, bad-faith avoidance) left the reservation stuck here forever, with
+ * the guest's Stripe authorization hold eventually expiring unclaimed at
+ * Stripe's own ~7-day limit and zero platform recovery, alert, or admin
+ * visibility in the meantime.
+ *
+ * Triggers off the reservation's own scheduled end time (`date` +
+ * `duration_minutes`, which already reflects any confirmed extension —
+ * `createExtensionPayment` updates `duration_minutes` on the reservation at
+ * extension-creation time) plus a grace buffer, not a fixed stall duration
+ * off `updated_at` like the sibling sweeps — `in_progress` can legitimately
+ * be entered well before the booking's own end time (both sides confirming
+ * meetup early), so "how long has it sat here" alone isn't the right
+ * signal; "is the booking supposed to be over yet" is. `date`/
+ * `duration_minutes` combine into a computed value Firestore can't filter
+ * server-side, so this queries by status alone and filters in memory —
+ * matching this app's realistic in_progress volume at any one time.
+ *
+ * Does exactly what `reportCompletion` itself does (status ->
+ * `completion_pending`, best-effort inline Capture attempt) so a
+ * server-triggered completion is indistinguishable downstream from a
+ * cast-reported one — `autoCompleteReviews`'s own `completion_pending`
+ * sweep remains the retry safety net if the inline Capture here also fails.
+ */
+const IN_PROGRESS_GRACE_MS = 60 * 60 * 1000; // 1 hour past scheduled end
+
+export const autoCompleteStalledInProgress = onSchedule("every 1 hours", async () => {
+  const stuck = await db.collection("reservations").where("status", "==", "in_progress").get();
+
+  const now = Date.now();
+
+  for (const doc of stuck.docs) {
+    const resData = doc.data();
+    const scheduledStart: Date | null = resData.date?.toDate
+      ? resData.date.toDate()
+      : resData.date
+        ? new Date(resData.date)
+        : null;
+    const durationMinutes: number = resData.duration_minutes || 0;
+    if (!scheduledStart) {
+      console.error(`in_progress reservation ${doc.id} has no date — cannot evaluate for auto-completion.`);
+      continue;
+    }
+    const scheduledEndMs = scheduledStart.getTime() + durationMinutes * 60 * 1000;
+    if (now < scheduledEndMs + IN_PROGRESS_GRACE_MS) continue;
+
+    console.log(`Auto-completing stalled in_progress reservation: ${doc.id}`);
+
+    // Same transactional claim-before-write shape as reportCompletion — if
+    // the cast reports completion in the same window this sweep is running,
+    // only one of the two ever wins the transition.
+    const claimed = await db.runTransaction(async (tx) => {
+      const resRef = db.collection("reservations").doc(doc.id);
+      const freshSnap = await tx.get(resRef);
+      if (!freshSnap.exists || freshSnap.data()?.status !== "in_progress") {
+        return null;
+      }
+      tx.update(resRef, {
+        status: "completion_pending",
+        updated_at: Timestamp.now(),
+      });
+      return freshSnap.data()!;
+    });
+    if (!claimed) continue;
+
+    if (claimed.payment_intent_id) {
+      try {
+        await stripe.paymentIntents.capture(claimed.payment_intent_id);
+      } catch (err) {
+        console.error(`Auto-completion capture failed for ${doc.id}:`, err);
+      }
+    } else {
+      console.error(`Auto-completed reservation ${doc.id} has no payment_intent_id — cannot capture.`);
+    }
+  }
+});
+
+/**
  * Callable: Send a chat message (マッチャチャット送信)
  * Posting-lock (§3.5.8a) is enforced here via `chat_rooms.active`, which
  * `respondToReservation` sets true at room creation (§3.5.7's open trigger)

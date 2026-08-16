@@ -438,23 +438,26 @@ abstract final class ReservationFormWidgets {
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Row_2xq8snzh",
+                                key: "Row_vm4qd9yw",
                                 type: "Row",
                                 path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[9]",
+                                name: "ResGroupInviteRow",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Column_43zvhthe",
+                                    key: "Column_tan7pjzh",
                                     type: "Column",
                                     path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[9].children[0]",
+                                    name: "Column",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_flihzbid",
+                                        key: "Text_p0yjnw9t",
                                         type: "Text",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[9].children[0].children[0]",
+                                        name: "Text",
                                         text: "グループお誘い希望",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "Checkbox_jnunx8mc",
+                                        key: "Checkbox_6ruaw4kp",
                                         type: "Checkbox",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[9].children[0].children[1]",
                                         name: "ResGroupInviteCheckbox",
@@ -468,23 +471,26 @@ abstract final class ReservationFormWidgets {
                                 ],
                               ),
                               ffai.ProjectWidgetHandle(
-                                key: "Row_p7lrty4m",
+                                key: "Row_mloxl2ff",
                                 type: "Row",
                                 path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[10]",
+                                name: "ResGroupSizeRow",
                                 children: <ffai.ProjectWidgetHandle>[
                                   ffai.ProjectWidgetHandle(
-                                    key: "Column_9orrr0gj",
+                                    key: "Column_e2ksxj1f",
                                     type: "Column",
                                     path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[10].children[0]",
+                                    name: "Column",
                                     children: <ffai.ProjectWidgetHandle>[
                                       ffai.ProjectWidgetHandle(
-                                        key: "Text_35s37nym",
+                                        key: "Text_ojm8cjz1",
                                         type: "Text",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[10].children[0].children[0]",
+                                        name: "Text",
                                         text: "グループお誘い希望人数",
                                       ),
                                       ffai.ProjectWidgetHandle(
-                                        key: "DropDown_ptes0fmx",
+                                        key: "DropDown_e0findmf",
                                         type: "DropDown",
                                         path: "ReservationForm.body[0].children[0].children[2].children[0].children[0].children[10].children[0].children[1]",
                                         name: "ResGroupSizeDropdown",

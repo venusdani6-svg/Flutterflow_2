@@ -7,6 +7,28 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { db, stripe, FieldValue, Timestamp, getSystemConfig, STRIPE_API_VERSION } from "./config";
 import { reservedSlotsQuery, extensionSlotsQuery, findUnavailableCastId } from "./schedule";
 
+// FIX (comprehensive review, confirmed bug — PROJECT_KNOWLEDGE.md §42 first
+// disclosed this exact bug at this exact call site; a later pass, §55,
+// fixed every date-bucketing call site in affiliate.ts but never reached
+// here). `processAffiliateRewards`'s `month` field used naive
+// `new Date().getFullYear()`/`getMonth()` (server-instant UTC), not JST -
+// for any capture landing between 00:00-08:59 JST, the reward gets stamped
+// with the PRECEDING month. affiliate.ts's own forfeiture-scoping logic
+// compares this field against a JST-correct `leftMonthStr`/`frozenMonthStr`
+// (`affiliate.ts:179,200`), so a reward earned right at a month boundary
+// could silently escape the forfeiture rule it should be subject to, and
+// active-earner grouping (`affiliate.ts:82-83`) buckets it under the wrong
+// month too. Mirrors affiliate.ts's own `jstParts`/`monthStrFromDate`
+// helpers exactly (not imported, to keep this file self-contained, same
+// as admin.ts's own independent copy of the identical JST-shift pattern).
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+function jstMonthStr(date: Date): string {
+  const shifted = new Date(date.getTime() + JST_OFFSET_MS);
+  const year = shifted.getUTCFullYear();
+  const month = shifted.getUTCMonth() + 1;
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
 /**
  * Callable: Create PaymentIntent with manual capture (与信確保)
  * 予約時に与信を確保する
@@ -438,6 +460,15 @@ export async function recordCastRewardsAndProcessOthers(
       console.error(`Cast ${castId} has no Stripe account`);
       continue;
     }
+    // FIX (comprehensive review): see captureAuthorizedExtensions' matching
+    // comment above — frozen accounts already can't withdraw or receive
+    // affiliate rewards; Transfer-issuing functions like this one had no
+    // equivalent gate. Same skip-and-log pattern as the missing-account
+    // check just above.
+    if (castData.is_frozen) {
+      console.error(`Cast ${castId} is frozen, skipping reward transfer`);
+      continue;
+    }
     const castRate = castData.individual_rate || config.default_cast_rate;
     castRewards.set(castId, Math.floor(rewardBase * castRate));
   }
@@ -536,7 +567,9 @@ export async function recordCastRewardsAndProcessOthers(
     for (const staffId of resData.staff_ids) {
       const staffDoc = await db.collection("users").doc(staffId).get();
       const staffData = staffDoc.data();
-      if (!staffData?.stripe_account_id) continue;
+      // FIX (comprehensive review): same is_frozen gate as the cast-reward
+      // loop above — staff transfers had the identical gap.
+      if (!staffData?.stripe_account_id || staffData.is_frozen) continue;
 
       const perStaffFee =
         typeof staffFeeMap[staffId] === "number"
@@ -664,7 +697,14 @@ export async function captureAuthorizedExtensions(
     for (const castId of castIds) {
       const castDoc = await db.collection("users").doc(castId).get();
       const castData = castDoc.data();
-      if (!castData?.stripe_account_id) continue;
+      // FIX (comprehensive review): frozen accounts already can't WITHDRAW
+      // (requestPayout/adminApprovePayout both check is_frozen) and
+      // affiliate rewards already skip a frozen affiliator — but nothing
+      // gated the Transfer-issuing functions themselves, so a cast frozen
+      // mid-reservation still received real stripe.transfers.create() calls
+      // into their Connect balance. Same skip-and-log pattern already used
+      // for a missing stripe_account_id, applied consistently here.
+      if (!castData?.stripe_account_id || castData.is_frozen) continue;
 
       const castRate = castData.individual_rate || config.default_cast_rate;
       const castReward = Math.floor(extAmount * castRate);
@@ -814,6 +854,17 @@ export async function transferPendingCastRewards(resId: string): Promise<void> {
       await entryDoc.ref.update({ status: "pending" });
       continue;
     }
+    // FIX (comprehensive review): same is_frozen gate as
+    // recordCastRewardsAndProcessOthers/captureAuthorizedExtensions — this
+    // entry could have been created (status "pending") before the cast was
+    // frozen, then only reach this transfer step after. Same
+    // revert-to-pending pattern as the missing-account case, so it's picked
+    // up automatically once unfrozen rather than lost or force-paid.
+    if (castData.is_frozen) {
+      console.error(`Cast ${castId} is frozen (deferred transfer, res ${resId})`);
+      await entryDoc.ref.update({ status: "pending" });
+      continue;
+    }
 
     try {
       // FIX (comprehensive project-wide review round 2): no idempotencyKey
@@ -931,6 +982,16 @@ export const retryFailedCastTransfers = onSchedule("every 1 hours", async () => 
       await entryDoc.ref.update({ status: "retrying" });
       continue;
     }
+    // FIX (comprehensive review): same is_frozen gate as the other
+    // Transfer-issuing functions — a cast could be frozen between the
+    // original attempt and this retry sweep. Same
+    // revert-to-"retrying"-and-skip pattern as the missing-account case, so
+    // this keeps getting swept hourly rather than being force-paid or lost.
+    if (castData.is_frozen) {
+      console.error(`Cast ${castId} is frozen (retry, res ${resId})`);
+      await entryDoc.ref.update({ status: "retrying" });
+      continue;
+    }
 
     try {
       // Same idempotencyKey basis as the original attempt (entryDoc.id is
@@ -1023,8 +1084,7 @@ async function processAffiliateRewards(
 
       if (rewardAmount <= 0) continue;
 
-      const now = new Date();
-      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const month = jstMonthStr(new Date());
 
       await db.collection("affiliate_rewards").add({
         affiliator_uid: castData.referred_by_uid,
@@ -1126,7 +1186,10 @@ async function recordCancellationCastRewards(
   const payableCastIds: string[] = [];
   for (const castId of castIds) {
     const castDoc = await db.collection("users").doc(castId).get();
-    if (castDoc.data()?.stripe_account_id) payableCastIds.push(castId);
+    const castData = castDoc.data();
+    // FIX (comprehensive review): same is_frozen gate as
+    // recordCastRewardsAndProcessOthers/captureAuthorizedExtensions.
+    if (castData?.stripe_account_id && !castData.is_frozen) payableCastIds.push(castId);
   }
   const actualCastRewardDistributed = rewardShareEach * payableCastIds.length;
   const sharedPlatformProfit = chargedAmount - actualCastRewardDistributed - stripeFee;
@@ -1342,9 +1405,21 @@ export const cancelPayment = onCall(async (request) => {
       const scheduledStart: Date = resData.date?.toDate ? resData.date.toDate() : new Date(resData.date);
       const hoursUntilStart = (scheduledStart.getTime() - Date.now()) / (1000 * 60 * 60);
       const castHasArrived = arrivedStatuses.includes(resData.status);
+      // FIX (comprehensive review, confirmed bug): the cancellation fee
+      // matrix (100%/25%-cast at arrival or <1h notice, 50%/0%-cast
+      // otherwise) is meant to compensate a cast who committed to a booking
+      // the guest is backing out of - but the matrix applied unconditionally
+      // even while the reservation is still `request_pending`/`authorized`/
+      // `cast_pending`, i.e. before ANY cast has accepted the request. A
+      // guest cancelling seconds after submitting, before a cast has even
+      // seen it, was charged 50% of total_amount for nothing. No cast has
+      // committed to anything yet in these 3 statuses (respondToReservation
+      // is the only thing that ever moves a reservation out of them, to
+      // "confirmed") - cancelling here is always free.
+      const noCastYetCommitted = ["request_pending", "authorized", "cast_pending"].includes(resData.status);
 
-      const guestChargePercent = castHasArrived || hoursUntilStart < 1 ? 1.0 : 0.5;
-      const castRewardPercent = castHasArrived || hoursUntilStart < 1 ? 0.25 : 0;
+      const guestChargePercent = noCastYetCommitted ? 0 : castHasArrived || hoursUntilStart < 1 ? 1.0 : 0.5;
+      const castRewardPercent = noCastYetCommitted ? 0 : castHasArrived || hoursUntilStart < 1 ? 0.25 : 0;
       const chargedAmount = Math.round(resData.total_amount * guestChargePercent);
 
       if (chargedAmount > 0) {
@@ -1380,50 +1455,24 @@ export const cancelPayment = onCall(async (request) => {
       await stripe.paymentIntents.cancel(resData.payment_intent_id);
     }
 
-    if (cancelledBy === "cast" && hasPaymentIntent) {
-      // Same `hasPaymentIntent` guard as above — a reservation with no
-      // PaymentIntent was never actually charged by Stripe, so there's no
-      // real Stripe fee to pass on to the cast as debt.
-      //
-      // FIX (confirmed live bug, found during audit): the Stripe processing
-      // fee belongs to the ONE shared PaymentIntent on this reservation, not
-      // to each cast individually — but this used to add the FULL
-      // `stripeFeeEstimate` to EVERY cast's `logical_debt` independently
-      // inside the loop below. On a multi-cast reservation, N casts were
-      // each debited the entire fee, so the platform recouped N× the real
-      // Stripe fee in aggregate instead of splitting the one real cost
-      // across them. Split evenly across the casts actually on this
-      // reservation, matching the same equal-split pattern already used for
-      // shared costs elsewhere in this file (`perStaffFee`,
-      // `castTransportShareEach`, `rewardShareEach`).
-      const castIdsForCancelDebt: string[] = resData.cast_ids || [];
-      const stripeFeeEstimate = Math.ceil(resData.total_amount * 0.036);
-      const perCastStripeFee =
-        castIdsForCancelDebt.length > 0
-          ? Math.floor(stripeFeeEstimate / castIdsForCancelDebt.length)
-          : 0;
-
-      for (const castId of castIdsForCancelDebt) {
-        await db.runTransaction(async (tx) => {
-          const castRef = db.collection("users").doc(castId);
-          const castDoc = await tx.get(castRef);
-          const currentDebt = castDoc.data()?.logical_debt || 0;
-
-          tx.update(castRef, {
-            logical_debt: currentDebt + perCastStripeFee,
-            updated_at: Timestamp.now(),
-          });
-        });
-
-        await db.collection("debt_history").add({
-          user_id: castId,
-          amount: perCastStripeFee,
-          reason: "キャスト都合キャンセルによる決済手数料負担",
-          res_id,
-          created_at: Timestamp.now(),
-        });
-      }
-    }
+    // FIX (comprehensive review, confirmed bug): this used to charge every
+    // cast on a cast-caused cancellation a "Stripe processing fee" debt
+    // (~3.6% of total_amount, split across cast_ids) — but that fee never
+    // actually occurred. The ONLY Stripe call in this branch is
+    // `stripe.paymentIntents.cancel(...)` two blocks above (the "cast- or
+    // admin-caused: full release/refund" branch) — `.cancel()` only
+    // succeeds on a PaymentIntent that has NOT yet been captured, and Stripe
+    // charges no processing fee on an authorization that's released without
+    // ever being captured. `cancelPayment`'s only path to a genuinely
+    // captured PI reaching this function is blocked earlier (the
+    // "completed"/"cancelled"/"expired" guard at the top only excludes
+    // fully-terminal states; a captured-but-not-yet-terminal reservation
+    // hitting `.cancel()` on an already-captured PI throws inside the
+    // surrounding try/catch, and this code — sequentially after the
+    // `.cancel()` call — never runs). So every time this block previously
+    // executed, the debt it added was for a fee that provably never
+    // happened. Removed entirely rather than "fixed" to compute a real
+    // fee — there is no real Stripe fee to attribute in this branch at all.
 
     // FIX (PROJECT_KNOWLEDGE.md §68): this used to query the ENTIRE
     // schedule_slots collection for status=="reserved" with no res_id/date
@@ -1845,6 +1894,14 @@ export const processTip = onCall(async (request) => {
 
   if (!castDoc.exists || !castDoc.data()?.stripe_account_id) {
     throw new HttpsError("not-found", "キャストが見つかりません。");
+  }
+  // FIX (comprehensive review): same is_frozen gate as the background
+  // reward-transfer functions — unlike those, a tip is a real-time,
+  // guest-initiated charge, so the right behavior is to reject BEFORE the
+  // guest's card is charged (below), not charge them and silently hold or
+  // lose the money.
+  if (castDoc.data()?.is_frozen) {
+    throw new HttpsError("failed-precondition", "このキャストは現在チップを受け取れません。");
   }
 
   try {
