@@ -25166,4 +25166,308 @@ Future<bool> registerFcmToken() async {
       ],
     );
   });
+
+  // ==========================================================================
+  // Confirm-before-action pass, Tier 2 batch B. Same discipline as before:
+  // exact existing chains, gated behind the shared `confirmDialog` action.
+  // All 7 targets confirmed flat page-level buttons. `BlockList`'s
+  // ブロック解除 deliberately NOT included here — itemBuilder-scoped (per-row
+  // in a blocked-users ListView), same deferred risk category as
+  // `KycReviewPage`'s approve/reject.
+  // ==========================================================================
+
+  app.editPage(ff.Pages.reservationForm, (page) {
+    page.ensureActions(
+      page.findByKey('Button_hzb6mzvi'), // リクエストを送信する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'checkReservationFieldsComplete',
+          arguments: {
+            'date': State('resDate'),
+            'meetingAddress': State('resMeetingAddress'),
+            'meetingPoint': State('resMeetingPoint'),
+            'baseAmount': State('resBaseAmount'),
+          },
+          outputAs: 'resFieldsCompleteResult',
+        ),
+        If(
+          ActionOutput('resFieldsCompleteResult'),
+          then: [
+            CallCustomAction.named(
+              'confirmDialog',
+              arguments: {
+                'title': 'リクエストを送信しますか？',
+                'message': 'この内容でキャストにリクエストを送信します。よろしいですか？',
+                'confirmText': 'はい',
+                'dismissText': 'いいえ',
+              },
+              outputAs: 'reservationSubmitConfirmed',
+            ),
+            If(
+              ActionOutput('reservationSubmitConfirmed'),
+              then: [
+                CallCustomAction.named(
+                  'callCreateReservationWithStaff',
+                  arguments: {
+                    'castId': PageParam('castId'),
+                    'date': State('resDate'),
+                    'startTime': State('resStartTime'),
+                    'timeSlot': State('resTimeSlot'),
+                    'durationLabel': State('resDurationLabel'),
+                    'meetingAddress': State('resMeetingAddress'),
+                    'meetingPoint': State('resMeetingPoint'),
+                    'groupInvite': State('resGroupInvite'),
+                    'groupSizeLabel': State('resGroupSizeLabel'),
+                    'purpose': State('resPurpose'),
+                    'details': State('resDetails'),
+                    'baseAmount': State('resBaseAmount'),
+                    'needsSecurity': State('resNeedsSecurity'),
+                    'needsTransport': State('resNeedsTransport'),
+                  },
+                  outputAs: 'createReservationResult',
+                ),
+                CallCustomAction.named(
+                  'isNonEmptyString',
+                  arguments: {'value': ActionOutput('createReservationResult')},
+                  outputAs: 'createReservationSucceeded',
+                ),
+                If(
+                  ActionOutput('createReservationSucceeded'),
+                  then: [
+                    Navigate(
+                      ff.Pages.paymentConfirm,
+                      replaceRoute: true,
+                      params: {'resId': ActionOutput('createReservationResult')},
+                    ),
+                  ],
+                  orElse: [Snackbar('リクエストの送信に失敗しました。もう一度お試しください。')],
+                ),
+              ],
+            ),
+          ],
+          orElse: [Snackbar('必須項目（日付・行先住所・待ち合わせ場所・金額）を入力してください。')],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.reservationDetail, (page) {
+    page.ensureActions(
+      page.findByKey('Button_ejb4ehm1'), // お誘いを承認する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'お誘いを承認しますか？',
+            'message': 'このお誘いを承認します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'approveConfirmed',
+        ),
+        If(
+          ActionOutput('approveConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callRespondToReservation',
+              arguments: {'resId': PageParam('resId'), 'accept': true},
+              outputAs: 'respondResult',
+            ),
+            If(
+              ActionOutput('respondResult'),
+              then: [
+                CallCustomAction.named(
+                  'fetchRespondOutcomeMessage',
+                  arguments: {'resId': PageParam('resId'), 'accept': true},
+                  outputAs: 'outcomeMessage',
+                ),
+                Snackbar(ActionOutput('outcomeMessage')),
+                NavigateBack(),
+              ],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Button_vokkqeru'), // お誘いを断る
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'お誘いを断りますか？',
+            'message': 'このお誘いを断ります。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'declineConfirmed',
+        ),
+        If(
+          ActionOutput('declineConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callRespondToReservation',
+              arguments: {'resId': PageParam('resId'), 'accept': false},
+              outputAs: 'declineResult',
+            ),
+            If(
+              ActionOutput('declineResult'),
+              then: [
+                CallCustomAction.named(
+                  'fetchRespondOutcomeMessage',
+                  arguments: {'resId': PageParam('resId'), 'accept': false},
+                  outputAs: 'declineOutcomeMessage',
+                ),
+                Snackbar(ActionOutput('declineOutcomeMessage')),
+                NavigateBack(),
+              ],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Button_bubagexh'), // 合流報告
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '合流を報告しますか？',
+            'message': '合流したことを報告します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'meetupConfirmed',
+        ),
+        If(
+          ActionOutput('meetupConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callConfirmMeetup',
+              arguments: {'resId': PageParam('resId')},
+              outputAs: 'meetupResult',
+            ),
+            If(
+              ActionOutput('meetupResult'),
+              then: [Snackbar('合流確認を送信しました。'), NavigateBack()],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Button_6ccmgnme'), // 完了報告
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '完了を報告しますか？',
+            'message': '交流が完了したことを報告します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'completionConfirmed',
+        ),
+        If(
+          ActionOutput('completionConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callReportCompletion',
+              arguments: {'resId': PageParam('resId')},
+              outputAs: 'completionResult',
+            ),
+            If(
+              ActionOutput('completionResult'),
+              then: [Snackbar('完了報告を送信しました。'), NavigateBack()],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+    page.ensureActions(
+      page.findByKey('Button_k3pfm5ry'), // 評価する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '評価を送信しますか？',
+            'message': 'この内容で評価を送信します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'reviewSubmitConfirmed',
+        ),
+        If(
+          ActionOutput('reviewSubmitConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callSubmitReview',
+              arguments: {
+                'resId': PageParam('resId'),
+                'castId': PageParam('castId'),
+                'rating': State('reviewRating'),
+                'comment': State('reviewComment'),
+              },
+              outputAs: 'reviewResult',
+            ),
+            If(
+              ActionOutput('reviewResult'),
+              then: [Snackbar('評価を送信しました。'), NavigateBack()],
+              orElse: [Snackbar('処理に失敗しました。もう一度お試しください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.notificationCenterPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_2ot1nhow'), // 配信する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'お知らせを配信しますか？',
+            'message': 'この内容でお知らせを配信します。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'notifSendConfirmed',
+        ),
+        If(
+          ActionOutput('notifSendConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminSendNotification',
+              arguments: {
+                'category': CustomFunction(notifCategoryLabelToKeyFn, args: {'label': State(ff.Pages.notificationCenterPage.state.notifCategoryLabel)}),
+                'title': State(ff.Pages.notificationCenterPage.state.notifTitle),
+                'body': State(ff.Pages.notificationCenterPage.state.notifBody),
+                'target': CustomFunction(notifTargetLabelToKeyFn, args: {'label': State(ff.Pages.notificationCenterPage.state.notifTargetLabel)}),
+              },
+              outputAs: 'sendNotifResult',
+            ),
+            SetState(ff.Pages.notificationCenterPage.state.notifSendResult, ActionOutput('sendNotifResult')),
+            If(
+              Not(Equals(ActionOutput('sendNotifResult'), '')),
+              then: [Snackbar('配信しました。')],
+              orElse: [Snackbar('配信に失敗しました。タイトル・本文を確認してください。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
 }
