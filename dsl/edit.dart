@@ -24856,4 +24856,314 @@ Future<bool> registerFcmToken() async {
       ],
     );
   });
+
+  // ==========================================================================
+  // Confirm-before-action pass, Tier 2 batch A. Same discipline as Tier 1:
+  // each block reproduces the EXACT existing chain (verified against
+  // generated_code) gated behind the shared `confirmDialog` action. All 6
+  // targets here are flat page-level buttons (confirmed not itemBuilder-
+  // scoped — single-instance `_model.*` state fields, not item-indexed).
+  // `KycReviewPage`'s 承認する/却下する deliberately NOT included here — both
+  // are itemBuilder-scoped (per-row, inside a pending-KYC ListView) sharing
+  // a refetch action, the same shape that made WithdrawalQueuePage/
+  // ReservationOversightPage genuinely blocked; deferred rather than risking
+  // a third instance of that documented failure without a concretely
+  // different technique to try.
+  // ==========================================================================
+
+  app.editPage(ff.Pages.accountDeletionMonitorPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_391ngxre'), // 強制退会（ブロックを無視）
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': '本当に強制退会させますか？',
+            'message': 'ブロック理由の有無に関わらず、このユーザーを強制的に退会させます。この操作は取り消せません。',
+            'confirmText': '強制退会する',
+            'dismissText': 'キャンセル',
+          },
+          outputAs: 'forceDeleteOverrideConfirmed',
+        ),
+        If(
+          ActionOutput('forceDeleteOverrideConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminForceDeleteUser',
+              arguments: {'userId': PageParam('userId')},
+              outputAs: 'forceDeleteOverrideResult',
+            ),
+            If(
+              ActionOutput('forceDeleteOverrideResult'),
+              then: [
+                Snackbar('強制退会を実行しました。'),
+                Navigate(ff.Pages.userManagementPage, replaceRoute: true),
+              ],
+              orElse: [Snackbar('強制退会に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.systemConfigPage, (page) {
+    page.ensureActions(
+      page.findByKey('Button_acylnlu7'), // 保存する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'システム設定を保存しますか？',
+            'message': 'この変更はアプリ全体に適用されます。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'sysConfigSaveConfirmed',
+        ),
+        If(
+          ActionOutput('sysConfigSaveConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callAdminUpdateSystemConfigConstants',
+              arguments: {
+                'taxRate': State('sysConfigTaxRate'),
+                'chatCloseSec': State('sysConfigChatCloseSec'),
+                'transportFeeThresholdSec': State('sysConfigTransportFeeThresholdSec'),
+                'transportFeeAmount': State('sysConfigTransportFeeAmount'),
+                'extensionLimitCount': State('sysConfigExtensionLimitCount'),
+                'maxTotalHours': State('sysConfigMaxTotalHours'),
+                'defaultCastRate': State('sysConfigDefaultCastRate'),
+                'securityStaffFee': State('sysConfigSecurityStaffFee'),
+                'transportStaffFee': State('sysConfigTransportStaffFee'),
+                'defaultAffiliateRate': State('sysConfigDefaultAffiliateRate'),
+                'affiliateMinDays': State('sysConfigAffiliateMinDays'),
+                'affiliatePaymentDay': State('sysConfigAffiliatePaymentDay'),
+              },
+              outputAs: 'saveSysConfigResult',
+            ),
+            CallCustomAction.named('fetchAdminSystemConfigConstants', outputAs: 'sysConfigRefetchResult'),
+            SetState('sysConfigCurrent', ActionOutput('sysConfigRefetchResult')),
+            If(
+              ActionOutput('saveSysConfigResult'),
+              then: [Snackbar('設定を更新しました。')],
+              orElse: [Snackbar('変更がないか、更新に失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.connectOnboarding, (page) {
+    page.ensureActions(
+      page.findByKey('Button_bdl4j0ew'), // 登録する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        If(
+          State('tosAgreed'),
+          then: [
+            CallCustomAction.named(
+              'checkConnectFieldsComplete',
+              arguments: {
+                'lastName': State('lastName'),
+                'firstName': State('firstName'),
+                'lastNameKana': State('lastNameKana'),
+                'firstNameKana': State('firstNameKana'),
+                'phone': State('phone'),
+                'dob': State('dob'),
+                'postalCode': State('postalCode'),
+                'prefecture': State('prefecture'),
+                'city': State('city'),
+                'addressLine1': State('addressLine1'),
+                'bankHolderName': State('bankHolderName'),
+                'bankCode': State('bankCode'),
+                'branchCode': State('branchCode'),
+                'bankAccountNumber': State('bankAccountNumber'),
+              },
+              outputAs: 'connectFieldsCompleteResult',
+            ),
+            If(
+              ActionOutput('connectFieldsCompleteResult'),
+              then: [
+                CallCustomAction.named(
+                  'confirmDialog',
+                  arguments: {
+                    'title': '口座情報を登録しますか？',
+                    'message': '入力内容でStripe口座連携を申請します。よろしいですか？',
+                    'confirmText': 'はい',
+                    'dismissText': 'いいえ',
+                  },
+                  outputAs: 'connectSubmitConfirmed',
+                ),
+                If(
+                  ActionOutput('connectSubmitConfirmed'),
+                  then: [
+                    CallCustomAction.named(
+                      'callSubmitConnectOnboarding',
+                      arguments: {
+                        'lastName': State('lastName'),
+                        'firstName': State('firstName'),
+                        'lastNameKana': State('lastNameKana'),
+                        'firstNameKana': State('firstNameKana'),
+                        'phone': State('phone'),
+                        'dob': State('dob'),
+                        'postalCode': State('postalCode'),
+                        'prefecture': State('prefecture'),
+                        'city': State('city'),
+                        'addressLine1': State('addressLine1'),
+                        'bankHolderName': State('bankHolderName'),
+                        'bankCode': State('bankCode'),
+                        'branchCode': State('branchCode'),
+                        'bankAccountNumber': State('bankAccountNumber'),
+                      },
+                      outputAs: 'submitConnectResult',
+                    ),
+                    If(
+                      ActionOutput('submitConnectResult'),
+                      then: [Navigate(ff.Pages.reviewPending, replaceRoute: true)],
+                      orElse: [Snackbar('登録に失敗しました。入力内容をご確認のうえ、もう一度お試しください。')],
+                    ),
+                  ],
+                ),
+              ],
+              orElse: [Snackbar('すべての項目を入力してください。')],
+            ),
+          ],
+          orElse: [Snackbar('利用規約への同意が必要です。')],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.kyc, (page) {
+    page.ensureActions(
+      page.findByKey('Button_zarp9j5y'), // 提出する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'checkKycFieldsComplete',
+          arguments: {
+            'docUrl': State('kycDocUrl'),
+            'selfieUrl': State('kycSelfieUrl'),
+          },
+          outputAs: 'kycFieldsCompleteResult',
+        ),
+        If(
+          ActionOutput('kycFieldsCompleteResult'),
+          then: [
+            CallCustomAction.named(
+              'confirmDialog',
+              arguments: {
+                'title': '本人確認書類を提出しますか？',
+                'message': 'アップロードした書類・顔写真で本人確認を申請します。よろしいですか？',
+                'confirmText': 'はい',
+                'dismissText': 'いいえ',
+              },
+              outputAs: 'kycSubmitConfirmed',
+            ),
+            If(
+              ActionOutput('kycSubmitConfirmed'),
+              then: [
+                CallCustomAction.named(
+                  'callSubmitKyc',
+                  arguments: {
+                    'docUrl': State('kycDocUrl'),
+                    'selfieUrl': State('kycSelfieUrl'),
+                  },
+                  outputAs: 'submitKycResult',
+                ),
+                If(
+                  ActionOutput('submitKycResult'),
+                  then: [Navigate(ff.Pages.reviewPending, replaceRoute: true)],
+                  orElse: [Snackbar('提出に失敗しました。もう一度お試しください。')],
+                ),
+              ],
+            ),
+          ],
+          orElse: [Snackbar('本人確認書類と顔写真の両方をアップロードしてください。')],
+        ),
+      ],
+    );
+  });
+
+  app.editPage(ff.Pages.castProfile, (page) {
+    page.ensureActions(
+      page.findByKey('Button_835bgi31'), // 通報する
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        If(
+          Not(Equals(State('reportReason'), '')),
+          then: [
+            CallCustomAction.named(
+              'confirmDialog',
+              arguments: {
+                'title': '通報しますか？',
+                'message': '入力した理由でこのユーザーを通報します。よろしいですか？',
+                'confirmText': 'はい',
+                'dismissText': 'いいえ',
+              },
+              outputAs: 'reportConfirmed',
+            ),
+            If(
+              ActionOutput('reportConfirmed'),
+              then: [
+                CallCustomAction.named(
+                  'callReportUser',
+                  arguments: {
+                    'reportedId': PageParam('castId'),
+                    'reason': State('reportReason'),
+                  },
+                  outputAs: 'reportResult',
+                ),
+                If(
+                  ActionOutput('reportResult'),
+                  then: [
+                    SetState('reportReason', ''),
+                    Snackbar('通報を受け付けました。'),
+                  ],
+                  orElse: [Snackbar('通報に失敗しました。')],
+                ),
+              ],
+            ),
+          ],
+          orElse: [Snackbar('通報理由を入力してください。')],
+        ),
+      ],
+    );
+
+    page.ensureActions(
+      page.findByKey('Button_ys84165u'), // ブロックする
+      triggerType: FFActionTriggerType.ON_TAP,
+      actions: [
+        CallCustomAction.named(
+          'confirmDialog',
+          arguments: {
+            'title': 'ブロックしますか？',
+            'message': 'このユーザーをブロックします。よろしいですか？',
+            'confirmText': 'はい',
+            'dismissText': 'いいえ',
+          },
+          outputAs: 'blockConfirmed',
+        ),
+        If(
+          ActionOutput('blockConfirmed'),
+          then: [
+            CallCustomAction.named(
+              'callBlockUser',
+              arguments: {'targetUid': PageParam('castId')},
+              outputAs: 'blockResult',
+            ),
+            If(
+              ActionOutput('blockResult'),
+              then: [Snackbar('ブロックしました。'), NavigateBack()],
+              orElse: [Snackbar('ブロックに失敗しました。')],
+            ),
+          ],
+        ),
+      ],
+    );
+  });
 }
