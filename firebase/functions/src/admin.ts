@@ -2658,7 +2658,26 @@ export const adminSendNotification = onCall(async (request) => {
   // own 500-token-per-call cap. Best-effort per chunk - one chunk failing
   // must not abort the notification send this function has already
   // committed to Firestore.
+  //
+  // FIX (feature build, notification implementation follow-up): this is a
+  // SECOND, architecturally separate push-dispatch path from
+  // `sendPushNotification` (config.ts) - it never calls that helper, so
+  // the `notify_*` preference enforcement added there (PROJECT_KNOWLEDGE.md
+  // §126) structurally could not reach this one. Confirmed real, not
+  // theoretical: an admin broadcasting to "all users" in any of the 5
+  // categories previously pushed to every device regardless of that
+  // user's own toggle - the ONE push path §126 didn't (and couldn't)
+  // cover. `category` is already validated above to be exactly one of the
+  // 5 `notify_*` suffixes, so no lookup table is needed here (unlike
+  // `sendPushNotification`'s `type`, which isn't always one of the 5).
+  // Same "explicit false skips, everything else sends" default as §126,
+  // for the same reason (mirrors `fetchNotificationPreferences`'s own
+  // default) - filters `docs` (not the in-app write above, which stays
+  // unconditional per that same established design: muting a category
+  // only skips the push nudge, never hides the in-app record).
+  const notifyField = `notify_${category}`;
   const tokens = docs
+    .filter((d) => d.data()[notifyField] !== false)
     .map((d) => d.data().fcm_token)
     .filter((t): t is string => typeof t === "string" && t.length > 0);
   const PUSH_CHUNK_SIZE = 500; // FCM sendEachForMulticast cap.
